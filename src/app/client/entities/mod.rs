@@ -13,9 +13,14 @@ pub struct Entity {
 
     pub entity_type: i32,
 
+    pub data: i32,
+
     pub pos: Position,
     pub vel: Velocity,
     pub ori: Orientation,
+    pub ori_head: Orientation,
+
+    pub on_ground: bool,
 
 }
 
@@ -28,10 +33,14 @@ impl Entity {
             uuid: UUID([0, 0]),
 
             entity_type: 0,
+            data: 0,
 
             pos: Position::new(),
             vel: Velocity::new(),
             ori: Orientation::new(),
+            ori_head: Orientation::new(),
+
+            on_ground: true,
         }
     }
 
@@ -39,6 +48,7 @@ impl Entity {
         id: i32, 
         uuid: UUID, 
         entity_type: i32, 
+        data: i32,
         px: f64, py: f64, pz: f64, 
         yaw: f64, pitch: f64, head_pitch: f64,
         vx: f64, vy: f64, vz: f64) -> Entity {
@@ -46,9 +56,12 @@ impl Entity {
                 id,
                 uuid,
                 entity_type,
+                data,
                 pos: Position::new_with_values(px, py, pz),
                 vel: Velocity::new_with_values(vx, vy, vz),
-                ori: Orientation::new_with_values(yaw, pitch, head_pitch),
+                ori: Orientation::new_with_values(yaw, pitch),
+                ori_head: Orientation::new_with_values(0.0, head_pitch),
+                on_ground: true,
             }
     }
 

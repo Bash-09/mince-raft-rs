@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use glium::{Display, Frame};
 use imgui::{Context};
 use imgui_glium_renderer::Renderer;
@@ -33,8 +35,7 @@ pub struct Gui {
 impl Gui {
 
     pub fn new(imgui: Context, rend: Renderer) -> Gui {
-
-        let mut gui = Gui {
+        Gui {
             imgui,
             rend,
 
@@ -42,9 +43,7 @@ impl Gui {
             chat: ChatWindow::new(),
             debug: DebugWindow::new(),
             ents: EntitiesWindow::new(),
-        };
-
-        gui
+        }
     }
 
     pub fn get_ui(&mut self) -> Ui {
@@ -83,7 +82,7 @@ impl Gui {
 
 
 
-
+    #[allow(unused_variables)]
     pub fn update(&mut self, delta: f32, mouse: &Mouse, keyboard: &Keyboard) {
         self.imgui.io_mut().delta_time = delta;
 

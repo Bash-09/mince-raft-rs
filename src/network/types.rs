@@ -40,7 +40,7 @@ pub struct Slot(); // TODO
 #[derive(Debug, Clone)]
 pub struct NBTTag(); // TODO
 #[derive(Debug, Clone)]
-pub struct Position(i32, i32, i32); // TODO
+pub struct Position(pub i32, pub i32, pub i32); // TODO
 pub type Angle = UByte;
 #[derive(Debug, Clone)]
 pub struct UUID(pub [u64; 2]);
@@ -241,7 +241,6 @@ impl VarInt {
             size += 1;
             if size > 5 {
                 panic!("VarInt too big!");
-                return Ok(None);
             }
             if (byte[0] & 0x80) == 0 {
                 break;

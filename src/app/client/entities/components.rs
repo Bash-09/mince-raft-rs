@@ -108,7 +108,6 @@ pub struct Orientation {
 
     yaw: f64,
     pitch: f64,
-    head_pitch: f64,
 
 }
 
@@ -118,18 +117,16 @@ impl Orientation {
         Orientation {
             yaw: 0.0,
             pitch: 0.0,
-            head_pitch: 0.0,
         }
     }
 
-    pub fn new_with_values(yaw: f64, pitch: f64, head_pitch: f64) -> Orientation {
-        Orientation {yaw, pitch, head_pitch}
+    pub fn new_with_values(yaw: f64, pitch: f64) -> Orientation {
+        Orientation {yaw, pitch}
     }
 
-    pub fn set(&mut self, yaw: f64, pitch: f64, head_pitch: f64) {
+    pub fn set(&mut self, yaw: f64, pitch: f64) {
         self.yaw = yaw;
         self.pitch = pitch;
-        self.head_pitch = head_pitch;
     }
 
     pub fn set_look_by_vector(&mut self, x: f64, y: f64, z: f64) {
@@ -141,16 +138,12 @@ impl Orientation {
         self.pitch = pitch;
     }
 
-    pub fn rotate(&mut self, yaw: f64, pitch: f64, head_pitch: f64) {
+    pub fn rotate(&mut self, yaw: f64, pitch: f64) {
         self.yaw += yaw;
         self.yaw %= 360.0;
 
         self.pitch += pitch;
         self.pitch %= 360.0;
-
-        self.head_pitch += head_pitch;
-        if self.head_pitch < -90.0 {self.head_pitch = -90.0;}
-        if self.head_pitch > 90.0 {self.head_pitch = 90.0;}
 
     }
 
@@ -164,13 +157,18 @@ impl Orientation {
     }
 
     pub fn get_head_pitch(&self) -> f64 {
-        self.head_pitch
+        let mut head_pitch = self.pitch;
+        head_pitch += head_pitch;
+        if head_pitch < -90.0 {head_pitch = -90.0;}
+        if head_pitch > 90.0 {head_pitch = 90.0;}
+
+        head_pitch
     }
 
     pub fn get_look_vector(&self) -> (f64, f64, f64) {
-        let x = -self.head_pitch.to_radians().cos() * self.yaw.to_radians().sin();
-        let y = -self.head_pitch.to_radians().sin();
-        let z =  self.head_pitch.to_radians().cos() * self.yaw.to_radians().cos();
+        let x = -self.pitch.to_radians().cos() * self.yaw.to_radians().sin();
+        let y = -self.pitch.to_radians().sin();
+        let z =  self.pitch.to_radians().cos() * self.yaw.to_radians().cos();
         (x, y, z)
     }
 

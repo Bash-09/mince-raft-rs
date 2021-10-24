@@ -149,7 +149,6 @@ impl App {
 
                     serv.player.orientation.rotate(
                         self.mouse.get_delta().0 as f64,
-                        0.0,
                         self.mouse.get_delta().1 as f64
                     );
 
@@ -245,9 +244,21 @@ impl App {
 
                     SpawnLivingEntity(id, uuid, ent_type, x, y, z, yaw, pitch, head, vx, vy, vz) => {
                         match server.entities.insert(id.0, Entity::new_with_values(
-                            id.0, uuid.clone(), ent_type.0, 
+                            id.0, uuid.clone(), ent_type.0, 0,
                             x.0, y.0, z.0, 
                             (yaw.0 as f64)/255.0, (pitch.0 as f64)/255.0, (head.0 as f64)/255.0, 
+                            (vx.0 as f64)/8000.0, (vy.0 as f64)/8000.0, (vz.0 as f64)/8000.0
+                        )) {
+                            Some(_) => {},
+                            None => {}
+                        }
+                    },
+
+                    SpawnEntity(id, uuid, ent_type, x, y, z, pitch, yaw, data, vx, vy, vz) => {
+                        match server.entities.insert(id.0, Entity::new_with_values(
+                            id.0, uuid.clone(), ent_type.0, data.0,
+                            x.0, y.0, z.0, 
+                            (yaw.0 as f64)/255.0, (pitch.0 as f64)/255.0, 0.0, 
                             (vx.0 as f64)/8000.0, (vy.0 as f64)/8000.0, (vz.0 as f64)/8000.0
                         )) {
                             Some(_) => {},
@@ -274,19 +285,55 @@ impl App {
                         match server.entities.get_mut(&id.0) {
                             Some(ent) => {
                                 ent.pos.translate((dx.0 as f64)/4096.0, (dy.0 as f64)/4096.0, (dz.0 as f64)/4096.0);
-                                // TODO rotation
+                                ent.ori.set(yaw.0 as f64 / 256.0, pitch.0 as f64 / 256.0);
+                                ent.on_ground = on_ground.0;
                             },
                             None => {}
                         }
                     },
 
                     EntityRotation(id, yaw, pitch, on_ground) => {
-                            // TODO
+                        match server.entities.get_mut(&id.0) {
+                            Some(ent) => {
+                                ent.ori.set(yaw.0 as f64 / 256.0, pitch.0 as f64 / 256.0);
+                                ent.on_ground = on_ground.0;
+                            },
+                            None => {}
+                        }                    
+                    },
+
+                    EntityHeadLook(id, head_yaw) => {
+                        match server.entities.get_mut(&id.0) {
+                            Some(ent) => {
+                                ent.ori_head.set(head_yaw.0 as f64 / 256.0, ent.ori_head.get_head_pitch());
+                            },
+                            None => {}
+                        }
+                    },
+
+                    EntityVelocity(id, vx, vy, vz) => {
+                        match server.entities.get_mut(&id.0) {
+                            Some(ent) => {
+                                ent.vel.set(vx.0 as f64/8000.0, vy.0 as f64/8000.0, vz.0 as f64/8000.0);
+                            },
+                            None => {},
+                        }
+                    },
+
+                    EntityTeleport(id, x, y, z, yaw, pitch, on_ground) => {
+                        match server.entities.get_mut(&id.0) {
+                            Some(ent) => {
+                                ent.pos.set(x.0, y.0, z.0);
+                                ent.ori.set(yaw.0 as f64/256.0, pitch.0 as f64/256.0);
+                                ent.on_ground = on_ground.0;
+                            },
+                            None => {},
+                        }
                     },
 
                     PlayerPositionAndLook(x, y, z, yaw, pitch, flags, teleport_id, dismount) => {
                         server.player.position.set(x.0, y.0, z.0);
-                        server.player.orientation.set(yaw.0 as f64, 0.0, pitch.0 as f64);
+                        server.player.orientation.set(yaw.0 as f64, pitch.0 as f64);
 
                         send_packet(&self.network, TeleportConfirm(teleport_id.clone()));
 
@@ -309,7 +356,11 @@ impl App {
                     ChatIncoming(_, _, _) => {
                         server.chat.add_message(&packet);
                         self.log.log_incoming_packet(packet);
-                    }
+                    },
+
+                    // SoundEffect() | EntityMetadata() | BlockChange(_, _) => {
+                    //     self.log.log_incoming_packet(packet);
+                    // }
 
                     _ => {println!("Unhandled incoming packet: {:?}", packet);}
                 }
