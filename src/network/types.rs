@@ -7,6 +7,8 @@ use std::io;
 use std::string::FromUtf8Error;
 
 
+// Structs for each of the types used in the packets sent by an MC server
+
 #[derive(Debug, Clone)]
 pub struct Boolean(pub bool);
 #[derive(Debug, Clone)]
@@ -45,6 +47,9 @@ pub type Angle = UByte;
 #[derive(Debug, Clone)]
 pub struct UUID(pub [u64; 2]);
 
+// Each of these types implements to_bytes and from_bytes for easy conversion
+// I should probably pull it out into a trait, that might make some things more manageable 
+// and expandable in the future, but for now I can't be bothered
 
 impl Boolean {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -224,6 +229,18 @@ impl VarInt {
         }
     }
 
+    /// Reads a varint from a TcpStream, consuming the bytes
+    /// 
+    /// # Arguments
+    /// 
+    /// * `TcpStream` - The TcpStream from which to read
+    /// 
+    /// # Returns
+    /// 
+    /// * `Ok(Some(VarInt))` if everything goes well
+    /// * `Err(e)` if there is an error reading it
+    /// * `Ok(None)` I don't think it actually returns this, I should probably clean this up later
+    /// 
     pub fn from_stream(stream: &mut TcpStream) -> Result<Option<VarInt>, io::Error> {
         const PART: u32 = 0x7F;
         let mut size = 0;

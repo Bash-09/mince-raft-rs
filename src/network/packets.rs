@@ -1,4 +1,4 @@
-
+#![allow(dead_code)]
 
 use std::io::Error;
 
@@ -14,6 +14,8 @@ pub enum HandshakeMode {
     Login,
 }
 
+
+/// All the different types of packets that will be going back and forth
 #[derive(Debug)]
 pub enum DecodedPacket {
     Ok,
@@ -23,8 +25,11 @@ pub enum DecodedPacket {
 
 
 
-
+    // ********************************************************
     // Serverbound ********************************************
+
+    // Yes, I am a little lacking in these ones so far, but for now I just want a client that can see shit, not actually do shit
+
     Handshake(VarInt, MCString, Short, HandshakeMode),
     LoginStart(MCString),
     ClientStatusRespawn,
@@ -46,12 +51,14 @@ pub enum DecodedPacket {
 
 
 
-
+    // ************************************************************
     // Clientbound ************************************************
 
+    // JSON Data, Position, Sender
     // Position - 0: Chat, 1: System Message, 2: Game Info
-    ChatIncoming(MCString, Byte, UUID), // JSON Data, Position, Sender
-    UpdateHealth(Float, VarInt, Float), // Health, Food, Saturation
+    ChatIncoming(MCString, Byte, UUID), 
+    // Health, Food, Saturation
+    UpdateHealth(Float, VarInt, Float), 
 
     // Login stuff
     Disconnect(MCString), // TODO - Chat disconnect reason
@@ -59,12 +66,13 @@ pub enum DecodedPacket {
 
     EncryptionRequest(), // TODO - I'll leave this for a while
     LoginSuccess(), // TODO - UUID and Name
-    SetCompression(VarInt), // TODO - Theshold
+    SetCompression(VarInt), // Theshold
     LoginPluginRequest(), // Not implemented
 
     JoinGame(Int), // TODO = Got a looooooot of stuff to go here
 
-    ServerDifficulty(UByte, Boolean), // Difficulty (0: peaceful, 1: easy, 2: medium, 3: hard), Difficulty Locked
+    // Difficulty (0: peaceful, 1: easy, 2: medium, 3: hard), Difficulty Locked
+    ServerDifficulty(UByte, Boolean), 
 
     // Entity ID, dX, dY, dZ, onGround
     EntityPosition(VarInt, Short, Short, Short, Boolean),
@@ -75,19 +83,39 @@ pub enum DecodedPacket {
     // Entity ID, yaw, pitch
     EntityRotation(VarInt, Angle, Angle, Boolean),
 
+    // Entity ID, Head Yaw
+    EntityHeadLook(VarInt, Angle),
+
+    // Entity ID, VX, VY, VZ
+    EntityVelocity(VarInt, Short, Short, Short),
+
+    // Entity ID, X, Y, Z, Yaw, Pitch, OnGround
+    EntityTeleport(VarInt, Double, Double, Double, Angle, Angle, Boolean),
+
+    // TODO
+    EntityMetadata(), // TODO
+
+    // Block Coordinates, New Block State ID
+    BlockChange(Position, VarInt),
+
     // X, Y, Z, Yaw, Pitch, Flags, Teleport ID, Dismount Vehicle
     PlayerPositionAndLook(Double, Double, Double, Float, Float, Byte, VarInt, Boolean),
 
     // Number of elements in following array, Array of Entity IDs to destroy
     DestroyEntities(VarInt, Vec<VarInt>),
-    SpawnEntity(),
 
-    //Entity ID, UUID, Entity Type, X, Y, Z, Yaw, Pitch, Head Pitch, Vel X, Vel Y, Vel Z
+    // Entity ID, UUID, Entity Type, X, Y, Z, Pitch, Yaw, Data, VX, VY, VZ
+    SpawnEntity(VarInt, UUID, VarInt, Double, Double, Double, Angle, Angle, Int, Short, Short, Short),
+
+    // Entity ID, UUID, Entity Type, X, Y, Z, Yaw, Pitch, Head Pitch, Vel X, Vel Y, Vel Z
     SpawnLivingEntity(VarInt, UUID, VarInt, Double, Double, Double, Angle, Angle, Angle, Short, Short, Short),
 
-    TimeUpdate(Long, Long), // World Age, Time of Day
+    // World Age, Time of Day
+    TimeUpdate(Long, Long), 
 
+    SoundEffect(), // TODO - probably never lol
 
+    // KeepAlive ID, must be responded to with KeepAliceServerbound containing the same ID
     KeepAliveClientbound(Long),
 
 
@@ -95,7 +123,10 @@ pub enum DecodedPacket {
     Empty,
 }
 
+
 impl DecodedPacket {
+
+    /// Encodes a DecodedPacket to be sent to the server
     pub fn encode(&self) -> Option<Packet> {
         use DecodedPacket::*;
 
@@ -163,13 +194,14 @@ impl DecodedPacket {
                 out.add(&skin.to_bytes());
                 out.add(&hand.to_bytes());
                 out.add(&filtering.to_bytes());
-            }    ,
+            },
             
             TeleportConfirm(id) => {
                 out = Packet::new_with_id(0x00);
                 out.add(&id.to_bytes());
-            }
-            // Packets we don't care to encode
+            },
+
+            // Packets we don't care to encode (like all the clientbound ones)
             _ => {
                 print!("Unknown Packet to encode: {:?}", self);
                 return None;
@@ -180,55 +212,70 @@ impl DecodedPacket {
 }
 
 
+// A raw collection of bytes used to contruct a packet
 pub struct Packet {
     bytes: Vec<u8>,
 }
 
 impl Packet {
 
+    /// Create a new packet with no ID
     pub fn new() -> Packet {
         Packet {  
-            bytes: vec![0x00],
+            bytes: Vec::new(),
         }
     }
 
+    /// Create a new packet with a specified hex ID
     pub fn new_with_id(id: u8) -> Packet {
         Packet { 
-            bytes: vec![0x01, id],
+            bytes: vec![id],
         }
     }
 
-
+    /// Push a vector of bytes to the packet
     pub fn add(&mut self, bytes: &Vec<u8>) {
         for b in bytes.iter() {
             self.bytes.push(*b);
         }
-        self.bytes[0] += bytes.len() as u8;
     }
 
+    /// Push a single byte to the packet
     pub fn add_byte(&mut self, byte: u8) {
-        self.bytes[0] += 1;
         self.bytes.push(byte);
     }
 
-    pub fn get_bytes(&self) -> &[u8] {
-        self.bytes.as_slice()
+    /// Returns the packet as a vector of bytes with the length signed as a VarInt at the start
+    pub fn get_bytes_with_length(&self) -> Vec<u8> {
+        let len = VarInt(self.bytes.len() as i32);
+        let mut bytes: Vec<u8> = Vec::new();
+        bytes.append(&mut len.to_bytes());
+        bytes.append(&mut self.bytes.clone());
+        bytes
+    }
+
+    /// Returns the packet as a vector of bytes with no size signature at the start
+    pub fn get_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.append(&mut self.bytes.clone());
+        bytes
     }
 
     pub fn size(&self) -> usize {
-        self.bytes[0] as usize - 1
+        self.bytes.len()
     }
 
 }
 
+/// Decodes a packet from a vector of bytes into a DecodedPacket, given the server state
 pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
     use DecodedPacket::*;
 
     if packet.len() == 0 {return Empty}
 
-    let len = packet.len();
     let out: DecodedPacket;
 
+    // Packet decoder, makes decoding packets much easier than what I was doing before :P
     let mut pd = PacketDecoder::new(&packet);
 
     match packet[0] {
@@ -237,17 +284,28 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
             match state {
                 ServerState::Login => {
                     out = Disconnect(pd.next_string());
-                    // out = Disconnect(MCString::from_bytes(&packet[1..]).expect("Failed to decode message from disconnect packet."));
                 },
                 ServerState::Play => {
-                    out = SpawnEntity(/* TODO */);
+                    out = SpawnEntity(
+                        pd.next_varint(),
+                        pd.next_uuid(),
+                        pd.next_varint(),
+                        pd.next_double(),
+                        pd.next_double(),
+                        pd.next_double(),
+                        pd.next_angle(),
+                        pd.next_angle(),
+                        pd.next_int(),
+                        pd.next_short(),
+                        pd.next_short(),
+                        pd.next_short(),
+                    );
                 },
                 ServerState::Status => {
                     out = Status(pd.next_string());
-                    // out = Status(MCString::from_bytes(&packet[1..]).expect("Failed to decode message from Status packet"));
                 }
             }
-        }
+        },
 
         0x02 => {
             match state {
@@ -276,6 +334,21 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
             }
         },
 
+        0x03 => {
+            match state {
+                ServerState::Login => {
+                    out = SetCompression(pd.next_varint());
+                },
+                _ => {
+                    out = Unknown(packet);
+                }
+            }
+        }
+
+        0x0c => {
+            out = BlockChange(pd.next_position(), pd.next_varint());
+        },
+
         0x0e => {
             match state {
                 ServerState::Play => {
@@ -283,10 +356,6 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                         pd.next_ubyte(),
                         pd.next_bool(),
                     );
-                    // out = ServerDifficulty(
-                    //     UByte::from_bytes(&[packet[1]]),
-                    //     Boolean::from_bytes(&extract_8(&packet, 2)).expect("Invalid bool in Server Difficulty packet")
-                    // );
                 },
                 _ => out = Unknown(packet),
             }
@@ -300,11 +369,6 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                         pd.next_byte(),
                         pd.next_uuid(),
                     );
-                    // out = ChatIncoming(
-                    //     MCString::from_bytes(&packet[1..]).expect("Failed to extract chat message"),
-                    //     Byte::from_bytes(&extract_8(&packet, len-17)),
-                    //     UUID::from_bytes(&extract_128(&packet, len-16)),
-                    // );
                 },
                 _ => out = Unknown(packet),
             }
@@ -312,17 +376,14 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
 
         0x1a => {
             out = Disconnect(pd.next_string());
-            // out = Disconnect(MCString::from_bytes(&packet[1..]).expect("Couldn't decode disconnect reason"));
         }
 
         0x21 => {
             out = KeepAliveClientbound(pd.next_long());
-            // out = KeepAliveClientbound(Long::from_bytes(&extract_64(&packet, 1)));
         },
 
         0x26 => {
             out = JoinGame(pd.next_int());
-            // out = JoinGame(Int::from_bytes(&extract_32(&packet, 1)));
         },
 
         0x29 => {
@@ -333,14 +394,6 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                 pd.next_short(),
                 pd.next_bool(),
             );
-            // let (var_int, var_int_size) = VarInt::from_vec(&packet, 1);
-            // out = EntityPosition(
-            //     var_int,
-            //     Short::from_bytes(&extract_16(&packet, var_int_size+1)),
-            //     Short::from_bytes(&extract_16(&packet, var_int_size+3)),
-            //     Short::from_bytes(&extract_16(&packet, var_int_size+5)),
-            //     Boolean::from_bytes(&extract_8(&packet, var_int_size+7)).expect("EntityPosition didn't end in Boolean value")
-            // );
         },
 
         0x2a => {
@@ -353,16 +406,6 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                 pd.next_angle(),
                 pd.next_bool(),
             );
-            // let (var_int, var_int_size) = VarInt::from_vec(&packet, 1);
-            // out = EntityPositionAndRotation(
-            //     var_int,
-            //     Short::from_bytes(&extract_16(&packet, var_int_size+1)),
-            //     Short::from_bytes(&extract_16(&packet, var_int_size+3)),
-            //     Short::from_bytes(&extract_16(&packet, var_int_size+5)),
-            //     Angle::from_bytes(&extract_8(&packet, var_int_size+7)),
-            //     Angle::from_bytes(&extract_8(&packet, var_int_size+8)),
-            //     Boolean::from_bytes(&extract_8(&packet, var_int_size+9)).expect("EntityPosition didn't end in Boolean value")
-            // );
         },
 
         0x2b => {
@@ -372,36 +415,7 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                 pd.next_angle(),
                 pd.next_bool(),
             );
-            // let (var_int, var_int_size) = VarInt::from_vec(&packet, 1);
-            // out = EntityRotation(
-            //     var_int,                
-            //     Angle::from_bytes(&extract_8(&packet, var_int_size+1)),
-            //     Angle::from_bytes(&extract_8(&packet, var_int_size+2)),
-            //     Boolean::from_bytes(&extract_8(&packet, var_int_size+3)).expect("EntityPosition didn't end in Boolean value")
-            // );
         },
-
-
-        0x3a => {
-            let vi_num = pd.next_varint();
-            let mut ids: Vec<VarInt> = Vec::new();
-
-            for _ in 0..vi_num.0 as usize {
-                ids.push(pd.next_varint());
-            }
-            out = DestroyEntities(vi_num, ids);
-
-            // let (vi_num, vi_len) = VarInt::from_vec(&packet, 1);
-            // let mut ids: Vec<VarInt> = Vec::new();
-
-            // let mut acc = vi_len + 1;
-            // for i in 0..vi_num.0 as usize {
-            //     let (vi_id, vi_id_len) = VarInt::from_vec(&packet, acc);
-            //     ids.push(vi_id);
-            //     acc += vi_id_len;
-            // }
-            // out = DestroyEntities(vi_num, ids);
-        }
 
 
         0x38 => {
@@ -415,19 +429,38 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                 pd.next_varint(),
                 pd.next_bool(),
             );
-
-            // let (var_int, var_int_size) = VarInt::from_vec(&packet, 34);
-            // out = PlayerPositionAndLook(
-            //     Double::from_bytes(&extract_64(&packet, 1)),
-            //     Double::from_bytes(&extract_64(&packet, 9)),
-            //     Double::from_bytes(&extract_64(&packet, 17)),
-            //     Float::from_bytes(&extract_32(&packet, 25)),
-            //     Float::from_bytes(&extract_32(&packet, 29)),
-            //     Byte::from_bytes(&extract_8(&packet, 33)),
-            //     var_int,
-            //     Boolean::from_bytes(&extract_8(&packet, 34+var_int_size)).expect("Invalid Boolean in PlayerPositionAndLook packet"),
-            // );
         },
+
+        0x3a => {
+            let vi_num = pd.next_varint();
+            let mut ids: Vec<VarInt> = Vec::new();
+
+            for _ in 0..vi_num.0 as usize {
+                ids.push(pd.next_varint());
+            }
+            out = DestroyEntities(vi_num, ids);
+        },
+
+
+        0x3e => {
+            out = EntityHeadLook(
+                pd.next_varint(),
+                pd.next_angle(),
+            );
+        },
+
+        0x4d => {
+            out = EntityMetadata();
+        },
+
+        0x4f => {
+            out = EntityVelocity(
+                pd.next_varint(),
+                pd.next_short(),
+                pd.next_short(),
+                pd.next_short(),
+            );
+        }
 
         0x52 => {
             out = UpdateHealth(
@@ -435,12 +468,6 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                 pd.next_varint(),
                 pd.next_float(),
             );
-            // let (varint, varint_size) = VarInt::from_vec(&packet, 5);
-            // out = UpdateHealth(
-            //     Float::from_bytes(&extract_32(&packet, 1)),
-            //     varint,
-            //     Float::from_bytes(&extract_32(&packet, 5+varint_size)),
-            // );
         },
 
 
@@ -449,21 +476,31 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
                 pd.next_long(),
                 pd.next_long(),
             );
-            // out = TimeUpdate(
-            //     Long::from_bytes(&extract_64(&packet, 1)),
-            //     Long::from_bytes(&extract_64(&packet, 9)),
-            // );
+        },
+
+        0x5c => {
+            out = SoundEffect();
         }
 
-
+        0x61 => {
+            out = EntityTeleport(
+                pd.next_varint(),
+                pd.next_double(),
+                pd.next_double(),
+                pd.next_double(),
+                pd.next_angle(),
+                pd.next_angle(),
+                pd.next_bool(),
+            );
+        }
 
         _ => {
-            // println!("Couldn't decode clientbound packet: {:02x}", packet[0]);
             out = Unknown(packet);
         }
     }
 
     match &out {
+        #[allow(unused_variables)]
         Unknown(pack) => {
             // println!("Unknow packet: {:02x}", pack[0]);
         },
@@ -473,6 +510,8 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
     out
 }
 
+
+/// Packet Decoder walks a provided vector of bytes and extracts variables from them
 struct PacketDecoder<'a>  {
     buf: &'a Vec<u8>,
     ind: usize,
@@ -480,13 +519,13 @@ struct PacketDecoder<'a>  {
 
 impl PacketDecoder<'_> {
 
+    /// Create a packet decoder for a provided Vector
     pub fn new<'a>(buf: &'a Vec<u8>) -> PacketDecoder<'a> {
         PacketDecoder {
             buf,
-            ind: 1
+            ind: 1 // Start at 1 to skip the packet type signature
         }
     }
-
 
     pub fn next_bool(&mut self) -> Boolean {
         self.ind += 1;
@@ -571,7 +610,14 @@ impl PacketDecoder<'_> {
     }
 
     pub fn next_position(&mut self) -> Position {
-        todo!()
+        let big = u64::from_be_bytes(extract_64(self.buf, self.ind));
+
+        let x = (big >> 38) as i32;
+        let y = (big & 0xfff) as i32;
+        let z = (big << 26 >> 38) as i32;
+
+        self.ind += 8;
+        Position(x, y, z)
     }
 
     pub fn next_angle(&mut self) -> Angle {
@@ -596,6 +642,8 @@ impl PacketDecoder<'_> {
 
 }
 
+// These functions just extract arrays of specific length from a given buffer at a starting index
+// Really, nothing to see here
 
 fn extract_8(buf: &Vec<u8>, start: usize) -> [u8; 1] {
     [buf[start]]

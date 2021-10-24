@@ -60,9 +60,10 @@ impl App {
 
 
 
-
+    /// Initiailises the App struct
     pub fn init(&mut self) {
         
+        // Creates a network manager and attempts to connect to and login to a server
         match NetworkManager::connect("192.168.1.139:25565") {
             Ok((channel, server)) => {
                 println!("Connected to server");
@@ -89,13 +90,14 @@ impl App {
         let delta = t.delta();
         let time = t.absolute_time();
 
+        // Runs some code only once every self.period seconds
         let modulus = time % self.period;
         if modulus < self.last_mod {
             match &self.server  {
                 Some(serv) => {
 
+                    // Send player position update packets
                     if serv.player.id != 0 {
-
                         send_packet(&self.network, DecodedPacket::PlayerPositionAndRotation(
                             Double(serv.player.position.get_x()),
                             Double(serv.player.position.get_y()),
@@ -113,7 +115,7 @@ impl App {
         self.last_mod = modulus;
 
 
-
+        // Runs some code while the server is valid
         match &mut self.server  {
             Some(serv) => {
 
@@ -125,6 +127,8 @@ impl App {
                     send_packet(&self.network, DecodedPacket::ChatOutgoing(MCString(text)));
                 }
 
+
+                // Move player
                 if self.mouse.is_pressed(0) {
                     let vel = 2.0 * delta as f64;
                     let (x, y, z) = serv.player.orientation.get_look_vector();
@@ -137,14 +141,7 @@ impl App {
                     serv.player.position.translate(x as f64 * vel, y as f64 * vel, z as f64 * vel);
                 }
 
-                // if self.mouse.is_pressed(0) {
-                //     serv.player.position.translate(8.0*delta as f64, 0.0,8.0*delta as f64);
-                // }
-
-                // if self.mouse.is_pressed(2) {
-                //     serv.player.position.translate(-8.0*delta as f64, 0.0, -8.0*delta as f64);
-                // }
-
+                // Change player direction
                 if self.mouse.is_pressed(1) {
 
                     serv.player.orientation.rotate(
@@ -159,7 +156,7 @@ impl App {
             None => {}
         }
 
-
+        // Collect messages from the NetworkManager
         let mut command_queue: Vec<NetworkCommand> = Vec::new();
         match &self.network {
             Some(channel) => {
@@ -174,7 +171,7 @@ impl App {
             },
             None => {}
         }
-
+        // Handle messages from the network manager
         for comm in command_queue {
             self.handle_message(comm);
         }
@@ -182,9 +179,11 @@ impl App {
     }
 
 
+    /// Handles a message from the NetworkManager
     fn handle_message(&mut self, comm: NetworkCommand) {
         use NetworkCommand::*;
 
+        // Checks the server exists
         let server: &mut Server;
         match &mut self.server  {
             Some(serv) => server = serv,
@@ -194,11 +193,12 @@ impl App {
             }
         }
         
-
         match comm {
+            // Handles any incoming packets
             ReceivePacket(packet) => {
                 use DecodedPacket::*;
                 match &packet {
+
                     ServerDifficulty(diff, locked) => {
                         server.difficulty = match diff.0 {
                             1 => Difficulty::Easy,
@@ -223,10 +223,12 @@ impl App {
                     Disconnect(reason) => {
                         panic!("Disconnected: {}", reason.0);
                     },
+
                     LoginSuccess() => {
                         println!("Login success.");
                         self.log.log_info("Successfully Logged in!");
                     },
+
                     JoinGame(id) => {
                         println!("Setting player id to {}", id.0);
                         server.join_game(id.0);
@@ -358,19 +360,23 @@ impl App {
                         self.log.log_incoming_packet(packet);
                     },
 
-                    // SoundEffect() | EntityMetadata() | BlockChange(_, _) => {
-                    //     self.log.log_incoming_packet(packet);
-                    // }
+                    // Currently ignoring these packets
+                    SoundEffect() | EntityMetadata() | BlockChange(_, _) => {
+                        // self.log.log_incoming_packet(packet);
+                    }
 
+                    // Packets that have been forwarded but not handled properly
                     _ => {println!("Unhandled incoming packet: {:?}", packet);}
                 }
                 // self.log.log(Log::new(&thread::current(), LogType::PacketReceived(packet)));
             },
 
+            // Log incoming logs
             Log(log) => {
                 self.log.log(log);
             }
 
+            // What do with these messages ay??
             _ => {
                 println!("Unhandled message: {:?}", comm);
             }
@@ -378,9 +384,12 @@ impl App {
 
     }
 
+
+    /// Renders the screen
     pub fn render(&mut self) {
         let mut target = self.dis.draw();
 
+        // Change background colour on certain mouse clicks, idek why I do this lmao
         if self.mouse.is_pressed(0) {
             target.clear_color(0.8, 0.5, 0.5, 1.0);
         } else if self.mouse.is_pressed(2) {
@@ -391,7 +400,7 @@ impl App {
 
 
         
-
+        // GUI
         self.gui.render(&self.dis, &mut target, &self.log, &mut self.server);
 
         target.finish().unwrap();
@@ -400,7 +409,7 @@ impl App {
 
 }
 
-
+/// Attempts to send a packet over the provided (possible) network channel
 fn send_packet(network: &Option<NetworkChannel>, packet: DecodedPacket) -> Option<()> {
     match network {
         Some(channel) => {

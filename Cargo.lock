@@ -795,6 +795,7 @@ dependencies = [
  "imgui",
  "imgui-glium-renderer",
  "imgui-winit-support",
+ "miniz_oxide",
  "rand",
  "serde_json",
  "winit 0.19.5",
