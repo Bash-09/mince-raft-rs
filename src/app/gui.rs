@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use glium::{Display, Frame};
-use imgui::{Context};
-use imgui_glium_renderer::Renderer;
+use imgui::Context;
 use imgui::*;
+use imgui_glium_renderer::Renderer;
 
 use crate::io::{keyboard::Keyboard, mouse::Mouse};
 
@@ -31,9 +31,7 @@ pub struct Gui {
     ents: EntitiesWindow,
 }
 
-
 impl Gui {
-
     pub fn new(imgui: Context, rend: Renderer) -> Gui {
         Gui {
             imgui,
@@ -50,37 +48,31 @@ impl Gui {
         self.imgui.frame()
     }
 
-
-
-
-
-    pub fn render(&mut self, display: &Display, target: &mut Frame, log: &Logger, server: &mut Option<Server>) {
-
+    pub fn render(
+        &mut self,
+        display: &Display,
+        target: &mut Frame,
+        log: &Logger,
+        server: &mut Option<Server>,
+    ) {
         let size = display.gl_window().window().inner_size();
         self.imgui.io_mut().display_size = [size.width as f32, size.height as f32];
-
 
         let ui = self.imgui.frame();
 
         match server {
             Some(serv) => {
-
                 self.chat.render(&ui, &mut serv.chat);
                 self.debug.render(&ui, serv);
                 self.ents.render(&ui, serv);
-
-            },
+            }
             None => {}
         }
 
         self.log.render(&ui, log);
 
-
         self.rend.render(target, ui.render()).unwrap();
     }
-
-
-
 
     #[allow(unused_variables)]
     pub fn update(&mut self, delta: f32, mouse: &Mouse, keyboard: &Keyboard) {
@@ -88,10 +80,6 @@ impl Gui {
 
         self.update_mouse(mouse);
     }
-
-
-
-
 
     pub fn update_mouse(&mut self, mouse: &Mouse) {
         let mut imgui = self.imgui.io_mut();
@@ -106,10 +94,5 @@ impl Gui {
 
         imgui.mouse_wheel = mouse.get_scroll().0;
         imgui.mouse_wheel_h = mouse.get_scroll().1;
-
     }
-
-
-
-
 }

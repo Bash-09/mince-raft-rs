@@ -1,6 +1,4 @@
-
-
-use std::{ops::Add, time::{Instant}};
+use std::{ops::Add, time::Instant};
 
 pub struct Timer {
     last: Instant,
@@ -14,9 +12,7 @@ pub struct Timer {
     abs_time: f32,
 }
 
-
 impl Timer {
-
     pub fn new() -> Timer {
         Timer {
             last: Instant::now(),
@@ -48,7 +44,7 @@ impl Timer {
         self.frame_count += 1;
         self.frame_time += delta;
         if self.frame_time > self.frame_update_time {
-            self.fps = (self.frame_count as f32 * (1.0/self.frame_time)) as u32;
+            self.fps = (self.frame_count as f32 * (1.0 / self.frame_time)) as u32;
             self.frame_count = 0;
             self.frame_time = 0.0;
         }
@@ -57,7 +53,6 @@ impl Timer {
         self.last = Instant::now();
         Some(delta)
     }
-
 
     pub fn set_frame_min_duration(&mut self, dur: f32) {
         self.frame_min_duration = dur;
@@ -78,5 +73,4 @@ impl Timer {
     pub fn absolute_time(&self) -> f32 {
         self.abs_time
     }
-
 }

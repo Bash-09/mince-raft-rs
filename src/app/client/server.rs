@@ -1,15 +1,17 @@
-use std::collections::{HashMap, btree_set::Difference};
+use std::collections::{btree_set::Difference, HashMap};
 
 use crate::network::packets::DecodedPacket;
 
-use super::{chat::Chat, entities::Entity, player::{self, Player}};
-
-
+use super::{
+    chat::Chat,
+    entities::Entity,
+    player::{self, Player},
+};
 
 pub enum ServerState {
     Status,
     Login,
-    Play
+    Play,
 }
 
 pub struct Server {
@@ -27,12 +29,8 @@ pub struct Server {
     pub difficulty_locked: bool,
 }
 
-
-
 impl Server {
-
     pub fn new(network_destination: String) -> Server {
-
         Server {
             network_destination,
 
@@ -47,14 +45,11 @@ impl Server {
             difficulty: Difficulty::Easy,
             difficulty_locked: false,
         }
-
     }
-
 
     pub fn join_game(&mut self, player_id: i32) {
         self.player.id = player_id;
     }
-
 }
 
 #[derive(Debug)]

@@ -1,4 +1,3 @@
-
 use glium::glutin::event::VirtualKeyCode;
 
 use crate::glutin::event::VirtualKeyCode::*;
@@ -10,9 +9,7 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-
     pub fn new() -> Keyboard {
-
         let mut keyb = Keyboard {
             keys: HashMap::new(),
             this_frame: HashMap::new(),
@@ -31,32 +28,25 @@ impl Keyboard {
         self.this_frame.insert(key, true);
     }
 
-
-
     pub fn pressed_this_frame(&self, key: &VirtualKeyCode) -> bool {
         match self.keys.get(&key) {
             None | Some(false) => false,
-            Some(true) => {
-                match self.this_frame.get(&key) {
-                    None | Some(false) => false,
-                    Some(true) => true
-                }
-            }
+            Some(true) => match self.this_frame.get(&key) {
+                None | Some(false) => false,
+                Some(true) => true,
+            },
         }
     }
 
     pub fn released_this_frame(&self, key: &VirtualKeyCode) -> bool {
         match self.keys.get(&key) {
             Some(true) => false,
-            None | Some(false) => {
-                match self.this_frame.get(&key) {
-                    None | Some(false) => false,
-                    Some(true) => true
-                }
-            }
+            None | Some(false) => match self.this_frame.get(&key) {
+                None | Some(false) => false,
+                Some(true) => true,
+            },
         }
     }
-
 
     pub fn is_pressed(&self, key: &VirtualKeyCode) -> bool {
         match self.keys.get(&key) {
@@ -64,10 +54,8 @@ impl Keyboard {
             Some(true) => true,
         }
     }
-    
 
     pub fn next_frame(&mut self) {
         self.this_frame.clear();
     }
-
 }

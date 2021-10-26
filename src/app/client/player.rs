@@ -1,10 +1,6 @@
 use super::entities::components::{Orientation, Position};
 
-
-
-
 pub struct Player {
-
     pub id: i32,
 
     pub position: Position,
@@ -17,16 +13,13 @@ pub struct Player {
     // Client Settings
     pub locale: String,
     pub view_distance: i8,
-    pub chat_mode: i32, // 0 - Enabled, 1 - Commands only, 2 - Hidden
-    pub displayed_skin_parts: u8, // Bitmask - https://wiki.vg/Protocol#Client_Settings
-    pub main_hand: i32, // 0 - Left, 1 - Right
+    pub chat_mode: i32,               // 0 - Enabled, 1 - Commands only, 2 - Hidden
+    pub displayed_skin_parts: u8,     // Bitmask - https://wiki.vg/Protocol#Client_Settings
+    pub main_hand: i32,               // 0 - Left, 1 - Right
     pub disable_text_filtering: bool, // idek what this does
-
 }
 
-
 impl Player {
-
     pub fn new() -> Player {
         Player {
             id: 0,
@@ -46,5 +39,4 @@ impl Player {
             disable_text_filtering: true,
         }
     }
-
 }

@@ -1,17 +1,12 @@
-
-
 pub struct Mouse {
-
     this_frame: [bool; 10],
     pressed: [bool; 10],
     pos: (i32, i32),
     delta: (i32, i32),
     wheel: (f32, f32),
-
 }
 
 impl Mouse {
-
     pub fn new() -> Mouse {
         Mouse {
             this_frame: [false; 10],
@@ -55,7 +50,6 @@ impl Mouse {
         self.this_frame = [false; 10];
     }
 
-
     pub fn get_pos(&self) -> (i32, i32) {
         self.pos
     }
@@ -79,5 +73,4 @@ impl Mouse {
     pub fn released_this_frame(&self, button: usize) -> bool {
         !self.pressed[button] && self.this_frame[button]
     }
-
 }

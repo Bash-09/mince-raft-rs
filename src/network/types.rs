@@ -6,6 +6,8 @@ use std::net::TcpStream;
 use std::io;
 use std::string::FromUtf8Error;
 
+use quartz_nbt::NbtCompound;
+
 
 // Structs for each of the types used in the packets sent by an MC server
 
@@ -40,7 +42,7 @@ pub struct EntityMetadata(); // TODO
 #[derive(Debug, Clone)]
 pub struct Slot(); // TODO
 #[derive(Debug, Clone)]
-pub struct NBTTag(); // TODO
+pub struct NBTTag(pub NbtCompound); // TODO
 #[derive(Debug, Clone)]
 pub struct Position(pub i32, pub i32, pub i32); // TODO
 pub type Angle = UByte;
@@ -48,14 +50,14 @@ pub type Angle = UByte;
 pub struct UUID(pub [u64; 2]);
 
 // Each of these types implements to_bytes and from_bytes for easy conversion
-// I should probably pull it out into a trait, that might make some things more manageable 
+// I should probably pull it out into a trait, that might make some things more manageable
 // and expandable in the future, but for now I can't be bothered
 
 impl Boolean {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self.0 {
             true => vec![0x01],
-            false => vec![0x00]
+            false => vec![0x00],
         }
     }
 
@@ -63,7 +65,7 @@ impl Boolean {
         match val.get(0) {
             Some(0x00) => Some(Boolean(false)),
             Some(0x01) => Some(Boolean(true)),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -159,7 +161,8 @@ impl MCString {
 
     pub fn from_bytes(val: &[u8]) -> Result<MCString, FromUtf8Error> {
         let len = VarInt::from_bytes(val).expect("MCString was not prefixed with valid length");
-        let str = String::from_utf8(val[len.num_bytes()..(len.0 as usize)+len.num_bytes()].to_vec())?;
+        let str =
+            String::from_utf8(val[len.num_bytes()..(len.0 as usize) + len.num_bytes()].to_vec())?;
         Ok(MCString(str))
     }
 }
@@ -206,12 +209,12 @@ impl VarInt {
                 break;
             }
             index += 1;
-            match buf.get(index+start) {
+            match buf.get(index + start) {
                 Some(i) => byte = *i,
                 None => return (VarInt(0), 0),
             }
         }
-        (VarInt(val as i32), index+1)
+        (VarInt(val as i32), index + 1)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -230,17 +233,17 @@ impl VarInt {
     }
 
     /// Reads a varint from a TcpStream, consuming the bytes
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `TcpStream` - The TcpStream from which to read
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(Some(VarInt))` if everything goes well
     /// * `Err(e)` if there is an error reading it
     /// * `Ok(None)` I don't think it actually returns this, I should probably clean this up later
-    /// 
+    ///
     pub fn from_stream(stream: &mut TcpStream) -> Result<Option<VarInt>, io::Error> {
         const PART: u32 = 0x7F;
         let mut size = 0;
@@ -249,8 +252,8 @@ impl VarInt {
         let mut byte: [u8; 1] = [0];
 
         match stream.read_exact(&mut byte) {
-            Ok(_) => {},
-            Err(e) => return Err(e)
+            Ok(_) => {}
+            Err(e) => return Err(e),
         }
 
         loop {
@@ -263,8 +266,8 @@ impl VarInt {
                 break;
             }
             match stream.read_exact(&mut byte) {
-                Ok(_) => {},
-                Err(e) => return Err(e)
+                Ok(_) => {}
+                Err(e) => return Err(e),
             }
         }
         Ok(Some(VarInt(val as i32)))
@@ -341,12 +344,12 @@ impl VarLong {
                 break;
             }
             index += 1;
-            match buf.get(index+start) {
+            match buf.get(index + start) {
                 Some(i) => byte = *i,
                 None => return (VarLong(0), 0),
             }
         }
-        (VarLong(val as i64), index+1)
+        (VarLong(val as i64), index + 1)
     }
 }
 
@@ -380,11 +383,12 @@ impl NBTTag {
     }
 }
 
-impl Position { // I have a feeling this will not work as intended
+impl Position {
+    // I have a feeling this will not work as intended
     pub fn to_bytes(&self) -> Vec<u8> {
-        let big = (((self.0 as u64) & 0x3FFFFFF) << 38) 
-        | (((self.2 as u64) & 0x3FFFFFF) << 12) 
-        | ((self.1 as u64) & 0xFFF);
+        let big = (((self.0 as u64) & 0x3FFFFFF) << 38)
+            | (((self.2 as u64) & 0x3FFFFFF) << 12)
+            | ((self.1 as u64) & 0xFFF);
 
         big.to_be_bytes().to_vec()
     }
@@ -413,16 +417,16 @@ impl UUID {
         let mut b1 = [0u8; 8];
         let mut b2 = [0u8; 8];
         for i in 0..16 {
-            if i < 8 {b1[i] = val[i]}
-            if i >= 8 {b2[i-8] = val[i]}
+            if i < 8 {
+                b1[i] = val[i]
+            }
+            if i >= 8 {
+                b2[i - 8] = val[i]
+            }
         }
-        UUID([
-            u64::from_be_bytes(b1),
-            u64::from_be_bytes(b2)
-        ])
+        UUID([u64::from_be_bytes(b1), u64::from_be_bytes(b2)])
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -431,47 +435,29 @@ mod tests {
 
     #[test]
     fn varint_works() {
-
         let mut rng = rand::thread_rng();
 
-        for _ in 0..100000 {
+        for _ in 0..10000 {
             let val = VarInt(rng.gen());
 
-            println!("Testing {} \n{:32b}", val.0, val.0);
             let bytes = val.to_bytes();
-            println!("To bytes: ");
-            for b in &bytes {
-                println!("{:08b} ", b);
-            }
             let out = VarInt::from_bytes(bytes.as_slice()).unwrap();
-            println!("Back to val {}", out.0);
 
-            assert_eq!(val.0, out.0);     
-        }  
-
+            assert_eq!(val.0, out.0);
+        }
     }
-
 
     #[test]
     fn varlong_works() {
-
         let mut rng = rand::thread_rng();
 
-        for _ in 0..1000 {
+        for _ in 0..10000 {
             let val = VarLong(rng.gen());
 
-            println!("Testing {} \n{:32b}", val.0, val.0);
             let bytes = val.to_bytes();
-            println!("To bytes: ");
-            for b in &bytes {
-                println!("{:08b} ", b);
-            }
             let out = VarLong::from_bytes(bytes.as_slice());
-            println!("Back to val {}", out.0);
 
-            assert_eq!(val.0, out.0);     
-        }  
-
+            assert_eq!(val.0, out.0);
+        }
     }
-
 }
