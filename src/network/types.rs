@@ -40,7 +40,7 @@ pub struct VarLong(pub i64);
 #[derive(Debug, Clone)]
 pub struct EntityMetadata(); // TODO
 #[derive(Debug, Clone)]
-pub struct Slot(); // TODO
+pub struct Slot(Boolean, Option<VarInt>, Option<Byte>, Option<NBTTag>); // TODO
 #[derive(Debug, Clone)]
 pub struct NBTTag(pub NbtCompound); // TODO
 #[derive(Debug, Clone)]
@@ -48,6 +48,7 @@ pub struct Position(pub i32, pub i32, pub i32); // TODO
 pub type Angle = UByte;
 #[derive(Debug, Clone)]
 pub struct UUID(pub [u64; 2]);
+
 
 // Each of these types implements to_bytes and from_bytes for easy conversion
 // I should probably pull it out into a trait, that might make some things more manageable
@@ -384,7 +385,7 @@ impl NBTTag {
 }
 
 impl Position {
-    // I have a feeling this will not work as intended
+    // I have a feeling this will not work as intended, but we can hope.
     pub fn to_bytes(&self) -> Vec<u8> {
         let big = (((self.0 as u64) & 0x3FFFFFF) << 38)
             | (((self.2 as u64) & 0x3FFFFFF) << 12)

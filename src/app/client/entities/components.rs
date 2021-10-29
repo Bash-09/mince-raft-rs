@@ -54,6 +54,10 @@ impl Position {
     pub fn get_z(&self) -> f64 {
         self.z
     }
+
+    pub fn get_block_coords(&self) -> (i32, i32, i32) {
+        (self.x.floor() as i32, self.y.floor() as i32, self.z.floor() as i32)
+    }
 }
 
 #[derive(Debug)]
@@ -119,6 +123,9 @@ impl Velocity {
 pub struct Orientation {
     yaw: f64,
     pitch: f64,
+
+    pitch_min: f64,
+    pitch_max: f64,
 }
 
 impl Orientation {
@@ -126,16 +133,26 @@ impl Orientation {
         Orientation {
             yaw: 0.0,
             pitch: 0.0,
+
+            pitch_min: 0.0,
+            pitch_max: 0.0,
         }
     }
 
-    pub fn new_with_values(yaw: f64, pitch: f64) -> Orientation {
-        Orientation { yaw, pitch }
+    pub fn new_with_values(yaw: f64, pitch: f64, pitch_min: f64, pitch_max: f64) -> Orientation {
+        Orientation { yaw, pitch, pitch_min, pitch_max }
     }
 
     pub fn set(&mut self, yaw: f64, pitch: f64) {
         self.yaw = yaw;
         self.pitch = pitch;
+
+        if self.pitch_min != 0.0 && self.pitch < self.pitch_min {
+            self.pitch = self.pitch_min;
+        }
+        if self.pitch_max != 0.0 && self.pitch > self.pitch_max {
+            self.pitch = self.pitch_max;
+        }
     }
 
     // Sets yaw and pitch to face in the direction of a provided vector
@@ -156,6 +173,13 @@ impl Orientation {
 
         self.pitch += pitch;
         self.pitch %= 360.0;
+
+        if self.pitch_min != 0.0 && self.pitch < self.pitch_min {
+            self.pitch = self.pitch_min;
+        }
+        if self.pitch_max != 0.0 && self.pitch > self.pitch_max {
+            self.pitch = self.pitch_max;
+        }
     }
 
     pub fn get_yaw(&self) -> f64 {
@@ -185,5 +209,19 @@ impl Orientation {
         let y = -self.pitch.to_radians().sin();
         let z = self.pitch.to_radians().cos() * self.yaw.to_radians().cos();
         (x, y, z)
+    }
+
+    pub fn get_min_pitch(&self) -> f64 {
+        self.pitch_min
+    }
+    pub fn get_max_pitch(&self) -> f64 {
+        self.pitch_max
+    }
+
+    pub fn set_min_pitch(&mut self, pitch_min: f64) {
+        self.pitch_min = pitch_min;
+    }
+    pub fn set_max_pitch(&mut self, pitch_max: f64) {
+        self.pitch_max = pitch_max;
     }
 }

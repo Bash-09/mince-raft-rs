@@ -2,11 +2,7 @@ use std::collections::{btree_set::Difference, HashMap};
 
 use crate::network::packets::DecodedPacket;
 
-use super::{
-    chat::Chat,
-    entities::Entity,
-    player::{self, Player},
-};
+use super::{chat::Chat, entities::Entity, player::{self, Player}, world::World};
 
 pub enum ServerState {
     Status,
@@ -22,6 +18,8 @@ pub struct Server {
 
     pub player: Player,
     pub chat: Chat,
+
+    pub world: World,
 
     pub entities: HashMap<i32, Entity>,
 
@@ -39,6 +37,8 @@ impl Server {
 
             player: Player::new(),
             chat: Chat::new(),
+
+            world: World::new(),
 
             entities: HashMap::new(),
 

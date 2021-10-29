@@ -59,8 +59,8 @@ impl Entity {
             data,
             pos: Position::new_with_values(px, py, pz),
             vel: Velocity::new_with_values(vx, vy, vz),
-            ori: Orientation::new_with_values(yaw, pitch),
-            ori_head: Orientation::new_with_values(0.0, head_pitch),
+            ori: Orientation::new_with_values(yaw, pitch, 0.0, 0.0),
+            ori_head: Orientation::new_with_values(0.0, head_pitch, -90.0, 90.0),
             on_ground: true,
         }
     }

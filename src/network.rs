@@ -369,14 +369,14 @@ impl NetworkManager {
             Unknown(buf) => {
                 // println!("Got unknown packet: {:02x}", buf[0]);
             }
-            KeepAliveClientbound(keep_alive_id) => {
-                self.send_packet(KeepAliveServerbound(keep_alive_id.clone()))
+            KeepAliveClientbound(pack) => {
+                self.send_packet(KeepAliveServerbound(pack.keep_alive_id.clone()))
                     .expect("Failed to send heartbeat");
             }
 
-            Disconnect(reason) => {
+            Disconnect(pack) => {
                 self.close = true;
-                println!("Disconnected from server: {}", &reason.0);
+                println!("Disconnected from server: {}", &pack.reason.0);
                 self.channel
                     .send
                     .send(NetworkCommand::ReceivePacket(packet))
@@ -392,32 +392,12 @@ impl NetworkManager {
                 }
             }
 
-            // Forwards these packets to the main thread
-            TimeUpdate(_, _)
-            | UpdateHealth(_, _, _)
-            | ServerDifficulty(_, _)
-            | ChatIncoming(_, _, _)
-            | JoinGame(_)
-            | EntityPosition(_, _, _, _, _)
-            | EntityPositionAndRotation(_, _, _, _, _, _, _)
-            | EntityRotation(_, _, _, _)
-            | SpawnLivingEntity(_, _, _, _, _, _, _, _, _, _, _, _)
-            | DestroyEntities(_, _)
-            | EntityMetadata()
-            | EntityVelocity(_, _, _, _)
-            | EntityTeleport(_, _, _, _, _, _, _)
-            | EntityHeadLook(_, _)
-            | SoundEffect()
-            | PlayerPositionAndLook(_, _, _, _, _, _, _, _) => {
-                self.channel
-                    .send
-                    .send(NetworkCommand::ReceivePacket(packet))
-                    .expect("Failed to send message back to client");
-            }
-
+            // Forward other packets to the main thread
             _ => {
-                println!("Got packet {:?}", packet);
-            }
+                self.channel
+                .send
+                .send(NetworkCommand::ReceivePacket(packet))
+                .expect("Failed to send message back to client");            }
         }
     }
 }

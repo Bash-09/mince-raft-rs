@@ -24,6 +24,7 @@ impl EntitiesWindow {
             .build(&ui, || {
                 ui.text(im_str!("Entities: {}", serv.entities.len()));
 
+                // Collect all entities into each type
                 let mut ents: HashMap<i32, Vec<&Entity>> = HashMap::new();
                 for (id, e) in &serv.entities {
                     match ents.get_mut(&e.entity_type) {
@@ -35,24 +36,28 @@ impl EntitiesWindow {
                         }
                     }
                 }
+
+                // Dump entities into a vector
                 let mut ents_vec: Vec<(&i32, &Vec<&Entity>)> = Vec::new();
                 for (type_id, e) in ents.iter() {
                     ents_vec.push((type_id, e));
                 }
+                // Sort by entity id
                 ents_vec.sort_by(|(id1, _), (id2, _)| id1.cmp(id2));
 
+                // List each present type of entity under dropdown menus
                 for (type_id, ent) in ents_vec {
                     let name = ENTITIES[*type_id as usize].name;
-                    if CollapsingHeader::new(&im_str!("{} ({})", name, ent.len())).build(ui) {
+                    if CollapsingHeader::new(&im_str!("{}", name)).build(ui) {
+                        // List each individual entity under its header
+                        ui.text(im_str!("{} ({})", name, ent.len()));
                         for e in ent {
-                            // if CollapsingHeader::new(&im_str!("")).build(ui) {
                             ui.text(im_str!(
                                 "Pos: {:.2} / {:.2} / {:.2}",
                                 e.pos.get_x(),
                                 e.pos.get_y(),
                                 e.pos.get_z()
                             ));
-                            // }
                         }
                     }
                 }

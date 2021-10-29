@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::network::{packets::DecodedPacket, types::UUID};
+use crate::network::{packets::{ChatIncoming, DecodedPacket}, types::UUID};
 
 pub struct Chat {
     history: Vec<ChatMessage>,
@@ -22,20 +22,14 @@ impl Chat {
         &self.history
     }
 
-    pub fn add_message(&mut self, message: &DecodedPacket) {
-        match message {
-            DecodedPacket::ChatIncoming(json, pos, uuid) => {
-                let value: Value =
-                    serde_json::from_str(&json.0).expect("Failed to unwrap JSON from chat message");
+    pub fn add_message(&mut self, chat: &ChatIncoming) {
+        let value: Value = serde_json::from_str(&chat.json.0).expect("Failed to unwrap JSON from chat message");
 
-                self.history.push(ChatMessage {
-                    sender: UUID(uuid.0.clone()),
-                    message_type: ChatMessageType::Temp,
-                    text: value["extra"][0]["text"].to_string().replace("\"", ""),
-                });
-            }
-            _ => {}
-        }
+        self.history.push(ChatMessage {
+            sender: UUID(chat.sender.0.clone()),
+            message_type: ChatMessageType::Temp,
+            text: value["extra"][0]["text"].to_string().replace("\"", ""),
+        });
     }
 
     pub fn get_message(&mut self) -> &String {

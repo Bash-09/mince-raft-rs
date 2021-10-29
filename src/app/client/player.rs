@@ -25,7 +25,7 @@ impl Player {
             id: 0,
 
             position: Position::new(),
-            orientation: Orientation::new(),
+            orientation: Orientation::new_with_values(0.0, 0.0, -90.0, 90.0),
 
             health: 20.0,
             food: 20,
