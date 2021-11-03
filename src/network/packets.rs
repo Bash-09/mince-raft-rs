@@ -1,13 +1,12 @@
 #![allow(dead_code)]
 
-use std::{borrow::Borrow, io::{Cursor, Error}};
-
+use std::io::{Cursor, Error};
 
 use quartz_nbt::io;
 
 use crate::{app::client::server::ServerState, network::packets};
 
-use super::types::{*, self};
+use super::types::*;
 
 #[derive(Debug)]
 pub enum HandshakeMode {
@@ -16,7 +15,7 @@ pub enum HandshakeMode {
 }
 
 pub trait ClientboundPacket {
-    fn decode(packet: &Vec<u8>, pd: &PacketDecoder, state: ServerState) -> Self;
+    fn decode(pd: &mut PacketDecoder) -> Self;
     const ID: u8;
 }
 
@@ -26,91 +25,321 @@ pub trait ServerboundPacket {
 }
 
 
+
+
+
+
 // **************** CLIENTBOUND PACKETS ******************
+
+// ********* STATUS MODE ***********
+
+#[derive(Debug)]
+pub struct Status {
+    // 0x00
+    pub response: MCString,
+}
+
+impl ClientboundPacket for Status {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        Status{response: pd.next_string()}
+    }
+
+    const ID: u8 = 0x00;
+}
+
+
+#[derive(Debug)]
+pub struct ClientPong {
+    // 0x00
+    pub payload: Long,
+}
+
+impl ClientboundPacket for ClientPong {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        ClientPong{payload: pd.next_long()}
+    }
+
+    const ID: u8 = 0x01;
+}
+
 
 // ********* LOGIN MODE ***********
 
 #[derive(Debug)]
-pub struct Status{ // 0x00
-    pub response: MCString,
+pub struct EncryptionRequest {
+    pub server_id: MCString,
+    pub public_key_len: VarInt,
+    pub public_key: Vec<Byte>,
+    pub verify_token_len: VarInt,
+    pub verify_token: Vec<Byte>,
 }
 
-// ********* PLAYER MODE***********
+impl ClientboundPacket for EncryptionRequest {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let server_id = pd.next_string();
+        let public_key_len = pd.next_varint();
+        let mut public_key: Vec<Byte> = Vec::new();
+        for _ in 0..public_key_len.0 {
+            public_key.push(pd.next_byte());
+        }
+        let verify_token_len = pd.next_varint();
+        let mut verify_token: Vec<Byte> = Vec::new();
+        for _ in 0..verify_token_len.0 {
+            verify_token.push(pd.next_byte());
+        }
+        EncryptionRequest {
+            server_id,
+            public_key_len,
+            public_key,
+            verify_token_len,
+            verify_token
+        }
+    }
+
+    const ID: u8 = 0x01;
+}
+
 
 #[derive(Debug)]
-pub struct SpawnEntity{ // 0x00
-    pub entity_id: VarInt, // Entity ID
-    pub uuid: UUID,   // UUID
+pub struct LoginSuccess {
+    pub uuid: UUID,
+    pub username: MCString,
+}
+
+impl ClientboundPacket for LoginSuccess {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        LoginSuccess {
+            uuid: pd.next_uuid(),
+            username: pd.next_string(),
+        }
+    }
+
+    const ID: u8 = 0x02;
+}
+
+
+#[derive(Debug)]
+pub struct SetCompression {
+    pub threshold: VarInt,
+}
+
+impl ClientboundPacket for SetCompression {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SetCompression{threshold: pd.next_varint()}
+    }
+
+    const ID: u8 = 0x03;
+}
+
+
+#[derive(Debug)]
+pub struct LoginPluginRequest {
+    pub message_id: VarInt,
+    pub channel: Identifier,
+    //pub data: Vec<Byte>,
+}
+
+impl ClientboundPacket for LoginPluginRequest {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        LoginPluginRequest {
+            message_id: pd.next_varint(),
+            channel: pd.next_string(),
+        }
+    }
+
+    const ID: u8 = 0x04;
+}
+
+
+// ********* PLAYER MODE **********
+
+#[derive(Debug)]
+pub struct SpawnEntity {
+    // 0x00
+    pub entity_id: VarInt,   // Entity ID
+    pub uuid: UUID,          // UUID
     pub entity_type: VarInt, // Entity Type
-    pub x: Double, // X
-    pub y: Double, // Y
-    pub z: Double, // Z
-    pub pitch: Angle,  // Pitch
-    pub yaw: Angle,  // Yaw
-    pub data: Int,    // Data
-    pub vx: Short,  // VX
-    pub vy: Short,  // VY
-    pub vz: Short,  // VZ
+    pub x: Double,           // X
+    pub y: Double,           // Y
+    pub z: Double,           // Z
+    pub pitch: Angle,        // Pitch
+    pub yaw: Angle,          // Yaw
+    pub data: Int,           // Data
+    pub vx: Short,           // VX
+    pub vy: Short,           // VY
+    pub vz: Short,           // VZ
+}
+
+impl ClientboundPacket for SpawnEntity {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SpawnEntity {
+            entity_id: pd.next_varint(),
+            uuid: pd.next_uuid(),
+            entity_type: pd.next_varint(),
+            x: pd.next_double(),
+            y: pd.next_double(),
+            z: pd.next_double(),
+            pitch: pd.next_angle(),
+            yaw: pd.next_angle(),
+            data: pd.next_int(),
+            vx: pd.next_short(),
+            vy: pd.next_short(),
+            vz: pd.next_short(),
+        }
+    }
+
+    const ID: u8 = 0x00;
 }
 
 #[derive(Debug)]
-pub struct SpawnExperienceOrb{ // 0x01
+pub struct SpawnExperienceOrb {
+    // 0x01
     pub entity_id: VarInt, // Entity ID
-    pub x: Double, // X,
-    pub y: Double, // Y
-    pub z: Double, // Z
-    pub amount: Short,  // XP Amount
+    pub x: Double,         // X,
+    pub y: Double,         // Y
+    pub z: Double,         // Z
+    pub amount: Short,     // XP Amount
+}
+
+impl ClientboundPacket for SpawnExperienceOrb {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SpawnExperienceOrb{
+            entity_id: pd.next_varint(),
+            x: pd.next_double(),
+            y: pd.next_double(),
+            z: pd.next_double(),
+            amount: pd.next_short(),
+        }
+    }
+
+    const ID: u8 = 0x01;
 }
 
 #[derive(Debug)]
-pub struct SpawnLivingEntity{ // 0x02
-    pub entity_id: VarInt, // Entity ID
-    pub uuid: UUID,   // UUID
+pub struct SpawnLivingEntity {
+    // 0x02
+    pub entity_id: VarInt,   // Entity ID
+    pub uuid: UUID,          // UUID
     pub entity_type: VarInt, // Entity Type
-    pub x: Double, // X
-    pub y: Double, // Y
-    pub z: Double, // Z
-    pub yaw: Angle,  // Yaw
-    pub pitch: Angle,  // Pitch
-    pub head_pitch: Angle,  // Head Pitch
-    pub vx: Short,  // Vel X
-    pub vy: Short,  // Vel Y
-    pub vz: Short,  // Vel Z
+    pub x: Double,           // X
+    pub y: Double,           // Y
+    pub z: Double,           // Z
+    pub yaw: Angle,          // Yaw
+    pub pitch: Angle,        // Pitch
+    pub head_pitch: Angle,   // Head Pitch
+    pub vx: Short,           // Vel X
+    pub vy: Short,           // Vel Y
+    pub vz: Short,           // Vel Z
+}
+
+impl ClientboundPacket for SpawnLivingEntity {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SpawnLivingEntity {
+            entity_id: pd.next_varint(),
+            uuid: pd.next_uuid(),
+            entity_type: pd.next_varint(),
+            x: pd.next_double(),
+            y: pd.next_double(),
+            z: pd.next_double(),
+            yaw: pd.next_angle(),
+            pitch: pd.next_angle(),
+            head_pitch: pd.next_angle(),
+            vx: pd.next_short(),
+            vy: pd.next_short(),
+            vz: pd.next_short(),
+        }
+    }
+
+    const ID: u8 = 0x02;
 }
 
 #[derive(Debug)]
-pub struct SpawnPainting{ // 0x03
-    pub entity_id: VarInt, // Entity ID
-    pub uuid: UUID,   // Entity UUID
-    pub painting_id: VarInt, // Motive, Painting's ID
+pub struct SpawnPainting {
+    // 0x03
+    pub entity_id: VarInt,       // Entity ID
+    pub uuid: UUID,              // Entity UUID
+    pub painting_id: VarInt,     // Motive, Painting's ID
     pub center_coords: Position, // Center Coordinates
-    pub direction: Byte,   // Enum, Painting direction (North = 2, South = 0, West = 1, East = 3)
+    pub direction: Byte, // Enum, Painting direction (North = 2, South = 0, West = 1, East = 3)
+}
+
+impl ClientboundPacket for SpawnPainting {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SpawnPainting{
+            entity_id: pd.next_varint(),
+            uuid: pd.next_uuid(),
+            painting_id: pd.next_varint(),
+            center_coords: pd.next_position(),
+            direction: pd.next_byte(),
+        }
+    }
+
+    const ID: u8 = 0x03;
 }
 
 #[derive(Debug)]
-pub struct SpawnPlayer{ // 0x04
+pub struct SpawnPlayer {
+    // 0x04
     pub entity_id: VarInt, // Entity ID
-    pub uuid: UUID,   // Player UUID
-    pub x: Double, // X
-    pub y: Double, // Y
-    pub z: Double, // Z
-    pub yaw: Angle,  // Yaw
-    pub pitch: Angle,  // Pitch
+    pub uuid: UUID,        // Player UUID
+    pub x: Double,         // X
+    pub y: Double,         // Y
+    pub z: Double,         // Z
+    pub yaw: Angle,        // Yaw
+    pub pitch: Angle,      // Pitch
+}
+
+impl ClientboundPacket for SpawnPlayer {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SpawnPlayer{
+            entity_id: pd.next_varint(),
+            uuid: pd.next_uuid(),
+            x: pd.next_double(),
+            y: pd.next_double(),
+            z: pd.next_double(),
+            yaw: pd.next_angle(),
+            pitch: pd.next_angle(),
+        }
+    }
+
+    const ID: u8 = 0x04;
 }
 
 #[derive(Debug)]
-pub struct SculkVibrationSignal{ // 0x05
-    // TODO
+pub struct SculkVibrationSignal {
+    // 0x05
+// TODO
+}
+
+impl ClientboundPacket for SculkVibrationSignal {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SculkVibrationSignal{}
+    }
+
+    const ID: u8 = 0x05;
 }
 
 #[derive(Debug)]
-pub struct EntityAnimation{ // 0x06
-    pub player_id: VarInt, // Player ID
-    pub animation_id: UByte,  // Animation ID (0 = Swing Main Arm, 1 = Take Damage, 2 = Leave Bed, 3 = Swing Offhand, 4 = Critical Effect, 5 = Magic Critical Effect)
+pub struct EntityAnimation {
+    // 0x06
+    pub player_id: VarInt,   // Player ID
+    pub animation_id: UByte, // Animation ID (0 = Swing Main Arm, 1 = Take Damage, 2 = Leave Bed, 3 = Swing Offhand, 4 = Critical Effect, 5 = Magic Critical Effect)
+}
+
+impl ClientboundPacket for EntityAnimation {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityAnimation{
+            player_id: pd.next_varint(),
+            animation_id: pd.next_ubyte(),
+        }
+    }
+
+    const ID: u8 = 0x06;
 }
 
 #[derive(Debug)]
-pub struct Statistics{ // 0x07
+pub struct Statistics {
+    // 0x07
     pub stats_len: VarInt, // Count of next array
     pub stats: Vec<(
         VarInt, // Enum, Category ID
@@ -119,186 +348,550 @@ pub struct Statistics{ // 0x07
     )>,
 }
 
-#[derive(Debug)]
-pub struct AcknowledgePlayerDigging{ // 0x08
-    pub location: Position,   // Location
-    pub block_state_id: VarInt,     // Block state ID
-    pub player_digging_state: VarInt,     // Enum, Player Digging state
-    pub success: Boolean,    // Success
+impl ClientboundPacket for Statistics {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let stats_len = pd.next_varint();
+        let mut stats: Vec<(VarInt, VarInt, VarInt)> = Vec::new();
+        for _ in 0..stats_len.0 {
+            stats.push((
+               pd.next_varint(),
+               pd.next_varint(),
+               pd.next_varint(), 
+            ));
+        }
+
+        Statistics {
+            stats_len,
+            stats
+        }
+    }
+
+    const ID: u8 = 0x07;
 }
 
 #[derive(Debug)]
-pub struct BlockBreakAnimation{ // 0x09
-    pub breaker_entity_id: VarInt,     // Entity ID of Entity breaking the block
-    pub block_pos: Position,   // Block Position
+pub struct AcknowledgePlayerDigging {
+    // 0x08
+    pub location: Position,           // Location
+    pub block_state_id: VarInt,       // Block state ID
+    pub player_digging_state: VarInt, // Enum, Player Digging state
+    pub success: Boolean,             // Success
+}
+
+impl ClientboundPacket for AcknowledgePlayerDigging {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        AcknowledgePlayerDigging {
+            location: pd.next_position(),
+            block_state_id: pd.next_varint(),
+            player_digging_state: pd.next_varint(),
+            success: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x08;
+}
+
+#[derive(Debug)]
+pub struct BlockBreakAnimation {
+    // 0x09
+    pub breaker_entity_id: VarInt, // Entity ID of Entity breaking the block
+    pub block_pos: Position,       // Block Position
     pub destroy_stage: Byte,       // Destroy Stage {0-9 to set, any other value removes)
 }
 
-#[derive(Debug)]
-pub struct BlockEntityData{ // 0x0a
-    pub block_pos: Position,   //
-    pub update_type: UByte,      // Enum, Type of update
-    pub data: NBTTag,     // Data to set {May be TAG_END{0) which means the block is removed)
+impl ClientboundPacket for BlockBreakAnimation {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        BlockBreakAnimation {
+            breaker_entity_id: pd.next_varint(),
+            block_pos: pd.next_position(),
+            destroy_stage: pd.next_byte(),
+        }
+    }
+
+    const ID: u8 = 0x09;
 }
 
 #[derive(Debug)]
-pub struct BlockAction{ // 0x0b
+pub struct BlockEntityData {
+    // 0x0a
+    pub block_pos: Position, //
+    pub update_type: UByte,  // Enum, Type of update
+    pub data: NBTTag,        // Data to set {May be TAG_END{0) which means the block is removed)
+}
+
+impl ClientboundPacket for BlockEntityData {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        BlockEntityData {
+            block_pos: pd.next_position(),
+            update_type: pd.next_ubyte(),
+            data: pd.next_nbt(),
+        }
+    }
+
+    const ID: u8 = 0x0a;
+}
+
+#[derive(Debug)]
+pub struct BlockAction {
+    // 0x0b
     pub block_pos: Position,   // Block Coords
     pub action_id: UByte,      // Action ID {Varies by block)
-    pub action_param: UByte,      // Action Param
-    pub block_type_id: VarInt,     // Block type {Block type ID, not block state)
+    pub action_param: UByte,   // Action Param
+    pub block_type_id: VarInt, // Block type {Block type ID, not block state)
+}
+
+impl ClientboundPacket for BlockAction {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        BlockAction {
+            block_pos: pd.next_position(),
+            action_id: pd.next_ubyte(),
+            action_param: pd.next_ubyte(),
+            block_type_id: pd.next_varint(),
+        }
+    }
+
+    const ID: u8 = 0x0b;
 }
 
 #[derive(Debug)]
-pub struct BlockChange{ // 0x0c
-    pub block_pos: Position,   // Block Coords
-    pub block_state_id: VarInt,     // Block ID, new block state ID as given in the global palette
+pub struct BlockChange {
+    // 0x0c
+    pub block_pos: Position,    // Block Coords
+    pub block_state_id: VarInt, // Block ID, new block state ID as given in the global palette
+}
+
+impl ClientboundPacket for BlockChange {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        BlockChange {
+            block_pos: pd.next_position(),
+            block_state_id: pd.next_varint(),
+        }
+    }
+
+    const ID: u8 = 0x0c;
 }
 
 #[derive(Debug)]
-pub struct BossBar{ // 0x0d
-    pub uuid: UUID,       // UUID for this bar
-    pub action: VarInt,     // Enum, determines the layout for the rest of the packet
-    // TODO
+pub struct BossBar {
+    // 0x0d
+    pub uuid: UUID, // UUID for this bar
+    pub action: VarInt, // Enum, determines the layout for the rest of the packet
+                    // TODO
+}
+
+impl ClientboundPacket for BossBar {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        todo!()
+    }
+
+    const ID: u8 = 0x0d;
 }
 
 #[derive(Debug)]
-pub struct ServerDifficulty{ // 0x0e
-    pub difficulty: UByte,      // Difficulty, {0: PEaceful, 1: Easy, 2: Normal, 3: Hard)
-    pub locked: Boolean,    // Difficulty Locked?
+pub struct ServerDifficulty {
+    // 0x0e
+    pub difficulty: UByte, // Difficulty, {0: PEaceful, 1: Easy, 2: Normal, 3: Hard)
+    pub locked: Boolean,   // Difficulty Locked?
+}
+
+impl ClientboundPacket for ServerDifficulty {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        ServerDifficulty {
+            difficulty: pd.next_ubyte(),
+            locked: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x0e;
 }
 
 #[derive(Debug)]
-pub struct ChatIncoming{ // 0x0f
-    pub json: MCString,   // JSON Data of chat message
-    pub position: Byte,       // Position, {0: Chat, 1: System Message, 2: Game Info)
-    pub sender: UUID,       // Sender
+pub struct ChatIncoming {
+    // 0x0f
+    pub json: MCString, // JSON Data of chat message
+    pub position: Byte, // Position, {0: Chat, 1: System Message, 2: Game Info)
+    pub sender: UUID,   // Sender
+}
+
+impl ClientboundPacket for ChatIncoming {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        ChatIncoming {
+            json: pd.next_string(),
+            position: pd.next_byte(),
+            sender: pd.next_uuid(),
+        }
+    }
+
+    const ID: u8 = 0x0f;
 }
 
 #[derive(Debug)]
-pub struct ClearTitles{ // 0x10
+pub struct ClearTitles {
+    // 0x10
     pub reset: Boolean, // Reset
 }
 
+impl ClientboundPacket for ClearTitles {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        ClearTitles {
+            reset: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x10;
+}
+
 #[derive(Debug)]
-pub struct TabComplete{ // 0x11
-    pub transaction_id: VarInt,     // Transaction ID
-    pub start: VarInt,     // Start of text to replace
-    pub len: VarInt,     // Length of text to replace
-    pub matches_len: VarInt,     // Count of next array
+pub struct TabComplete {
+    // 0x11
+    pub transaction_id: VarInt, // Transaction ID
+    pub start: VarInt,          // Start of text to replace
+    pub len: VarInt,            // Length of text to replace
+    pub matches_len: VarInt,    // Count of next array
     pub matches: Vec<(
-        MCString,   // An elligible value to insert
-        Boolean,    // Has Tooltip
+        MCString,     // An elligible value to insert
+        Boolean,      // Has Tooltip
         Option<Chat>, // Tooltip
     )>,
 }
 
-#[derive(Debug)]
-pub struct DeclareCommands{ // 0x12
-    // TODO
+impl ClientboundPacket for TabComplete {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let transaction_id = pd.next_varint();
+        let start = pd.next_varint();
+        let len = pd.next_varint();
+        let matches_len = pd.next_varint();
+        let mut matches: Vec<(MCString, Boolean, Option<Chat>)> = Vec::new();
+        for _ in 0..matches_len.0 {
+            let str = pd.next_string();
+            let boolean = pd.next_bool();
+            let present = boolean.0;
+            matches.push((
+                str,
+                boolean,
+                match present {
+                    true => Some(pd.next_string()),
+                    false => None
+                }
+            ));
+        }
+        TabComplete {
+            transaction_id,
+            start,
+            len,
+            matches_len,
+            matches,
+        }
+    }
+
+    const ID: u8 = 0x11;
 }
 
 #[derive(Debug)]
-pub struct CloseWindowClientbound{ // 0x13
-    pub window_id: UByte,  // ID of window to that was closed. 0 for inventory
+pub struct DeclareCommands {
+    // 0x12
+// TODO
+}
+
+impl ClientboundPacket for DeclareCommands {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        todo!()
+    }
+
+    const ID: u8 = 0x12;
 }
 
 #[derive(Debug)]
-pub struct WindowItems{ // 0x14
+pub struct CloseWindowClientbound {
+    // 0x13
+    pub window_id: UByte, // ID of window to that was closed. 0 for inventory
+}
+
+impl ClientboundPacket for CloseWindowClientbound {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        CloseWindowClientbound {
+            window_id: pd.next_ubyte(),
+        }
+    }
+
+    const ID: u8 = 0x13;
+}
+
+#[derive(Debug)]
+pub struct WindowItems {
+    // 0x14
     pub window_id: UByte,  // Window ID
-    pub state_id: VarInt, // State ID
+    pub state_id: VarInt,  // State ID
     pub slots_len: VarInt, // Count of next array
     pub slots: Vec<Slot>,  // List of slots
-    pub carried: Slot,   // Carried Item / Item held by player
+    pub carried: Slot,     // Carried Item / Item held by player
+}
+
+impl ClientboundPacket for WindowItems {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let window_id = pd.next_ubyte();
+        let state_id = pd.next_varint();
+        let slots_len = pd.next_varint();
+        let mut slots: Vec<Slot> = Vec::new();
+        for _ in 0..slots_len.0 {
+            slots.push(pd.next_slot());
+        }
+        WindowItems {
+            window_id,
+            state_id,
+            slots_len,
+            slots,
+            carried: pd.next_slot(),
+        }
+    }
+
+    const ID: u8 = 0x14;
 }
 
 #[derive(Debug)]
-pub struct WindowProperty{ // 0x15
-    pub window_id: UByte,  // Window ID
+pub struct WindowProperty {
+    // 0x15
+    pub window_id: UByte, // Window ID
     pub property: Short,  // Enum, property to be updated
-    pub value: Short,  // New value of property
+    pub value: Short,     // New value of property
+}
+
+impl ClientboundPacket for WindowProperty {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        WindowProperty {
+            window_id: pd.next_ubyte(),
+            property: pd.next_short(),
+            value: pd.next_short(),
+        }
+    }
+
+    const ID: u8 = 0x15;
 }
 
 #[derive(Debug)]
-pub struct SetSlot{ // 0x16
-    pub window_id: Byte,   // Window ID
+pub struct SetSlot {
+    // 0x16
+    pub window_id: Byte,  // Window ID
     pub state_id: VarInt, // State ID
-    pub slot_id: Short,  // Which slot to be updated
-    pub slot_data: Slot,   // Slot Data
+    pub slot_id: Short,   // Which slot to be updated
+    pub slot_data: Slot,  // Slot Data
+}
+
+impl ClientboundPacket for SetSlot {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SetSlot{
+            window_id: pd.next_byte(),
+            state_id: pd.next_varint(),
+            slot_id: pd.next_short(),
+            slot_data: pd.next_slot(),
+        }
+    }
+
+    const ID: u8 = 0x16;
 }
 
 #[derive(Debug)]
-pub struct SetCooldown{ // 0x17
-    pub item_id: VarInt, // ID of item to apply cooldown to
+pub struct SetCooldown {
+    // 0x17
+    pub item_id: VarInt,        // ID of item to apply cooldown to
     pub cooldown_ticks: VarInt, // Num of ticks to apply cooldown for, or 0 to clear the cooldown
 }
 
+impl ClientboundPacket for SetCooldown {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SetCooldown {
+            item_id: pd.next_varint(),
+            cooldown_ticks: pd.next_varint(),
+        }
+    }
+
+    const ID: u8 = 0x17;
+}
+
 #[derive(Debug)]
-pub struct PluginMessage{ // 0x18
+pub struct PluginMessage {
+    // 0x18
     pub channel: Identifier, // Name of Plugin Channel used
-    pub data: Vec<Byte>,  // Data for that channel
+    pub data: Vec<Byte>,     // Data for that channel
+}
+
+impl ClientboundPacket for PluginMessage {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        todo!("Plugin Message")
+    }
+
+    const ID: u8 = 0x18;
 }
 
 #[derive(Debug)]
-pub struct NamedSoundEffect{ // 0x19
+pub struct NamedSoundEffect {
+    // 0x19
     pub sound_name: Identifier, // Sound Name
-    pub category: VarInt,     // Enum, category to play sound from
-    pub x: Int,    // Effect Pos X,
-    pub y: Int,    // Effect Pos Y,
-    pub z: Int,    // Effect Pos Z,
-    pub vol: Float,  // Volume, {1 = 100% but can be louder)
-    pub pitch: Float,  // Pitch
+    pub category: VarInt,       // Enum, category to play sound from
+    pub x: Int,                 // Effect Pos X,
+    pub y: Int,                 // Effect Pos Y,
+    pub z: Int,                 // Effect Pos Z,
+    pub vol: Float,             // Volume, {1 = 100% but can be louder)
+    pub pitch: Float,           // Pitch
+}
+
+impl ClientboundPacket for NamedSoundEffect {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        NamedSoundEffect {
+            sound_name: pd.next_string(),
+            category: pd.next_varint(),
+            x: pd.next_int(),
+            y: pd.next_int(),
+            z: pd.next_int(),
+            vol: pd.next_float(),
+            pitch: pd.next_float(),
+        }
+    }
+
+    const ID: u8 = 0x19;
 }
 
 #[derive(Debug)]
-pub struct Disconnect{ // 0x1a
-    pub reason: MCString,   // Disconnect reason
+pub struct Disconnect {
+    // 0x1a
+    pub reason: MCString, // Disconnect reason
+}
+
+impl ClientboundPacket for Disconnect {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        Disconnect {
+            reason: pd.next_string(),
+        }
+    }
+
+    const ID: u8 = 0x1a;
 }
 
 #[derive(Debug)]
-pub struct EntityStatus{ // 0x1b
-    pub entity_id: Int,    // Entity ID
+pub struct EntityStatus {
+    // 0x1b
+    pub entity_id: Int, // Entity ID
     pub status: Byte,   // Enum, Entity Status
 }
 
-#[derive(Debug)]
-pub struct Explosion{ // 0x1c
-    pub x: Float,  // X
-    pub y: Float,  // Y
-    pub z: Float,  // Z
-    pub strength: Float,  // Strength
-    pub blocks_len: VarInt, // Count of next array
-    pub block_offsets: Vec<(   // X/Y/Z offsets of affected blocks
-        Byte,   // Blocks in this array are set to Air
-        Byte,
-        Byte
-    )>,
-    pub vx: Float,  // Vel X // Velocity of player being pushed by the explosion
-    pub vy: Float,  // Vel Y
-    pub vz: Float,  // Vel Z
+impl ClientboundPacket for EntityStatus {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityStatus {
+            entity_id: pd.next_int(),
+            status: pd.next_byte(),
+        }
+    }
+
+    const ID: u8 = 0x1b;
 }
 
 #[derive(Debug)]
-pub struct UnloadChunk{ // 0x1d
-    pub x: Int,    // Chunk X
-    pub z: Int,    // Chunk Z
-}  
+pub struct Explosion {
+    // 0x1c
+    pub x: Float,           // X
+    pub y: Float,           // Y
+    pub z: Float,           // Z
+    pub strength: Float,    // Strength
+    pub blocks_len: VarInt, // Count of next array
+    pub block_offsets: Vec<(
+        // X/Y/Z offsets of affected blocks
+        Byte, // Blocks in this array are set to Air
+        Byte,
+        Byte,
+    )>,
+    pub vx: Float, // Vel X // Velocity of player being pushed by the explosion
+    pub vy: Float, // Vel Y
+    pub vz: Float, // Vel Z
+}
+
+impl ClientboundPacket for Explosion {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let x = pd.next_float();
+        let y = pd.next_float();
+        let z = pd.next_float();
+        let strength = pd.next_float();
+        let blocks_len = pd.next_varint();
+        let mut block_offsets: Vec<(Byte, Byte, Byte)> = Vec::new();
+        for _ in 0..blocks_len.0 {
+            block_offsets.push((
+                pd.next_byte(),
+                pd.next_byte(),
+                pd.next_byte(),
+            ));
+        }
+        Explosion {
+            x, y, z,
+            strength,
+            blocks_len,
+            block_offsets,
+            vx: pd.next_float(),
+            vy: pd.next_float(),
+            vz: pd.next_float(),
+        }
+    }
+
+    const ID: u8 = 0x1c;
+}
 
 #[derive(Debug)]
-pub struct ChangeGameState{ // 0x1e
+pub struct UnloadChunk {
+    // 0x1d
+    pub x: Int, // Chunk X
+    pub z: Int, // Chunk Z
+}
+
+impl ClientboundPacket for UnloadChunk {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        UnloadChunk{
+            x: pd.next_int(),
+            z: pd.next_int(),
+        }
+    }
+
+    const ID: u8 = 0x1d;
+}
+
+#[derive(Debug)]
+pub struct ChangeGameState {
+    // 0x1e
     pub reason: UByte,
     pub value: Float,
 }
 
+impl ClientboundPacket for ChangeGameState {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        ChangeGameState{
+            reason: pd.next_ubyte(),
+            value: pd.next_float(),
+        }
+    }
+
+    const ID: u8 = 0x1e;
+}
+
 #[derive(Debug)]
-pub struct OpenHorseWindow{ // 0x1f
+pub struct OpenHorseWindow {
+    // 0x1f
     pub window_id: Byte,
     pub num_slots: VarInt,
     pub entity_id: Int,
 }
 
+impl ClientboundPacket for OpenHorseWindow {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        OpenHorseWindow {
+            window_id: pd.next_byte(),
+            num_slots: pd.next_varint(),
+            entity_id: pd.next_int(),
+        }
+    }
+
+    const ID: u8 = 0x1f;
+}
+
 #[derive(Debug)]
-pub struct InitializeWorldBorder{ // 0x20
+pub struct InitializeWorldBorder {
+    // 0x20
     pub x: Double,
     pub z: Double,
     pub old_diameter: Double,
@@ -306,16 +899,45 @@ pub struct InitializeWorldBorder{ // 0x20
     pub speed: VarLong, // Number of millis until new diameter is reached
     pub portal_teleport_boundary: VarInt,
     pub warning_blocks: VarInt,
-    pub warning_time: VarInt
+    pub warning_time: VarInt,
+}
+
+impl ClientboundPacket for InitializeWorldBorder {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        InitializeWorldBorder {
+            x: pd.next_double(),
+            z: pd.next_double(),
+            old_diameter: pd.next_double(),
+            new_diameter: pd.next_double(),
+            speed: pd.next_varlong(),
+            portal_teleport_boundary: pd.next_varint(),
+            warning_blocks: pd.next_varint(),
+            warning_time: pd.next_varint(),
+        }
+    }
+
+    const ID: u8 = 0x20;
 }
 
 #[derive(Debug)]
-pub struct KeepAliveClientbound{ // 0x21
-    pub keep_alive_id: Long
+pub struct KeepAliveClientbound {
+    // 0x21
+    pub keep_alive_id: Long,
+}
+
+impl ClientboundPacket for KeepAliveClientbound {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        KeepAliveClientbound {
+            keep_alive_id: pd.next_long(),
+        }
+    }
+
+    const ID: u8 = 0x21;
 }
 
 #[derive(Debug)]
-pub struct ChunkData{ // 0x22
+pub struct ChunkData {
+    // 0x22
     pub x: Int,
     pub z: Int,
     pub bit_mask_len: VarInt,
@@ -329,16 +951,74 @@ pub struct ChunkData{ // 0x22
     pub block_entities: Vec<NBTTag>,
 }
 
+impl ClientboundPacket for ChunkData {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let chunk_x = pd.next_int();
+        let chunk_z = pd.next_int();
+        let bit_mask_len = pd.next_varint();
+        let mut bit_mask: Vec<Long> = Vec::new();
+        for _ in 0..bit_mask_len.0 as usize {
+            bit_mask.push(pd.next_long());
+        }
+        let heightmaps = pd.next_nbt();
+        let biomes_len = pd.next_varint();
+        let mut biomes: Vec<VarInt> = Vec::new();
+        for _ in 0..biomes_len.0 as usize {
+            biomes.push(pd.next_varint());
+        }
+        let data_len = pd.next_varint();
+        let mut data = Vec::new();
+        for _ in 0..data_len.0 as usize {
+            data.push(pd.next_byte());
+        }
+        let blocks_len = pd.next_varint();
+        let mut block_entities = Vec::new();
+        for _ in 0..blocks_len.0 as usize {
+            block_entities.push(pd.next_nbt());
+        }
+        packets::ChunkData {
+            x: chunk_x,
+            z: chunk_z,
+            bit_mask_len,
+            bit_mask,
+            heightmaps,
+            biomes_len,
+            biomes,
+            data_len,
+            data,
+            block_entities_len: blocks_len,
+            block_entities,
+        }
+    }
+
+    const ID: u8 = 0x22;
+}
+
 #[derive(Debug)]
-pub struct Effect{ // 0x23
+pub struct Effect {
+    // 0x23
     pub effect_id: Int,
     pub location: Position,
     pub data: Int,
     pub disable_relative_volume: Boolean,
 }
 
+impl ClientboundPacket for Effect {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        Effect {
+            effect_id: pd.next_int(),
+            location: pd.next_position(),
+            data: pd.next_int(),
+            disable_relative_volume: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x23;
+}
+
 #[derive(Debug)]
-pub struct Particle{ // 0x24
+pub struct Particle {
+    // 0x24
     pub particle_id: Int,
     pub long_distance: Boolean,
     pub x: Double,
@@ -352,8 +1032,29 @@ pub struct Particle{ // 0x24
     // TODO - Data
 }
 
+impl ClientboundPacket for Particle {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        todo!()
+        // Particle {
+        //     particle_id: pd.next_int(),
+        //     long_distance: pd.next_bool(),
+        //     x: pd.next_double(),
+        //     y: pd.next_double(),
+        //     z: pd.next_double(),
+        //     off_x: pd.next_float(),
+        //     off_y: pd.next_float(),
+        //     off_z: pd.next_float(),
+        //     particle_data: pd.next_float(),
+        //     particle_count: pd.next_int(),
+        // }
+    }
+
+    const ID: u8 = 0x24;
+}
+
 #[derive(Debug)]
-pub struct UpdateLight{ // 0x25
+pub struct UpdateLight {
+    // 0x25
     pub chunk_x: VarInt,
     pub chunk_z: VarInt,
     pub trust_edges: Boolean,
@@ -371,8 +1072,17 @@ pub struct UpdateLight{ // 0x25
     pub block_lights: Vec<(VarInt, [Byte; 2048])>,
 }
 
+impl ClientboundPacket for UpdateLight {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        todo!()
+    }
+
+    const ID: u8 = 0x25;
+}
+
 #[derive(Debug)]
-pub struct JoinGame{ // 0x26
+pub struct JoinGame {
+    // 0x26
     pub player_id: Int,
     pub is_hardcore: Boolean,
     pub gamemode: UByte,
@@ -391,18 +1101,71 @@ pub struct JoinGame{ // 0x26
     pub is_flat: Boolean,
 }
 
-#[derive(Debug)]
-pub struct MapData{ // 0x27
-    // TODO
+impl ClientboundPacket for JoinGame {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let player_id = pd.next_int();
+        let is_hardcore = pd.next_bool();
+        let gamemode = pd.next_ubyte();
+        let prev_gamemode = pd.next_byte();
+        let world_names_len = pd.next_varint();
+        let mut world_names: Vec<Identifier> = Vec::new();
+        for _ in 0..world_names_len.0 as usize {
+            world_names.push(pd.next_string());
+        }
+        JoinGame {
+            player_id,
+            is_hardcore,
+            gamemode,
+            prev_gamemode,
+            world_names_len,
+            world_names,
+            dimension_codec: pd.next_nbt(),
+            dimension: pd.next_nbt(),
+            world_name: pd.next_string(),
+            hashed_seed: pd.next_long(),
+            max_players: pd.next_varint(),
+            view_distance: pd.next_varint(),
+            reduced_debug_info: pd.next_bool(),
+            enable_respawn_screen: pd.next_bool(),
+            is_debug: pd.next_bool(),
+            is_flat: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x26;
 }
 
 #[derive(Debug)]
-pub struct TradeList{ // 0x28
-    // TODO
+pub struct MapData {
+    // 0x27
+// TODO
+}
+
+impl ClientboundPacket for MapData {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        todo!()
+    }
+
+    const ID: u8 = 0x27;
 }
 
 #[derive(Debug)]
-pub struct EntityPosition{ // 0x29
+pub struct TradeList {
+    // 0x28
+// TODO
+}
+
+impl ClientboundPacket for TradeList {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        todo!()
+    }
+
+    const ID: u8 = 0x28;
+}
+
+#[derive(Debug)]
+pub struct EntityPosition {
+    // 0x29
     pub entity_id: VarInt,
     pub dx: Short,
     pub dy: Short,
@@ -410,8 +1173,23 @@ pub struct EntityPosition{ // 0x29
     pub on_ground: Boolean,
 }
 
+impl ClientboundPacket for EntityPosition {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityPosition {
+            entity_id: pd.next_varint(),
+            dx: pd.next_short(),
+            dy: pd.next_short(),
+            dz: pd.next_short(),
+            on_ground: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x29;
+}
+
 #[derive(Debug)]
-pub struct EntityPositionAndRotation{ // 0x2a
+pub struct EntityPositionAndRotation {
+    // 0x2a
     pub entity_id: VarInt,
     pub dx: Short,
     pub dy: Short,
@@ -421,57 +1199,47 @@ pub struct EntityPositionAndRotation{ // 0x2a
     pub on_ground: Boolean,
 }
 
+impl ClientboundPacket for EntityPositionAndRotation {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityPositionAndRotation {
+            entity_id: pd.next_varint(),
+            dx: pd.next_short(),
+            dy: pd.next_short(),
+            dz: pd.next_short(),
+            yaw: pd.next_angle(),
+            pitch: pd.next_angle(),
+            on_ground: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x2a;
+}
+
 #[derive(Debug)]
-pub struct EntityRotation{ // 0x2b
+pub struct EntityRotation {
+    // 0x2b
     pub entity_id: VarInt,
     pub yaw: Angle,
     pub pitch: Angle,
     pub on_ground: Boolean,
 }
 
+impl ClientboundPacket for EntityRotation {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityRotation {
+            entity_id: pd.next_varint(),
+            yaw: pd.next_angle(),
+            pitch: pd.next_angle(),
+            on_ground: pd.next_bool(),
+        }
+    }
 
-
-
-#[derive(Debug)]
-pub struct UpdateHealth{ // 0x52
-    pub health: Float,
-    pub food: VarInt,
-    pub saturation: Float,
+    const ID: u8 = 0x2b;
 }
 
 #[derive(Debug)]
-pub struct EntityHeadLook{ // 0x3e
-    pub entity_id: VarInt,
-    pub head_yaw: Angle,
-}
-
-#[derive(Debug)]
-pub struct EntityVelocity{ // 0x4f
-    pub entity_id: VarInt,
-    pub vx: Short,
-    pub vy: Short,
-    pub vz: Short,
-}
-
-#[derive(Debug)]
-pub struct EntityTeleport{ // 0x61
-    pub entity_id: VarInt,
-    pub x: Double,
-    pub y: Double,
-    pub z: Double,
-    pub yaw: Angle,
-    pub pitch: Angle,
-    pub on_ground: Boolean,
-}
-
-#[derive(Debug)]
-pub struct EntityMetadata{ // 0x4d
-    pub entity_id: VarInt,
-    // TODO - Metadata
-}
-
-#[derive(Debug)]
-pub struct PlayerPositionAndLook{ // 0x38
+pub struct PlayerPositionAndLook {
+    // 0x38
     pub x: Double,
     pub y: Double,
     pub z: Double,
@@ -482,22 +1250,235 @@ pub struct PlayerPositionAndLook{ // 0x38
     pub dismount: Boolean,
 }
 
+impl ClientboundPacket for PlayerPositionAndLook {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        PlayerPositionAndLook {
+            x: pd.next_double(),
+            y: pd.next_double(),
+            z: pd.next_double(),
+            yaw: pd.next_float(),
+            pitch: pd.next_float(),
+            flags: pd.next_byte(),
+            teleport_id: pd.next_varint(),
+            dismount: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x38;
+}
+
 #[derive(Debug)]
-pub struct DestroyEntities{ // 0x3a
+pub struct DestroyEntities {
+    // 0x3a
     pub entities_len: VarInt,
     pub entities: Vec<VarInt>,
 }
 
+impl ClientboundPacket for DestroyEntities {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let vi_num = pd.next_varint();
+        let mut ids: Vec<VarInt> = Vec::new();
+
+        for _ in 0..vi_num.0 as usize {
+            ids.push(pd.next_varint());
+        }
+        DestroyEntities {
+            entities_len: vi_num,
+            entities: ids,
+        }
+    }
+
+    const ID: u8 = 0x3a;
+}
 
 #[derive(Debug)]
-pub struct TimeUpdate{ // 0x58
+pub struct EntityHeadLook {
+    // 0x3e
+    pub entity_id: VarInt,
+    pub head_yaw: Angle,
+}
+
+impl ClientboundPacket for EntityHeadLook {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityHeadLook {
+            entity_id: pd.next_varint(),
+            head_yaw: pd.next_angle(),
+        }
+    }
+
+    const ID: u8 = 0x3e;
+}
+
+
+#[derive(Debug)]
+pub struct EntityMetadata {
+    // 0x4d
+    pub entity_id: VarInt,
+    // TODO - Metadata
+}
+
+impl ClientboundPacket for EntityMetadata {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityMetadata {
+            entity_id: pd.next_varint(),
+        }
+    }
+
+    const ID: u8 = 0x4d;
+}
+
+
+#[derive(Debug)]
+pub struct EntityVelocity {
+    // 0x4f
+    pub entity_id: VarInt,
+    pub vx: Short,
+    pub vy: Short,
+    pub vz: Short,
+}
+
+impl ClientboundPacket for EntityVelocity {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityVelocity {
+            entity_id: pd.next_varint(),
+            vx: pd.next_short(),
+            vy: pd.next_short(),
+            vz: pd.next_short(),
+        }
+    }
+
+    const ID: u8 = 0x4f;
+}
+
+#[derive(Debug)]
+pub struct UpdateHealth {
+    // 0x52
+    pub health: Float,
+    pub food: VarInt,
+    pub saturation: Float,
+}
+
+impl ClientboundPacket for UpdateHealth {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        UpdateHealth {
+            health: pd.next_float(),
+            food: pd.next_varint(),
+            saturation: pd.next_float(),
+        }
+    }
+
+    const ID: u8 = 0x52;
+}
+
+#[derive(Debug)]
+pub struct TimeUpdate {
+    // 0x58
     pub world_age: Long,
     pub day_time: Long,
 }
 
+impl ClientboundPacket for TimeUpdate {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        TimeUpdate {
+            world_age: pd.next_long(),
+            day_time: pd.next_long(),
+        }
+    }
+
+    const ID: u8 = 0x58;
+}
+
 #[derive(Debug)]
-pub struct SoundEffect{ // 0x5c
-    // TODO - Sound Effect
+pub struct SoundEffect {
+    // 0x5c
+// TODO - Sound Effect
+}
+
+impl ClientboundPacket for SoundEffect {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        SoundEffect {}
+    }
+
+    const ID: u8 = 0x5c;
+}
+
+
+#[derive(Debug)]
+pub struct EntityTeleport {
+    // 0x61
+    pub entity_id: VarInt,
+    pub x: Double,
+    pub y: Double,
+    pub z: Double,
+    pub yaw: Angle,
+    pub pitch: Angle,
+    pub on_ground: Boolean,
+}
+
+impl ClientboundPacket for EntityTeleport {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        EntityTeleport {
+            entity_id: pd.next_varint(),
+            x: pd.next_double(),
+            y: pd.next_double(),
+            z: pd.next_double(),
+            yaw: pd.next_angle(),
+            pitch: pd.next_angle(),
+            on_ground: pd.next_bool(),
+        }
+    }
+
+    const ID: u8 = 0x61;
+}
+
+
+#[derive(Debug)]
+pub struct EntityProperties {
+    pub entity_id: VarInt,
+    pub num_properties: VarInt,
+    pub properties: Vec<( // List of properties
+        Identifier, // Key
+        Double,     // Value
+        VarInt,     // Num of Modifiers
+        Vec<(       // List of Modifier Data
+            UUID,       // UUID
+            Double,     // Amount
+            Byte,       // Operation
+        )>,
+    )>,
+}
+
+impl ClientboundPacket for EntityProperties {
+    fn decode(pd: &mut PacketDecoder) -> Self {
+        let entity_id = pd.next_varint();
+        let num_properties = pd.next_varint();
+        let mut properties: Vec<(
+            Identifier, Double, VarInt,
+            Vec<(UUID, Double, Byte)>)> = Vec::new();
+        for _ in 0..num_properties.0 {
+            let iden = pd.next_string();
+            let doub = pd.next_double();
+            let num_modifiers = pd.next_varint();
+            let mut modifiers: Vec<(UUID, Double, Byte)> = Vec::new();
+            for _ in 0..num_modifiers.0 {
+                modifiers.push((
+                    pd.next_uuid(),
+                    pd.next_double(),
+                    pd.next_byte(),
+                ));
+            }
+            properties.push((
+                iden, doub, num_modifiers, modifiers
+            ));
+        }
+        EntityProperties {
+            entity_id,
+            num_properties,
+            properties,
+        }
+    }
+
+    const ID: u8 = 0x63;
 }
 
 
@@ -535,7 +1516,15 @@ pub enum DecodedPacket {
     // CLIENTBOUND *************************************CLIENTBOUND
 
     // ********************** LOGIN
+
+    EncryptionRequest(EncryptionRequest),
+    LoginSuccess(LoginSuccess),
+    SetCompression(SetCompression),
+    LoginPluginRequest(LoginPluginRequest),
+
+    // ********************** STATUS
     Status(Status),
+    ClientPong(ClientPong),
 
     // ********************** PLAY
     SpawnEntity(SpawnEntity),
@@ -583,24 +1572,16 @@ pub enum DecodedPacket {
     EntityPositionAndRotation(EntityPositionAndRotation),
     EntityRotation(EntityRotation),
 
-
-    UpdateHealth(UpdateHealth),
-    EntityHeadLook(EntityHeadLook),
-    EntityVelocity(EntityVelocity),
-    EntityTeleport(EntityTeleport),
-    EntityMetadata(EntityMetadata),
     PlayerPositionAndLook(PlayerPositionAndLook),
     DestroyEntities(DestroyEntities),
+    EntityHeadLook(EntityHeadLook),
+    EntityMetadata(EntityMetadata),
+    EntityVelocity(EntityVelocity),
+    UpdateHealth(UpdateHealth),
     TimeUpdate(TimeUpdate),
     SoundEffect(SoundEffect),
-
-    // Login stuff
-
-    EncryptionRequest(),    // TODO - I'll leave this for a while
-    LoginSuccess(),         // TODO - UUID and Name
-    SetCompression(VarInt), // Theshold
-    LoginPluginRequest(),   // Not implemented
-
+    EntityTeleport(EntityTeleport),
+    EntityProperties(EntityProperties),
 
     Unknown(Vec<u8>),
     Empty,
@@ -754,293 +1735,80 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
 
     let out: DecodedPacket;
 
-    // Packet decoder, makes decoding packets much easier than what I was doing before :P
     let mut pd = PacketDecoder::new(&packet);
 
     match packet[0] {
         0x00 => match state {
-            ServerState::Login => {
-                out = Disconnect(packets::Disconnect{reason: pd.next_string()});
-            }
-            ServerState::Play => {
-                out = SpawnEntity(packets::SpawnEntity{
-                    entity_id: pd.next_varint(),
-                    uuid: pd.next_uuid(),
-                    entity_type: pd.next_varint(),
-                    x: pd.next_double(),
-                    y: pd.next_double(),
-                    z: pd.next_double(),
-                    pitch: pd.next_angle(),
-                    yaw: pd.next_angle(),
-                    data: pd.next_int(),
-                    vx: pd.next_short(),
-                    vy: pd.next_short(),
-                    vz: pd.next_short(),
-                });
-            }
-            ServerState::Status => {
-                out = Status(packets::Status{response: pd.next_string()});
-            }
+            ServerState::Login => out = Disconnect(packets::Disconnect::decode(&mut pd)),
+            ServerState::Play => out = SpawnEntity(packets::SpawnEntity::decode(&mut pd)),
+            ServerState::Status => out = Status(packets::Status::decode(&mut pd)),
         },
-
+        0x01 => match state {
+            ServerState::Play => out = SpawnExperienceOrb(packets::SpawnExperienceOrb::decode(&mut pd)),
+            ServerState::Login => out = EncryptionRequest(packets::EncryptionRequest::decode(&mut pd)),
+            _ => out = Unknown(packet),
+        },
         0x02 => match state {
-            ServerState::Login => {
-                out = LoginSuccess();
-            }
-            ServerState::Play => {
-                out = SpawnLivingEntity(packets::SpawnLivingEntity{
-                    entity_id: pd.next_varint(),
-                    uuid: pd.next_uuid(),
-                    entity_type: pd.next_varint(),
-                    x: pd.next_double(),
-                    y: pd.next_double(),
-                    z: pd.next_double(),
-                    yaw: pd.next_angle(),
-                    pitch: pd.next_angle(),
-                    head_pitch: pd.next_angle(),
-                    vx: pd.next_short(),
-                    vy: pd.next_short(),
-                    vz: pd.next_short(),
-                });
-            }
-            ServerState::Status => {
-                out = Unknown(packet);
-            }
+            ServerState::Login => out = LoginSuccess(packets::LoginSuccess::decode(&mut pd)),
+            ServerState::Play => out = SpawnLivingEntity(packets::SpawnLivingEntity::decode(&mut pd)),
+            _ => out = Unknown(packet),
         },
-
         0x03 => match state {
-            ServerState::Login => {
-                out = SetCompression(pd.next_varint());
-            }
-            _ => {
-                out = Unknown(packet);
-            }
-        },
-
-        0x0c => {
-            out = BlockChange(packets::BlockChange{
-                block_pos: pd.next_position(), 
-                block_state_id: pd.next_varint()
-            });
-        }
-
-        0x0e => match state {
-            ServerState::Play => {
-                out = ServerDifficulty(packets::ServerDifficulty{
-                    difficulty: pd.next_ubyte(), 
-                    locked: pd.next_bool()
-                });
-            }
+            ServerState::Login => out = SetCompression(packets::SetCompression::decode(&mut pd)),
+            ServerState::Play => out = SpawnPainting(packets::SpawnPainting::decode(&mut pd)),
             _ => out = Unknown(packet),
         },
-
-        0x0f => match state {
-            ServerState::Play => {
-                out = ChatIncoming(packets::ChatIncoming{
-                    json: pd.next_string(), 
-                    position: pd.next_byte(), 
-                    sender: pd.next_uuid()
-                });
-            }
+        0x04 => match state {
+            ServerState::Play => out = SpawnPlayer(packets::SpawnPlayer::decode(&mut pd)),
+            ServerState::Login => out = LoginPluginRequest(packets::LoginPluginRequest::decode(&mut pd)),
             _ => out = Unknown(packet),
         },
-
-        0x1a => {
-            out = Disconnect(packets::Disconnect{reason: pd.next_string()});
-        }
-
-        0x21 => {
-            out = KeepAliveClientbound(packets::KeepAliveClientbound{
-                keep_alive_id: pd.next_long()}
-            );
-        }
-
-        0x22 => {
-            let chunk_x = pd.next_int();
-            let chunk_z = pd.next_int();
-            let bit_mask_len = pd.next_varint();
-            let mut bit_mask: Vec<Long> = Vec::new();
-            for _ in 0..bit_mask_len.0 as usize {
-                bit_mask.push(pd.next_long());
-            }
-            let heightmaps = pd.next_nbt();
-            let biomes_len = pd.next_varint();
-            let mut biomes: Vec<VarInt> = Vec::new();
-            for _ in 0..biomes_len.0 as usize {
-                biomes.push(pd.next_varint());
-            }
-            let data_len = pd.next_varint();
-            let mut data = Vec::new();
-            for _ in 0..data_len.0 as usize {
-                data.push(pd.next_byte());
-            }
-            let blocks_len = pd.next_varint();
-            let mut block_entities = Vec::new();
-            for _ in 0..blocks_len.0 as usize {
-                block_entities.push(pd.next_nbt());
-            }
-            out = ChunkData(packets::ChunkData{
-                    x: chunk_x,
-                    z: chunk_z,
-                    bit_mask_len,
-                    bit_mask,
-                    heightmaps,
-                    biomes_len,
-                    biomes,
-                    data_len,
-                    data,
-                    block_entities_len: blocks_len,
-                    block_entities,
-            });
-        }
-
-        0x26 => {
-            let player_id = pd.next_int();
-            let is_hardcore = pd.next_bool();
-            let gamemode = pd.next_ubyte();
-            let prev_gamemode = pd.next_byte();
-            let world_names_len = pd.next_varint();
-            let mut world_names: Vec<Identifier> = Vec::new();
-            for _ in 0..world_names_len.0 as usize {
-                world_names.push(pd.next_string());
-            }
-            out = JoinGame(packets::JoinGame{
-                player_id,
-                is_hardcore,
-                gamemode,
-                prev_gamemode,
-                world_names_len,
-                world_names,
-                dimension_codec: pd.next_nbt(),
-                dimension: pd.next_nbt(),
-                world_name: pd.next_string(),
-                hashed_seed: pd.next_long(),
-                max_players: pd.next_varint(),
-                view_distance: pd.next_varint(),
-                reduced_debug_info: pd.next_bool(),
-                enable_respawn_screen: pd.next_bool(),
-                is_debug: pd.next_bool(),
-                is_flat: pd.next_bool(),
-            });
-        }
-
-        0x29 => {
-            out = EntityPosition(packets::EntityPosition{
-                entity_id: pd.next_varint(),
-                dx: pd.next_short(),
-                dy: pd.next_short(),
-                dz: pd.next_short(),
-                on_ground: pd.next_bool(),
-            });
-        }
-
-        0x2a => {
-            out = EntityPositionAndRotation(packets::EntityPositionAndRotation{
-                entity_id: pd.next_varint(),
-                dx: pd.next_short(),
-                dy: pd.next_short(),
-                dz: pd.next_short(),
-                yaw: pd.next_angle(),
-                pitch: pd.next_angle(),
-                on_ground: pd.next_bool(),
-            });
-        }
-
-        0x2b => {
-            out = EntityRotation(packets::EntityRotation{
-                entity_id: pd.next_varint(),
-                yaw: pd.next_angle(),
-                pitch: pd.next_angle(),
-                on_ground: pd.next_bool(),
-            });
-        }
-
-        0x38 => {
-            out = PlayerPositionAndLook(packets::PlayerPositionAndLook{
-                x: pd.next_double(),
-                y: pd.next_double(),
-                z: pd.next_double(),
-                yaw: pd.next_float(),
-                pitch: pd.next_float(),
-                flags: pd.next_byte(),
-                teleport_id: pd.next_varint(),
-                dismount: pd.next_bool(),
-            });
-        }
-
-        0x3a => {
-            let vi_num = pd.next_varint();
-            let mut ids: Vec<VarInt> = Vec::new();
-
-            for _ in 0..vi_num.0 as usize {
-                ids.push(pd.next_varint());
-            }
-            out = DestroyEntities(packets::DestroyEntities{
-                entities_len: vi_num, 
-                entities: ids
-            });
-        }
-
-        0x3e => {
-            out = EntityHeadLook(packets::EntityHeadLook{
-                entity_id: pd.next_varint(), 
-                head_yaw: pd.next_angle()
-            });
-        }
-
-        0x4d => {
-            out = EntityMetadata(packets::EntityMetadata{
-                entity_id: pd.next_varint(),
-            });
-        }
-
-        0x4f => {
-            out = EntityVelocity(packets::EntityVelocity{
-                entity_id: pd.next_varint(),
-                vx: pd.next_short(),
-                vy: pd.next_short(),
-                vz: pd.next_short(),
-            });
-        }
-
-        0x52 => {
-            out = UpdateHealth(packets::UpdateHealth{
-                health: pd.next_float(), 
-                food: pd.next_varint(), 
-                saturation: pd.next_float()
-            });
-        }
-
-        0x58 => {
-            out = TimeUpdate(packets::TimeUpdate{
-                world_age: pd.next_long(), 
-                day_time: pd.next_long()
-            });
-        }
-
-        0x5c => {
-            out = SoundEffect(packets::SoundEffect{});
-        }
-
-        0x61 => {
-            out = EntityTeleport(packets::EntityTeleport{
-                entity_id: pd.next_varint(),
-                x: pd.next_double(),
-                y: pd.next_double(),
-                z: pd.next_double(),
-                yaw: pd.next_angle(),
-                pitch: pd.next_angle(),
-                on_ground: pd.next_bool(),
-            });
-        }
-
-        _ => {
-            out = Unknown(packet);
-        }
+        0x05 => out = SculkVibrationSignal(packets::SculkVibrationSignal::decode(&mut pd)),
+        0x06 => out = EntityAnimation(packets::EntityAnimation::decode(&mut pd)),
+        0x07 => out = Statistics(packets::Statistics::decode(&mut pd)),
+        0x08 => out = AcknowledgePlayerDigging(packets::AcknowledgePlayerDigging::decode(&mut pd)),
+        0x09 => out = BlockBreakAnimation(packets::BlockBreakAnimation::decode(&mut pd)),
+        0x0a => out = BlockEntityData(packets::BlockEntityData::decode(&mut pd)),
+        0x0b => out = BlockAction(packets::BlockAction::decode(&mut pd)),
+        0x0c => out = BlockChange(packets::BlockChange::decode(&mut pd)),
+        0x0e => out = ServerDifficulty(packets::ServerDifficulty::decode(&mut pd)),
+        0x0f => out = ChatIncoming(packets::ChatIncoming::decode(&mut pd)),
+        0x10 => out = ClearTitles(packets::ClearTitles::decode(&mut pd)),
+        0x11 => out = TabComplete(packets::TabComplete::decode(&mut pd)),
+        0x13 => out = CloseWindowClientbound(packets::CloseWindowClientbound::decode(&mut pd)),
+        //0x14 => out = WindowItems(packets::WindowItems::decode(&mut pd)),
+        0x15 => out = WindowProperty(packets::WindowProperty::decode(&mut pd)),
+        0x16 => out = SetSlot(packets::SetSlot::decode(&mut pd)),
+        0x17 => out = SetCooldown(packets::SetCooldown::decode(&mut pd)),
+        0x19 => out = NamedSoundEffect(packets::NamedSoundEffect::decode(&mut pd)),
+        0x1a => out = Disconnect(packets::Disconnect::decode(&mut pd)),
+        0x1b => out = EntityStatus(packets::EntityStatus::decode(&mut pd)),
+        0x1c => out = Explosion(packets::Explosion::decode(&mut pd)),
+        0x1d => out = UnloadChunk(packets::UnloadChunk::decode(&mut pd)),
+        0x1e => out = ChangeGameState(packets::ChangeGameState::decode(&mut pd)),
+        0x1f => out = OpenHorseWindow(packets::OpenHorseWindow::decode(&mut pd)),
+        0x20 => out = InitializeWorldBorder(packets::InitializeWorldBorder::decode(&mut pd)),
+        0x21 => out = KeepAliveClientbound(packets::KeepAliveClientbound::decode(&mut pd)),
+        0x22 => out = ChunkData(packets::ChunkData::decode(&mut pd)),
+        0x23 => out = Effect(packets::Effect::decode(&mut pd)),
+        0x26 => out = JoinGame(packets::JoinGame::decode(&mut pd)),
+        0x29 => out = EntityPosition(packets::EntityPosition::decode(&mut pd)),
+        0x2a => out = EntityPositionAndRotation(packets::EntityPositionAndRotation::decode(&mut pd)),
+        0x2b => out = EntityRotation(packets::EntityRotation::decode(&mut pd)),
+        0x38 => out = PlayerPositionAndLook(packets::PlayerPositionAndLook::decode(&mut pd)),
+        0x3a => out = DestroyEntities(packets::DestroyEntities::decode(&mut pd)),
+        0x3e => out = EntityHeadLook(packets::EntityHeadLook::decode(&mut pd)),
+        0x4d => out = EntityMetadata(packets::EntityMetadata::decode(&mut pd)),
+        0x4f => out = EntityVelocity(packets::EntityVelocity::decode(&mut pd)),
+        0x52 => out = UpdateHealth(packets::UpdateHealth::decode(&mut pd)),
+        0x58 => out = TimeUpdate(packets::TimeUpdate::decode(&mut pd)),
+        0x5c => out = SoundEffect(packets::SoundEffect::decode(&mut pd)),
+        0x61 => out = EntityTeleport(packets::EntityTeleport::decode(&mut pd)),
+        0x63 => out = EntityProperties(packets::EntityProperties::decode(&mut pd)),
+        _ => out = Unknown(packet),
     }
 
     match &out {
-        #[allow(unused_variables)]
         Unknown(pack) => {
             println!("Unknow packet: {:02x}", pack[0]);
         }
@@ -1150,7 +1918,7 @@ impl PacketDecoder<'_> {
     }
 
     pub fn next_slot(&mut self) -> Slot {
-        todo!()
+        todo!(" Implement Packet Decoder Slot")
     }
 
     pub fn next_nbt(&mut self) -> NBTTag {
@@ -1161,7 +1929,7 @@ impl PacketDecoder<'_> {
             Ok((nbt, name)) => {
                 self.ind = cursor.position() as usize;
                 return NBTTag(nbt);
-            },
+            }
             Err(e) => {
                 panic!("Failed to decode NBT data: {}", e);
             }

@@ -8,7 +8,6 @@ use std::string::FromUtf8Error;
 
 use quartz_nbt::NbtCompound;
 
-
 // Structs for each of the types used in the packets sent by an MC server
 
 #[derive(Debug, Clone)]
@@ -48,7 +47,6 @@ pub struct Position(pub i32, pub i32, pub i32); // TODO
 pub type Angle = UByte;
 #[derive(Debug, Clone)]
 pub struct UUID(pub [u64; 2]);
-
 
 // Each of these types implements to_bytes and from_bytes for easy conversion
 // I should probably pull it out into a trait, that might make some things more manageable

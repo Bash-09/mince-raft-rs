@@ -1,6 +1,14 @@
 use std::{collections::hash_set::Difference, thread, time::Duration};
 
-use crate::{app::client::{entities::{Entity, ENTITIES}, server::Difficulty, world::chunks::Chunk}, network::{packets::DecodedPacket, types::*, *}, timer::*};
+use crate::{
+    app::client::{
+        entities::Entity,
+        server::Difficulty,
+        world::chunks::Chunk,
+    },
+    network::{packets::DecodedPacket, types::*, *},
+    timer::*,
+};
 
 use glium::*;
 use glutin::event::VirtualKeyCode;
@@ -210,7 +218,7 @@ impl App {
                         panic!("Disconnected: {}", pack.reason.0);
                     }
 
-                    LoginSuccess() => {
+                    LoginSuccess(pack) => {
                         println!("Login success.");
                         self.log.log_info("Successfully Logged in!");
                     }
@@ -284,18 +292,16 @@ impl App {
                         }
                     }
 
-                    EntityPosition(pack) => {
-                        match server.entities.get_mut(&pack.entity_id.0) {
-                            Some(ent) => {
-                                ent.pos.translate(
-                                    (pack.dx.0 as f64) / 4096.0,
-                                    (pack.dy.0 as f64) / 4096.0,
-                                    (pack.dz.0 as f64) / 4096.0,
-                                );
-                            }
-                            None => {}
+                    EntityPosition(pack) => match server.entities.get_mut(&pack.entity_id.0) {
+                        Some(ent) => {
+                            ent.pos.translate(
+                                (pack.dx.0 as f64) / 4096.0,
+                                (pack.dy.0 as f64) / 4096.0,
+                                (pack.dz.0 as f64) / 4096.0,
+                            );
                         }
-                    }
+                        None => {}
+                    },
 
                     EntityPositionAndRotation(pack) => {
                         match server.entities.get_mut(&pack.entity_id.0) {
@@ -305,27 +311,29 @@ impl App {
                                     (pack.dy.0 as f64) / 4096.0,
                                     (pack.dz.0 as f64) / 4096.0,
                                 );
-                                ent.ori.set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
+                                ent.ori
+                                    .set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
                                 ent.on_ground = pack.on_ground.0;
                             }
                             None => {}
                         }
                     }
 
-                    EntityRotation(pack) => {
-                        match server.entities.get_mut(&pack.entity_id.0) {
-                            Some(ent) => {
-                                ent.ori.set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
-                                ent.on_ground = pack.on_ground.0;
-                            }
-                            None => {}
+                    EntityRotation(pack) => match server.entities.get_mut(&pack.entity_id.0) {
+                        Some(ent) => {
+                            ent.ori
+                                .set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
+                            ent.on_ground = pack.on_ground.0;
                         }
-                    }
+                        None => {}
+                    },
 
                     EntityHeadLook(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.ori_head
-                                .set(pack.head_yaw.0 as f64 / 256.0, ent.ori_head.get_head_pitch());
+                            ent.ori_head.set(
+                                pack.head_yaw.0 as f64 / 256.0,
+                                ent.ori_head.get_head_pitch(),
+                            );
                         }
                         None => {}
                     },
@@ -341,20 +349,22 @@ impl App {
                         None => {}
                     },
 
-                    EntityTeleport(pack) => {
-                        match server.entities.get_mut(&pack.entity_id.0) {
-                            Some(ent) => {
-                                ent.pos.set(pack.x.0, pack.y.0, pack.z.0);
-                                ent.ori.set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
-                                ent.on_ground = pack.on_ground.0;
-                            }
-                            None => {}
+                    EntityTeleport(pack) => match server.entities.get_mut(&pack.entity_id.0) {
+                        Some(ent) => {
+                            ent.pos.set(pack.x.0, pack.y.0, pack.z.0);
+                            ent.ori
+                                .set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
+                            ent.on_ground = pack.on_ground.0;
                         }
-                    }
+                        None => {}
+                    },
 
                     PlayerPositionAndLook(pack) => {
                         server.player.position.set(pack.x.0, pack.y.0, pack.z.0);
-                        server.player.orientation.set(pack.yaw.0 as f64, pack.pitch.0 as f64);
+                        server
+                            .player
+                            .orientation
+                            .set(pack.yaw.0 as f64, pack.pitch.0 as f64);
 
                         send_packet(&self.network, TeleportConfirm(pack.teleport_id.clone()));
 
@@ -386,13 +396,20 @@ impl App {
                     }
 
                     // Currently ignoring these packets
-                    SoundEffect(_) | EntityMetadata(_) | BlockChange(_) => {
+                    SoundEffect(_) 
+                    | EntityMetadata(_) 
+                    | BlockChange(_) 
+                    | EntityProperties(_)
+                    | EntityStatus(_)
+                    | Effect(_)
+                    | EntityAnimation(_)
+                    => {
                         // self.log.log_incoming_packet(packet);
                     }
 
                     // Packets that have been forwarded but not handled properly
                     _ => {
-                        println!("Incoming packet: {:?}", packet);
+                        println!("Got Packet: {:?}", packet);
                     }
                 }
                 // self.log.log(Log::new(&thread::current(), LogType::PacketReceived(packet)));

@@ -57,7 +57,7 @@ impl DebugWindow {
                 ui.text("Saturation");
 
                 ui.text(im_str!("{}", server.player.health));
-                ui.same_line(75.0);                
+                ui.same_line(75.0);
                 ui.text(im_str!("{}", server.player.food));
                 ui.same_line(150.0);
                 ui.text(im_str!("{}", server.player.saturation));
@@ -114,8 +114,10 @@ impl DebugWindow {
                 ui.same_line(140.0);
                 ui.text(im_str!("{}", chunk_coords.1));
 
-                ui.text(im_str!("Highest: {}", server.world.get_highest_block((pos.0, pos.2))));
-                
+                ui.text(im_str!(
+                    "Highest: {}",
+                    server.world.get_highest_block((pos.0, pos.2))
+                ));
             });
     }
 }

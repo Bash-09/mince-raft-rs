@@ -226,13 +226,13 @@ impl NetworkManager {
         loop {
             match self.next_packet() {
                 Some(packet) => {
-                    match packet {
+                    match &packet {
                         // Please no
-                        DecodedPacket::EncryptionRequest() => {
+                        DecodedPacket::EncryptionRequest(_) => {
                             panic!("I ain't implemented this shit yet");
                         }
-                        DecodedPacket::SetCompression(threshold) => {
-                            if threshold.0 <= 0 {
+                        DecodedPacket::SetCompression(pack) => {
+                            if pack.threshold.0 <= 0 {
                                 self.compress = false;
                                 self.channel
                                     .send
@@ -242,11 +242,11 @@ impl NetworkManager {
                                     .expect("Failed to send log to main thread.");
                             } else {
                                 self.compress = true;
-                                self.threshold = threshold.0 as usize;
+                                self.threshold = pack.threshold.0 as usize;
                                 self.channel
                                     .send
                                     .send(NetworkCommand::Log(Log::new(LogType::Info(
-                                        format!("Set Compression: {}", threshold.0).to_string(),
+                                        format!("Set Compression: {}", pack.threshold.0).to_string(),
                                     ))))
                                     .expect("Failed to send log to main thread.");
                             }
@@ -258,10 +258,10 @@ impl NetworkManager {
                                 .unwrap();
                             return None;
                         }
-                        DecodedPacket::LoginPluginRequest() => {
+                        DecodedPacket::LoginPluginRequest(_) => {
                             panic!("I don't want to think about LoginPlugin");
                         }
-                        DecodedPacket::LoginSuccess() => {
+                        DecodedPacket::LoginSuccess(pack) => {
                             println!("Connecting to server with no authentication!");
                             self.state = ServerState::Play;
 
@@ -383,21 +383,22 @@ impl NetworkManager {
                     .expect("Failed to send message back to client");
             }
 
-            SetCompression(threshold) => {
-                if threshold.0 <= 0 {
+            SetCompression(pack) => {
+                if pack.threshold.0 <= 0 {
                     self.compress = false;
                 } else {
                     self.compress = true;
-                    self.threshold = threshold.0 as usize;
+                    self.threshold = pack.threshold.0 as usize;
                 }
             }
 
             // Forward other packets to the main thread
             _ => {
                 self.channel
-                .send
-                .send(NetworkCommand::ReceivePacket(packet))
-                .expect("Failed to send message back to client");            }
+                    .send
+                    .send(NetworkCommand::ReceivePacket(packet))
+                    .expect("Failed to send message back to client");
+            }
         }
     }
 }

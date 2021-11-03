@@ -2,7 +2,12 @@ use std::collections::{btree_set::Difference, HashMap};
 
 use crate::network::packets::DecodedPacket;
 
-use super::{chat::Chat, entities::Entity, player::{self, Player}, world::World};
+use super::{
+    chat::Chat,
+    entities::Entity,
+    player::{self, Player},
+    world::World,
+};
 
 pub enum ServerState {
     Status,

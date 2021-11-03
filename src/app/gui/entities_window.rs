@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use __core::any::Any;
 use imgui::*;
+use resources::entities::ENTITIES;
 
 use crate::app::client::{
-    entities::{Entity, ENTITIES},
+    entities::Entity,
     server::Server,
 };
 
@@ -27,12 +28,12 @@ impl EntitiesWindow {
                 // Collect all entities into each type
                 let mut ents: HashMap<i32, Vec<&Entity>> = HashMap::new();
                 for (id, e) in &serv.entities {
-                    match ents.get_mut(&e.entity_type) {
+                    match ents.get_mut(&e.entity_type.id) {
                         Some(vec) => {
                             vec.push(e);
                         }
                         None => {
-                            ents.insert(e.entity_type, vec![e]);
+                            ents.insert(e.entity_type.id, vec![e]);
                         }
                     }
                 }
@@ -47,7 +48,7 @@ impl EntitiesWindow {
 
                 // List each present type of entity under dropdown menus
                 for (type_id, ent) in ents_vec {
-                    let name = ENTITIES[*type_id as usize].name;
+                    let name = ENTITIES.get(type_id).unwrap().name;
                     if CollapsingHeader::new(&im_str!("{}", name)).build(ui) {
                         // List each individual entity under its header
                         ui.text(im_str!("{} ({})", name, ent.len()));

@@ -56,7 +56,11 @@ impl Position {
     }
 
     pub fn get_block_coords(&self) -> (i32, i32, i32) {
-        (self.x.floor() as i32, self.y.floor() as i32, self.z.floor() as i32)
+        (
+            self.x.floor() as i32,
+            self.y.floor() as i32,
+            self.z.floor() as i32,
+        )
     }
 }
 
@@ -140,7 +144,12 @@ impl Orientation {
     }
 
     pub fn new_with_values(yaw: f64, pitch: f64, pitch_min: f64, pitch_max: f64) -> Orientation {
-        Orientation { yaw, pitch, pitch_min, pitch_max }
+        Orientation {
+            yaw,
+            pitch,
+            pitch_min,
+            pitch_max,
+        }
     }
 
     pub fn set(&mut self, yaw: f64, pitch: f64) {

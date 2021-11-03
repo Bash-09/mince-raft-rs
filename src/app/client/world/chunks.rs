@@ -2,10 +2,7 @@ use quartz_nbt::NbtTag;
 
 use crate::network::packets::ChunkData;
 
-
-
 pub struct Chunk {
-
     x: i32,
     z: i32,
 
@@ -13,12 +10,8 @@ pub struct Chunk {
 }
 
 impl Chunk {
-
     pub fn new(data: &ChunkData) -> Chunk {
-
-
-
-        Chunk {  
+        Chunk {
             x: data.x.0,
             z: data.z.0,
 
@@ -40,9 +33,7 @@ impl Chunk {
     pub fn get_highest_block(&self, coords: (i32, i32)) -> i32 {
         self.heightmap[coords.1 as usize * 16 + coords.0 as usize] as i32
     }
-
 }
-
 
 fn process_heightmap(data: &ChunkData) -> [u16; 256] {
     let mut map = [0u16; 256];
@@ -51,15 +42,15 @@ fn process_heightmap(data: &ChunkData) -> [u16; 256] {
         Ok(list) => {
             let vals_per_long: usize = 7;
             for i in 0..256 as usize {
-                let long = i/vals_per_long;
-                let offset = (i%vals_per_long) * 9;
+                let long = i / vals_per_long;
+                let offset = (i % vals_per_long) * 9;
 
                 map[i] = ((list[long] >> offset) & 0x1ff) as u16;
             }
-        },
+        }
         Err(e) => {
             panic!("Invalid chunk data: {}", e);
-        },
+        }
     }
 
     map
