@@ -2,6 +2,7 @@
 
 use std::io::{Cursor, Error};
 
+use log::debug;
 use quartz_nbt::io;
 
 use crate::{app::client::server::ServerState, network::packets};
@@ -1810,7 +1811,7 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
 
     match &out {
         Unknown(pack) => {
-            println!("Unknow packet: {:02x}", pack[0]);
+            debug!("Unknown packet: {:02x}", pack[0]);
         }
         _ => {}
     }
@@ -1943,9 +1944,13 @@ impl PacketDecoder<'_> {
     pub fn next_position(&mut self) -> Position {
         let big = u64::from_be_bytes(extract_64(self.buf, self.ind));
 
-        let x = (big >> 38) as i32;
-        let y = (big & 0xfff) as i32;
-        let z = (big << 26 >> 38) as i32;
+        let mut x = (big >> 38) as i32;
+        let mut y = (big & 0xfff) as i32;
+        let mut z = (big << 26 >> 38) as i32;
+
+        if x >= 2i32.pow(25) { x -= 2i32.pow(26) }
+        if y >= 2i32.pow(11) { y -= 2i32.pow(12) }
+        if z >= 2i32.pow(25){ z -= 2i32.pow(26) }
 
         self.ind += 8;
         Position(x, y, z)

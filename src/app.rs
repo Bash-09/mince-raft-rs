@@ -1,5 +1,3 @@
-use std::{collections::hash_set::Difference, thread, time::Duration};
-
 use crate::{
     app::client::{
         entities::Entity,
@@ -10,9 +8,8 @@ use crate::{
     timer::*,
 };
 
-use glium::*;
-use glutin::event::VirtualKeyCode;
-use winit::os::unix::x11::ffi::Bool;
+use glium::{Display, Surface};
+use log::{debug, error, info};
 
 use crate::io::{keyboard::*, mouse::*};
 
@@ -20,17 +17,16 @@ pub mod gui;
 use gui::*;
 
 pub mod client;
-use client::{chat::Chat, *};
-
-pub mod logger;
-use logger::*;
 
 use self::client::server::Server;
+
+
+
+
 
 pub struct App {
     pub dis: Display,
     pub gui: Gui,
-    pub log: Logger,
 
     pub mouse: Mouse,
     pub keyboard: Keyboard,
@@ -47,7 +43,6 @@ impl App {
         App {
             dis,
             gui,
-            log: Logger::new(),
 
             mouse: Mouse::new(),
             keyboard: Keyboard::new(),
@@ -65,8 +60,7 @@ impl App {
         // Creates a network manager and attempts to connect to and login to a server
         match NetworkManager::connect("192.168.1.139:25565") {
             Ok((channel, server)) => {
-                println!("Connected to server");
-
+                debug!("Connected to server.");
                 channel
                     .send
                     .send(NetworkCommand::Login(
@@ -80,7 +74,7 @@ impl App {
                 self.network = Some(channel);
             }
             Err(e) => {
-                println!("Error connecting: {}", e);
+                error!("Error connecting: {}", e);
             }
         }
     }
@@ -125,17 +119,16 @@ impl App {
                     send_packet(&self.network, DecodedPacket::ChatOutgoing(MCString(text)));
                 }
 
+                let vel = 5.0 * delta as f64;
                 // Move player
-                if self.mouse.is_pressed(0) {
-                    let vel = 2.0 * delta as f64;
+                if self.mouse.is_pressed(0) & !self.gui.imgui.io().want_capture_mouse {
                     let (x, y, z) = serv.player.orientation.get_look_vector();
                     serv.player
                         .position
                         .translate(x as f64 * vel, y as f64 * vel, z as f64 * vel);
                 }
 
-                if self.mouse.is_pressed(2) {
-                    let vel = -2.0 * delta as f64;
+                if self.mouse.is_pressed(2) & !self.gui.imgui.io().want_capture_mouse {
                     let (x, y, z) = serv.player.orientation.get_look_vector();
                     serv.player
                         .position
@@ -143,9 +136,9 @@ impl App {
                 }
 
                 // Change player direction
-                if self.mouse.is_pressed(1) {
+                if self.mouse.is_pressed(1) & !self.gui.imgui.io().want_capture_mouse {
                     serv.player.orientation.rotate(
-                        self.mouse.get_delta().0 as f64 * 0.5,
+                        self.mouse.get_delta().0 as f64 * 0.3,
                         self.mouse.get_delta().1 as f64 * 0.2,
                     );
                 }
@@ -183,7 +176,7 @@ impl App {
         match &mut self.server {
             Some(serv) => server = serv,
             None => {
-                println!("Receiving network commands but there is no server");
+                error!("Receiving network commands but there is no server!");
                 return;
             }
         }
@@ -219,8 +212,7 @@ impl App {
                     }
 
                     LoginSuccess(pack) => {
-                        println!("Login success.");
-                        self.log.log_info("Successfully Logged in!");
+                        info!("Successfully Logged in!");
                     }
 
                     JoinGame(id) => {
@@ -383,12 +375,11 @@ impl App {
                                 Boolean(true),
                             ),
                         );
-                        self.log.log_incoming_packet(packet);
                     }
 
                     ChatIncoming(chat) => {
                         server.chat.add_message(&chat);
-                        self.log.log_incoming_packet(packet);
+                        info!("{:?}", chat);
                     }
 
                     ChunkData(cd) => {
@@ -398,7 +389,6 @@ impl App {
                     // Currently ignoring these packets
                     SoundEffect(_) 
                     | EntityMetadata(_) 
-                    | BlockChange(_) 
                     | EntityProperties(_)
                     | EntityStatus(_)
                     | Effect(_)
@@ -409,20 +399,14 @@ impl App {
 
                     // Packets that have been forwarded but not handled properly
                     _ => {
-                        println!("Got Packet: {:?}", packet);
+                        debug!("Got Packet: {:?}", packet);
                     }
                 }
-                // self.log.log(Log::new(&thread::current(), LogType::PacketReceived(packet)));
-            }
-
-            // Log incoming logs
-            Log(log) => {
-                self.log.log(log);
             }
 
             // What do with these messages ay??
             _ => {
-                println!("Unhandled message: {:?}", comm);
+                debug!("Unhandled message: {:?}", comm);
             }
         }
     }
@@ -431,18 +415,22 @@ impl App {
     pub fn render(&mut self) {
         let mut target = self.dis.draw();
 
-        // Change background colour on certain mouse clicks, idek why I do this lmao
-        if self.mouse.is_pressed(0) {
-            target.clear_color(0.8, 0.5, 0.5, 1.0);
-        } else if self.mouse.is_pressed(2) {
-            target.clear_color(1.0, 1.0, 1.0, 1.0);
+        if !self.gui.imgui.io().want_capture_mouse {
+            // Change background colour on certain mouse clicks, idek why I do this lmao
+            if self.mouse.is_pressed(0) {
+                target.clear_color(0.8, 0.5, 0.5, 1.0);
+            } else if self.mouse.is_pressed(2) {
+                target.clear_color(1.0, 1.0, 1.0, 1.0);
+            } else {
+                target.clear_color(0.0, 0.5, 0.8, 1.0);
+            }
         } else {
             target.clear_color(0.0, 0.5, 0.8, 1.0);
         }
 
         // GUI
         self.gui
-            .render(&self.dis, &mut target, &self.log, &mut self.server);
+            .render(&self.dis, &mut target, &mut self.server);
 
         target.finish().unwrap();
     }

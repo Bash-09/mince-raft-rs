@@ -50,11 +50,17 @@ impl DebugWindow {
                 // ui.text(im_str!("Player: {}", server.player.id));
 
                 ui.new_line();
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Health");
+                stack.pop(ui);
                 ui.same_line(75.0);
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Food");
+                stack.pop(ui);
                 ui.same_line(150.0);
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Saturation");
+                stack.pop(ui);
 
                 ui.text(im_str!("{}", server.player.health));
                 ui.same_line(75.0);
@@ -62,28 +68,36 @@ impl DebugWindow {
                 ui.same_line(150.0);
                 ui.text(im_str!("{}", server.player.saturation));
 
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.new_line();
                 ui.new_line();
                 ui.same_line(40.0);
                 ui.text("Position");
                 ui.same_line(140.0);
                 ui.text("Looking");
+                stack.pop(ui);
 
                 let look = server.player.orientation.get_look_vector();
 
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("X:");
+                stack.pop(ui);
                 ui.same_line(50.0);
                 ui.text(im_str!("{:.2}", server.player.position.get_x()));
                 ui.same_line(150.0);
                 ui.text(im_str!("{:.2}", look.0));
 
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Y:");
+                stack.pop(ui);
                 ui.same_line(50.0);
                 ui.text(im_str!("{:.2}", server.player.position.get_y()));
                 ui.same_line(150.0);
                 ui.text(im_str!("{:.2}", look.1));
 
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Z:");
+                stack.pop(ui);
                 ui.same_line(50.0);
                 ui.text(im_str!("{:.2}", server.player.position.get_z()));
                 ui.same_line(150.0);
@@ -93,31 +107,52 @@ impl DebugWindow {
                 let chunk = world::chunk_at_coords((pos.0, pos.2));
                 let chunk_coords = world::chunk_coords((pos.0, pos.2));
 
-                ui.text(im_str!("Block pos: {:?}", pos));
-
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.new_line();
                 ui.new_line();
                 ui.same_line(40.0);
                 ui.text("Chunk");
                 ui.same_line(140.0);
                 ui.text("Block in Chunk");
+                stack.pop(ui);
 
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("X:");
+                stack.pop(ui);
                 ui.same_line(40.0);
                 ui.text(im_str!("{}", chunk.0));
                 ui.same_line(140.0);
                 ui.text(im_str!("{}", chunk_coords.0));
 
+                let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Z:");
+                stack.pop(ui);
                 ui.same_line(40.0);
                 ui.text(im_str!("{}", chunk.1));
                 ui.same_line(140.0);
                 ui.text(im_str!("{}", chunk_coords.1));
 
-                ui.text(im_str!(
-                    "Highest: {}",
-                    server.world.get_highest_block((pos.0, pos.2))
-                ));
+                let mut pos = server.player.position.get_block_coords();
+
+
+                loop {
+                    if pos.1 <= 0 {break}
+                    match server.world.block_at(pos) {
+                        Some(b) => {
+                            if b.state_id == 0 {
+                                pos.1 -= 1;
+                                continue;
+                            }
+
+                            ui.text(im_str!("Block beneath: {} - {}", pos.1, b.name));
+                            break;
+                        },
+                        None => {
+                            pos.1 -= 1;
+                            continue;
+                        }
+                    }
+                }
             });
     }
 }

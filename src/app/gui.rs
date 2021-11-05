@@ -7,9 +7,6 @@ use imgui_glium_renderer::Renderer;
 
 use crate::io::{keyboard::Keyboard, mouse::Mouse};
 
-mod log_window;
-use log_window::*;
-
 mod chat_window;
 use chat_window::*;
 
@@ -19,13 +16,12 @@ use debug_window::*;
 mod entities_window;
 use entities_window::*;
 
-use super::{client::server::Server, logger::Logger};
+use super::{client::server::Server};
 
 pub struct Gui {
     pub imgui: Context,
     rend: Renderer,
 
-    log: LogWindow,
     chat: ChatWindow,
     debug: DebugWindow,
     ents: EntitiesWindow,
@@ -37,7 +33,6 @@ impl Gui {
             imgui,
             rend,
 
-            log: LogWindow::new(),
             chat: ChatWindow::new(),
             debug: DebugWindow::new(),
             ents: EntitiesWindow::new(),
@@ -52,7 +47,6 @@ impl Gui {
         &mut self,
         display: &Display,
         target: &mut Frame,
-        log: &Logger,
         server: &mut Option<Server>,
     ) {
         let size = display.gl_window().window().inner_size();
@@ -68,8 +62,6 @@ impl Gui {
             }
             None => {}
         }
-
-        self.log.render(&ui, log);
 
         self.rend.render(target, ui.render()).unwrap();
     }

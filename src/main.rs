@@ -3,9 +3,11 @@ extern crate glium;
 extern crate imgui;
 extern crate imgui_glium_renderer;
 extern crate quartz_nbt;
+extern crate log;
 
 mod timer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use log::info;
 use timer::*;
 
 mod app;
@@ -27,6 +29,11 @@ use imgui::Context;
 use imgui_glium_renderer::Renderer;
 
 fn main() {
+
+    env_logger::init();
+
+    info!("Starting logger");
+
     let mut event_loop = glutin::event_loop::EventLoop::new();
     let wb = WindowBuilder::new()
         .with_title("Mince-Raft")
@@ -50,6 +57,8 @@ fn main() {
 
     let mut s: App = App::new(display, gui);
     let mut t = Timer::new();
+
+
 
     t.reset();
     event_loop.run(move |ev, _, control_flow| {

@@ -1,4 +1,5 @@
 pub mod packets;
+use log::{error, info, warn};
 use miniz_oxide::{
     deflate::{compress_to_vec, compress_to_vec_zlib},
     inflate::{decompress_to_vec, decompress_to_vec_zlib},
@@ -17,7 +18,6 @@ use std::{
 
 use crate::app::{
     client::server::*,
-    logger::{Log, LogType},
 };
 
 use self::types::*;
@@ -160,13 +160,13 @@ impl NetworkManager {
                                 return Some(decode_packet(buf, &self.state));
                             } else {
                                 // Return packet after decompressing
-
                                 match decompress_to_vec_zlib(&buf[vi_len..]) {
                                     Ok(uncompressed) => {
                                         return Some(decode_packet(uncompressed, &self.state));
                                     }
                                     Err(e) => {
-                                        panic!("Failed to decompress packet: {:?}", e);
+                                        warn!("Failed to decompress packet: {:?}", e);
+                                        return None;
                                     }
                                 }
                             }
@@ -176,13 +176,13 @@ impl NetworkManager {
                         return Some(decode_packet(buf, &self.state));
                     }
                     Err(e) => {
-                        println!("Error reading packet from stream: {}", e);
+                        error!("Failed reading packet from stream: {}", e);
                         panic!("Force stopped to prevent unexpected behaviour.");
                     }
                 }
             }
             Ok(None) => {
-                println!("Failed reading packet!");
+                error!("Failed to read packet!");
                 return None;
             }
             Err(_) => {
@@ -234,21 +234,11 @@ impl NetworkManager {
                         DecodedPacket::SetCompression(pack) => {
                             if pack.threshold.0 <= 0 {
                                 self.compress = false;
-                                self.channel
-                                    .send
-                                    .send(NetworkCommand::Log(Log::new(LogType::Info(
-                                        "Disabled Compression".to_string(),
-                                    ))))
-                                    .expect("Failed to send log to main thread.");
+                                info!("Disabled Compression");
                             } else {
                                 self.compress = true;
                                 self.threshold = pack.threshold.0 as usize;
-                                self.channel
-                                    .send
-                                    .send(NetworkCommand::Log(Log::new(LogType::Info(
-                                        format!("Set Compression: {}", pack.threshold.0).to_string(),
-                                    ))))
-                                    .expect("Failed to send log to main thread.");
+                                info!("Set compression: {}", pack.threshold.0);
                             }
                         }
                         DecodedPacket::Disconnect(_) => {
@@ -262,7 +252,7 @@ impl NetworkManager {
                             panic!("I don't want to think about LoginPlugin");
                         }
                         DecodedPacket::LoginSuccess(pack) => {
-                            println!("Connecting to server with no authentication!");
+                            warn!("Connecting to server with no authentication!");
                             self.state = ServerState::Play;
 
                             self.channel
@@ -272,7 +262,7 @@ impl NetworkManager {
                             return Some(());
                         }
                         _ => {
-                            println!("Got unexpected packet during login: {:?}", packet);
+                            warn!("Git unexpected packet during login: {:?}", packet);
                         }
                     }
                 }
@@ -310,7 +300,10 @@ impl NetworkManager {
 
                         return match self.stream.write(new_bytes.as_slice()) {
                             Ok(_) => Some(()),
-                            Err(_) => None,
+                            Err(e) => {
+                                error!("Failed to write to TcpStream: {}", e);
+                                None
+                            },
                         };
                     } else {
                         // Send without compression while compression is enabled
@@ -321,23 +314,27 @@ impl NetworkManager {
 
                         return match self.stream.write(new_bytes.as_slice()) {
                             Ok(_) => Some(()),
-                            Err(_) => None,
+                            Err(e) => {
+                                error!("Failed to write to TcpStream: {}", e);
+                                None
+                            },
                         };
                     }
-
-                    None
                 } else {
                     // Send without compression
                     let bytes = pack.get_bytes_with_length();
                     match self.stream.write(bytes.as_slice()) {
                         Ok(_) => Some(()),
-                        Err(_) => None,
+                        Err(e) => {
+                            error!("Failed to write to TcpStream: {}", e);
+                            None
+                        },
                     }
                 }
             }
             // Packet encode failure
             None => {
-                println!("Failed to encode packet: {:02x?}", packet);
+                error!("Failed to encode packet: {:?}", packet);
                 return None;
             }
         }
@@ -347,9 +344,9 @@ impl NetworkManager {
     fn handle_message(&mut self, msg: NetworkCommand) {
         match msg {
             NetworkCommand::Login(protocol, port, name) => {
-                println!("Logging in");
+                info!("Loggin in.");
                 self.login(protocol, port, name);
-                println!("Finished login");
+                info!("Finished Login");
             }
             NetworkCommand::Disconnect => {
                 self.close = true;
@@ -376,7 +373,7 @@ impl NetworkManager {
 
             Disconnect(pack) => {
                 self.close = true;
-                println!("Disconnected from server: {}", &pack.reason.0);
+                info!("Disconnected from server: {}", pack.reason.0);
                 self.channel
                     .send
                     .send(NetworkCommand::ReceivePacket(packet))
@@ -386,7 +383,9 @@ impl NetworkManager {
             SetCompression(pack) => {
                 if pack.threshold.0 <= 0 {
                     self.compress = false;
+                    info!("Disabled Packet Compression.");
                 } else {
+                    info!("Set Packet Compression: {}", pack.threshold.0);
                     self.compress = true;
                     self.threshold = pack.threshold.0 as usize;
                 }
@@ -420,8 +419,6 @@ pub enum NetworkCommand {
 
     SendPacket(DecodedPacket),
     ReceivePacket(DecodedPacket),
-
-    Log(Log),
 
     Spawn,
 }
