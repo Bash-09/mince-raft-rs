@@ -946,7 +946,7 @@ pub struct ChunkData {
     pub biomes_len: VarInt,
     pub biomes: Vec<VarInt>,
     pub data_len: VarInt,
-    pub data: Vec<Byte>,
+    pub data: Vec<u8>,
     pub block_entities_len: VarInt,
     pub block_entities: Vec<NBTTag>,
 }
@@ -969,7 +969,7 @@ impl ClientboundPacket for ChunkData {
         let data_len = pd.next_varint();
         let mut data = Vec::new();
         for _ in 0..data_len.0 as usize {
-            data.push(pd.next_byte());
+            data.push(pd.next_byte().0 as u8);
         }
         let blocks_len = pd.next_varint();
         let mut block_entities = Vec::new();
@@ -1735,7 +1735,7 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
 
     let out: DecodedPacket;
 
-    let mut pd = PacketDecoder::new(&packet);
+    let mut pd = PacketDecoder::new(&packet, 1);
 
     match packet[0] {
         0x00 => match state {
@@ -1826,15 +1826,19 @@ pub struct PacketDecoder<'a> {
 
 impl PacketDecoder<'_> {
     /// Create a packet decoder for a provided Vector
-    pub fn new<'a>(buf: &'a Vec<u8>) -> PacketDecoder<'a> {
+    pub fn new<'a>(buf: &'a Vec<u8>, start_index: usize) -> PacketDecoder<'a> {
         PacketDecoder {
             buf,
-            ind: 1, // Start at 1 to skip the packet type signature
+            ind: start_index, // Start at 1 to skip the packet type signature
         }
     }
 
     pub fn get_index(&self) -> usize {
         self.ind
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.buf.len()
     }
 
     pub fn next_bool(&mut self) -> Boolean {

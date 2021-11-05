@@ -2,9 +2,7 @@ extern crate serde_json;
 extern crate inflector;
 
 use std::{fs::{File, OpenOptions}, io::{BufReader, Write}};
-use std::collections::HashMap;
 
-use inflector::Inflector;
 use serde_json::Value;
 
 pub mod entities;

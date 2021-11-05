@@ -6,37 +6,48 @@ use serde_json::{Value};
 use super::{export_file, read_json};
 
 #[derive(Debug)]
-pub struct BlockType {
-    id: i32,
-    name: String,
+pub struct BlockState {
+    pub state_id: i32,
+    pub name: String,
 }
 
 
 
-pub fn get_blocks_map(filename: &str) -> std::io::Result<Option<HashMap<i32, BlockType>>> {
+pub fn get_blocks_map(filename: &str) -> std::io::Result<Option<HashMap<i32, BlockState>>> {
     let json = read_json(filename)?;
 
-    let mut blocks: HashMap<i32, BlockType> = HashMap::new();
+    let mut blocks: HashMap<i32, BlockState> = HashMap::new();
 
+    // Read json data
     match json {
+        // Get it as map of blocks
         Value::Object(map) => {
+            // For each block
+            for (nam, val) in map.iter() {
+                // Get name
+                let name = nam.replace("minecraft:", "").replace("_", " ").to_title_case();
+                // Get map of states
+                match val.get("states") {
+                    Some(Value::Object(states)) => {
+                        // For each state
+                        for (id, v) in states.iter() {
+                            // Get state id
+                            let id: i32 = id.parse().unwrap_or_else(|_| {-1});
+                            if id == -1 {continue}
 
-            for (name, val) in map.iter() {
+                            // Voilla
+                            let e = BlockState {
 
-                let id: i32;
+                                state_id: id,
+                                name: name.clone(),
+                            };
+            
+                            blocks.insert(id, e);
+                        }
 
-                match val.get("id") {
-                    Some(Value::Number(num)) => {
-                        id = num.as_i64().expect("Non-Integer ID") as i32;
                     },
-                    _ => continue
+                    _ => continue,
                 }
-
-                let e = BlockType {
-                    id,
-                    name: name.replace("minecraft:", "").replace("_", " ").to_title_case(),
-                };
-                blocks.insert(id, e);
 
             }
 
@@ -58,30 +69,29 @@ pub fn get_blocks_string(filename: &str) -> std::io::Result<String> {
         _ => return Ok(String::new()),
     }
 
-    let mut out = String::new();
-    out += "
-use phf::phf_map;
-
-#[derive(Debug)]
-pub struct BlockType {
-    id: i32,
-    name: &'static str,
-}
-
-pub static BLOCKS: phf::Map<i32, BlockType> = phf_map! {
-";
-    let mut blocks_vec: Vec<BlockType> = Vec::with_capacity(blocks.len());
+    let mut blocks_vec: Vec<BlockState> = Vec::with_capacity(blocks.len());
     for b in blocks.into_values() {
         blocks_vec.push(b);
     }
     blocks_vec.sort_by(|a, b| {
-        a.id.cmp(&b.id)
+        a.state_id.cmp(&b.state_id)
     });
 
+    let mut out = String::new();
+    out += &format!("
+    #[derive(Debug)]
+pub struct BlockState {{
+    pub state_id: i32,
+    pub name: &'static str,
+}}
+
+pub const BLOCKS: [BlockState; {}] = [
+", blocks_vec.len());
+
     for b in blocks_vec.iter() {
-        out += &format!("\t{0}i32 => BlockType{{ id: {0}, name: \"{1}\" }}, \n", b.id, b.name);
+        out += &format!("\tBlockState{{ state_id: {0}, name: \"{1}\" }}, \n", b.state_id, b.name);
     }
-    out += "};";
+    out += "];";
 
     Ok(out)
 }
