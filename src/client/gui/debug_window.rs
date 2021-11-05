@@ -1,6 +1,6 @@
 use imgui::*;
 
-use crate::app::client::{server::Server, world};
+use crate::client::{server::Server, world};
 
 pub struct DebugWindow {}
 

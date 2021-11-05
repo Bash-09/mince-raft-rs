@@ -1,4 +1,4 @@
-use crate::network::types::UUID;
+use crate::client::network::types::UUID;
 
 pub mod components;
 use components::*;

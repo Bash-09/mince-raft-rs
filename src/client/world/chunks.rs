@@ -2,7 +2,7 @@ use log::debug;
 use quartz_nbt::NbtTag;
 use resources::blocks::{BLOCKS, BlockState};
 
-use crate::network::{packets::{ChunkData, PacketDecoder}, types::VarInt};
+use crate::client::network::{packets::{ChunkData, PacketDecoder}, types::VarInt};
 
 
 #[derive(Debug, Clone, Copy)]

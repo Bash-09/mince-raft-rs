@@ -1,6 +1,6 @@
 use std::collections::{btree_set::Difference, HashMap};
 
-use crate::network::packets::DecodedPacket;
+use crate::client::network::packets::DecodedPacket;
 
 use super::{
     chat::Chat,
@@ -30,6 +30,8 @@ pub struct Server {
 
     pub difficulty: Difficulty,
     pub difficulty_locked: bool,
+
+    pub info_visible: bool,
 }
 
 impl Server {
@@ -49,6 +51,8 @@ impl Server {
 
             difficulty: Difficulty::Easy,
             difficulty_locked: false,
+
+            info_visible: false,
         }
     }
 

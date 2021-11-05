@@ -429,7 +429,7 @@ impl UUID {
 
 #[cfg(test)]
 mod tests {
-    use crate::network::types::*;
+    use crate::{client::network::types::{VarInt, VarLong}};
     use rand::Rng;
 
     #[test]

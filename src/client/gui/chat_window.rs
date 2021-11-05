@@ -1,6 +1,6 @@
 use imgui::*;
 
-use crate::app::client::chat::Chat;
+use crate::client::chat::Chat;
 
 pub struct ChatWindow {
     last_scroll_y: f32,

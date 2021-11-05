@@ -16,7 +16,7 @@ use debug_window::*;
 mod entities_window;
 use entities_window::*;
 
-use super::{client::server::Server};
+use super::server::Server;
 
 pub struct Gui {
     pub imgui: Context,
@@ -43,12 +43,9 @@ impl Gui {
         self.imgui.frame()
     }
 
-    pub fn render(
-        &mut self,
-        display: &Display,
-        target: &mut Frame,
-        server: &mut Option<Server>,
-    ) {
+
+    pub fn render(&mut self, display: &Display, target: &mut Frame, server: &mut Option<Server>) {
+
         let size = display.gl_window().window().inner_size();
         self.imgui.io_mut().display_size = [size.width as f32, size.height as f32];
 
@@ -56,9 +53,13 @@ impl Gui {
 
         match server {
             Some(serv) => {
-                self.chat.render(&ui, &mut serv.chat);
-                self.debug.render(&ui, serv);
-                self.ents.render(&ui, serv);
+
+                if serv.info_visible {
+                    self.chat.render(&ui, &mut serv.chat);
+                    self.debug.render(&ui, serv);
+                    self.ents.render(&ui, serv);
+                }
+
             }
             None => {}
         }
@@ -66,8 +67,8 @@ impl Gui {
         self.rend.render(target, ui.render()).unwrap();
     }
 
-    #[allow(unused_variables)]
-    pub fn update(&mut self, delta: f32, mouse: &Mouse, keyboard: &Keyboard) {
+
+    pub fn update(&mut self, delta: f32, mouse: &Mouse) {
         self.imgui.io_mut().delta_time = delta;
 
         self.update_mouse(mouse);

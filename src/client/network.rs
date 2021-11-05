@@ -16,8 +16,8 @@ use std::{
     time::Duration,
 };
 
-use crate::app::{
-    client::server::*,
+use crate::client::{
+    server::*,
 };
 
 use self::types::*;
@@ -84,6 +84,7 @@ impl NetworkManager {
                         while !nm.close {
                             nm.update();
                         }
+                        info!("Closing network connection.");
 
                         nm.stream
                             .shutdown(std::net::Shutdown::Both)
@@ -246,6 +247,7 @@ impl NetworkManager {
                                 .send
                                 .send(NetworkCommand::ReceivePacket(packet))
                                 .unwrap();
+                            self.close = true;
                             return None;
                         }
                         DecodedPacket::LoginPluginRequest(_) => {
@@ -346,7 +348,6 @@ impl NetworkManager {
             NetworkCommand::Login(protocol, port, name) => {
                 info!("Loggin in.");
                 self.login(protocol, port, name);
-                info!("Finished Login");
             }
             NetworkCommand::Disconnect => {
                 self.close = true;

@@ -10,10 +10,8 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use log::info;
 use timer::*;
 
-mod app;
-use app::*;
-
-pub mod network;
+mod client;
+use client::*;
 
 pub mod io;
 
@@ -55,7 +53,7 @@ fn main() {
     let renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialise renderer!");
     let gui = gui::Gui::new(imgui, renderer);
 
-    let mut s: App = App::new(display, gui);
+    let mut client: Client = Client::new(display, gui);
     let mut t = Timer::new();
 
 
@@ -63,7 +61,7 @@ fn main() {
     t.reset();
     event_loop.run(move |ev, _, control_flow| {
         // Imgui handle events
-        platform.handle_event(s.gui.imgui.io_mut(), s.dis.gl_window().window(), &ev);
+        platform.handle_event(client.gui.imgui.io_mut(), client.dis.gl_window().window(), &ev);
 
         use glutin::event::WindowEvent;
 
@@ -73,7 +71,8 @@ fn main() {
         match &ev {
             glutin::event::Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
-                    println!("Closing Application");
+                    client.close();
+                    info!("Closing Application");
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
                 }
                 WindowEvent::CursorMoved {
@@ -81,7 +80,7 @@ fn main() {
                     position,
                     ..
                 } => {
-                    s.mouse.update_pos((position.x as i32, position.y as i32));
+                    client.mouse.update_pos((position.x as i32, position.y as i32));
                 }
                 WindowEvent::MouseInput {
                     device_id,
@@ -112,16 +111,16 @@ fn main() {
                         pressed = true;
                     }
                     if pressed {
-                        s.mouse.press_button(mbutton as usize);
+                        client.mouse.press_button(mbutton as usize);
                     } else {
-                        s.mouse.release_button(mbutton as usize);
+                        client.mouse.release_button(mbutton as usize);
                     }
                 }
                 WindowEvent::MouseWheel {
                     device_id, delta, ..
                 } => match delta {
                     MouseScrollDelta::LineDelta(y, x) => {
-                        s.mouse.scroll((*x, *y));
+                        client.mouse.scroll((*x, *y));
                     }
                     _ => {}
                 },
@@ -145,9 +144,9 @@ fn main() {
                         None => {}
                         Some(key) => {
                             if state == &ElementState::Pressed {
-                                s.keyboard.press(*key);
+                                client.keyboard.press(*key);
                             } else {
-                                s.keyboard.release(*key);
+                                client.keyboard.release(*key);
                             }
                         }
                     },
@@ -163,7 +162,7 @@ fn main() {
             RedrawEventsCleared => {}
             NewEvents(cause) => match cause {
                 StartCause::Init => {
-                    s.init();
+                    client.init();
                 }
                 _ => {}
             },
@@ -180,12 +179,12 @@ fn main() {
         match t.go() {
             None => {}
             Some(_) => {
-                s.update(&t);
-                s.render();
+                client.update(&t);
+                client.render();
 
-                s.mouse.next_frame();
-                s.keyboard.next_frame();
-                s.gui.update(t.delta(), &s.mouse, &s.keyboard);
+                client.mouse.next_frame();
+                client.keyboard.next_frame();
+                client.gui.update(t.delta(), &client.mouse);
             }
         }
     });

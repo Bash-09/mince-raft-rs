@@ -1,14 +1,13 @@
-use crate::{
-    app::client::{
+use crate::{client::{{
         entities::Entity,
         server::Difficulty,
         world::chunks::Chunk,
-    },
-    network::{packets::DecodedPacket, types::*, *},
-    timer::*,
-};
+    }, network::{types::*, *}}, timer::*};
 
-use glium::{Display, Surface};
+mod network;
+
+
+use glium::{Display, Surface, glutin::event::VirtualKeyCode};
 use log::{debug, error, info};
 
 use crate::io::{keyboard::*, mouse::*};
@@ -16,17 +15,24 @@ use crate::io::{keyboard::*, mouse::*};
 pub mod gui;
 use gui::*;
 
-pub mod client;
+pub mod chat;
+pub mod entities;
+pub mod player;
+pub mod server;
+pub mod world;
+pub mod renderer;
 
-use self::client::server::Server;
+
+use self::{network::{NetworkChannel, NetworkManager, packets::DecodedPacket}, renderer::Renderer, server::Server};
 
 
 
 
 
-pub struct App {
+pub struct Client {
     pub dis: Display,
     pub gui: Gui,
+    pub rend: Renderer,
 
     pub mouse: Mouse,
     pub keyboard: Keyboard,
@@ -38,11 +44,12 @@ pub struct App {
     last_mod: f32,
 }
 
-impl App {
-    pub fn new(dis: Display, gui: Gui) -> App {
-        App {
+impl Client {
+    pub fn new(dis: Display, gui: Gui) -> Client {
+        Client {
             dis,
             gui,
+            rend: Renderer::new(),
 
             mouse: Mouse::new(),
             keyboard: Keyboard::new(),
@@ -111,6 +118,11 @@ impl App {
         // Runs some code while the server is valid
         match &mut self.server {
             Some(serv) => {
+
+                if self.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
+                    serv.info_visible = !serv.info_visible;
+                }
+
                 // Send chat message
                 if serv.chat.send {
                     let text = serv.chat.get_message_and_clear();
@@ -208,7 +220,9 @@ impl App {
                     }
 
                     Disconnect(pack) => {
-                        panic!("Disconnected: {}", pack.reason.0);
+                        info!("Disconnected from server: {}", pack.reason.0);
+                        self.network = None;
+                        self.server = None;
                     }
 
                     LoginSuccess(pack) => {
@@ -216,7 +230,6 @@ impl App {
                     }
 
                     JoinGame(id) => {
-                        println!("Setting player id to {}", id.player_id.0);
                         server.join_game(id.player_id.0);
                         send_packet(
                             &self.network,
@@ -379,7 +392,6 @@ impl App {
 
                     ChatIncoming(chat) => {
                         server.chat.add_message(&chat);
-                        info!("{:?}", chat);
                     }
 
                     ChunkData(cd) => {
@@ -411,26 +423,30 @@ impl App {
         }
     }
 
+    pub fn close(&mut self) {
+        info!("Closing client.");
+        match &self.network {
+            Some(nc) => {
+                nc.send.send(NetworkCommand::Disconnect).expect("Failed to send disconnect command to network commander.");
+            },
+            None => {}
+        }
+    }
+
     /// Renders the screen
     pub fn render(&mut self) {
         let mut target = self.dis.draw();
 
-        if !self.gui.imgui.io().want_capture_mouse {
-            // Change background colour on certain mouse clicks, idek why I do this lmao
-            if self.mouse.is_pressed(0) {
-                target.clear_color(0.8, 0.5, 0.5, 1.0);
-            } else if self.mouse.is_pressed(2) {
-                target.clear_color(1.0, 1.0, 1.0, 1.0);
-            } else {
-                target.clear_color(0.0, 0.5, 0.8, 1.0);
-            }
-        } else {
-            target.clear_color(0.0, 0.5, 0.8, 1.0);
+        // Render world if it exists
+        match &self.server {
+            Some(s) => {
+                self.rend.render_server(&mut target, s);
+            },
+            None => {}
         }
 
         // GUI
-        self.gui
-            .render(&self.dis, &mut target, &mut self.server);
+        self.gui.render(&self.dis, &mut target, &mut self.server);
 
         target.finish().unwrap();
     }
@@ -441,7 +457,7 @@ fn send_packet(network: &Option<NetworkChannel>, packet: DecodedPacket) -> Optio
     match network {
         Some(channel) => match channel.send.send(NetworkCommand::SendPacket(packet)) {
             Ok(_) => Some(()),
-            Err(_) => None,
+            Err(e) => {error!("Failed to communicate with network commander: {:?}", e); None},
         },
         None => None,
     }

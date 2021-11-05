@@ -5,7 +5,7 @@ use std::io::{Cursor, Error};
 use log::debug;
 use quartz_nbt::io;
 
-use crate::{app::client::server::ServerState, network::packets};
+use crate::{client::server::ServerState};
 
 use super::types::*;
 
@@ -977,7 +977,7 @@ impl ClientboundPacket for ChunkData {
         for _ in 0..blocks_len.0 as usize {
             block_entities.push(pd.next_nbt());
         }
-        packets::ChunkData {
+        ChunkData {
             x: chunk_x,
             z: chunk_z,
             bit_mask_len,
@@ -1728,10 +1728,10 @@ impl Packet {
 
 /// Decodes a packet from a vector of bytes into a DecodedPacket, given the server state
 pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
-    use DecodedPacket::*;
+    // use DecodedPacket::*;
 
     if packet.len() == 0 {
-        return Empty;
+        return DecodedPacket::Empty;
     }
 
     let out: DecodedPacket;
@@ -1740,77 +1740,77 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
 
     match packet[0] {
         0x00 => match state {
-            ServerState::Login => out = Disconnect(packets::Disconnect::decode(&mut pd)),
-            ServerState::Play => out = SpawnEntity(packets::SpawnEntity::decode(&mut pd)),
-            ServerState::Status => out = Status(packets::Status::decode(&mut pd)),
+            ServerState::Login => out = DecodedPacket::Disconnect(Disconnect::decode(&mut pd)),
+            ServerState::Play => out = DecodedPacket::SpawnEntity(SpawnEntity::decode(&mut pd)),
+            ServerState::Status => out = DecodedPacket::Status(Status::decode(&mut pd)),
         },
         0x01 => match state {
-            ServerState::Play => out = SpawnExperienceOrb(packets::SpawnExperienceOrb::decode(&mut pd)),
-            ServerState::Login => out = EncryptionRequest(packets::EncryptionRequest::decode(&mut pd)),
-            _ => out = Unknown(packet),
+            ServerState::Play => out = DecodedPacket::SpawnExperienceOrb(SpawnExperienceOrb::decode(&mut pd)),
+            ServerState::Login => out = DecodedPacket::EncryptionRequest(EncryptionRequest::decode(&mut pd)),
+            _ => out = DecodedPacket::Unknown(packet),
         },
         0x02 => match state {
-            ServerState::Login => out = LoginSuccess(packets::LoginSuccess::decode(&mut pd)),
-            ServerState::Play => out = SpawnLivingEntity(packets::SpawnLivingEntity::decode(&mut pd)),
-            _ => out = Unknown(packet),
+            ServerState::Login => out = DecodedPacket::LoginSuccess(LoginSuccess::decode(&mut pd)),
+            ServerState::Play => out = DecodedPacket::SpawnLivingEntity(SpawnLivingEntity::decode(&mut pd)),
+            _ => out = DecodedPacket::Unknown(packet),
         },
         0x03 => match state {
-            ServerState::Login => out = SetCompression(packets::SetCompression::decode(&mut pd)),
-            ServerState::Play => out = SpawnPainting(packets::SpawnPainting::decode(&mut pd)),
-            _ => out = Unknown(packet),
+            ServerState::Login => out = DecodedPacket::SetCompression(SetCompression::decode(&mut pd)),
+            ServerState::Play => out = DecodedPacket::SpawnPainting(SpawnPainting::decode(&mut pd)),
+            _ => out = DecodedPacket::Unknown(packet),
         },
         0x04 => match state {
-            ServerState::Play => out = SpawnPlayer(packets::SpawnPlayer::decode(&mut pd)),
-            ServerState::Login => out = LoginPluginRequest(packets::LoginPluginRequest::decode(&mut pd)),
-            _ => out = Unknown(packet),
+            ServerState::Play => out = DecodedPacket::SpawnPlayer(SpawnPlayer::decode(&mut pd)),
+            ServerState::Login => out = DecodedPacket::LoginPluginRequest(LoginPluginRequest::decode(&mut pd)),
+            _ => out = DecodedPacket::Unknown(packet),
         },
-        0x05 => out = SculkVibrationSignal(packets::SculkVibrationSignal::decode(&mut pd)),
-        0x06 => out = EntityAnimation(packets::EntityAnimation::decode(&mut pd)),
-        0x07 => out = Statistics(packets::Statistics::decode(&mut pd)),
-        0x08 => out = AcknowledgePlayerDigging(packets::AcknowledgePlayerDigging::decode(&mut pd)),
-        0x09 => out = BlockBreakAnimation(packets::BlockBreakAnimation::decode(&mut pd)),
-        0x0a => out = BlockEntityData(packets::BlockEntityData::decode(&mut pd)),
-        0x0b => out = BlockAction(packets::BlockAction::decode(&mut pd)),
-        0x0c => out = BlockChange(packets::BlockChange::decode(&mut pd)),
-        0x0e => out = ServerDifficulty(packets::ServerDifficulty::decode(&mut pd)),
-        0x0f => out = ChatIncoming(packets::ChatIncoming::decode(&mut pd)),
-        0x10 => out = ClearTitles(packets::ClearTitles::decode(&mut pd)),
-        0x11 => out = TabComplete(packets::TabComplete::decode(&mut pd)),
-        0x13 => out = CloseWindowClientbound(packets::CloseWindowClientbound::decode(&mut pd)),
-        //0x14 => out = WindowItems(packets::WindowItems::decode(&mut pd)),
-        0x15 => out = WindowProperty(packets::WindowProperty::decode(&mut pd)),
-        0x16 => out = SetSlot(packets::SetSlot::decode(&mut pd)),
-        0x17 => out = SetCooldown(packets::SetCooldown::decode(&mut pd)),
-        0x19 => out = NamedSoundEffect(packets::NamedSoundEffect::decode(&mut pd)),
-        0x1a => out = Disconnect(packets::Disconnect::decode(&mut pd)),
-        0x1b => out = EntityStatus(packets::EntityStatus::decode(&mut pd)),
-        0x1c => out = Explosion(packets::Explosion::decode(&mut pd)),
-        0x1d => out = UnloadChunk(packets::UnloadChunk::decode(&mut pd)),
-        0x1e => out = ChangeGameState(packets::ChangeGameState::decode(&mut pd)),
-        0x1f => out = OpenHorseWindow(packets::OpenHorseWindow::decode(&mut pd)),
-        0x20 => out = InitializeWorldBorder(packets::InitializeWorldBorder::decode(&mut pd)),
-        0x21 => out = KeepAliveClientbound(packets::KeepAliveClientbound::decode(&mut pd)),
-        0x22 => out = ChunkData(packets::ChunkData::decode(&mut pd)),
-        0x23 => out = Effect(packets::Effect::decode(&mut pd)),
-        0x26 => out = JoinGame(packets::JoinGame::decode(&mut pd)),
-        0x29 => out = EntityPosition(packets::EntityPosition::decode(&mut pd)),
-        0x2a => out = EntityPositionAndRotation(packets::EntityPositionAndRotation::decode(&mut pd)),
-        0x2b => out = EntityRotation(packets::EntityRotation::decode(&mut pd)),
-        0x38 => out = PlayerPositionAndLook(packets::PlayerPositionAndLook::decode(&mut pd)),
-        0x3a => out = DestroyEntities(packets::DestroyEntities::decode(&mut pd)),
-        0x3e => out = EntityHeadLook(packets::EntityHeadLook::decode(&mut pd)),
-        0x4d => out = EntityMetadata(packets::EntityMetadata::decode(&mut pd)),
-        0x4f => out = EntityVelocity(packets::EntityVelocity::decode(&mut pd)),
-        0x52 => out = UpdateHealth(packets::UpdateHealth::decode(&mut pd)),
-        0x58 => out = TimeUpdate(packets::TimeUpdate::decode(&mut pd)),
-        0x5c => out = SoundEffect(packets::SoundEffect::decode(&mut pd)),
-        0x61 => out = EntityTeleport(packets::EntityTeleport::decode(&mut pd)),
-        0x63 => out = EntityProperties(packets::EntityProperties::decode(&mut pd)),
-        _ => out = Unknown(packet),
+        0x05 => out = DecodedPacket::SculkVibrationSignal(SculkVibrationSignal::decode(&mut pd)),
+        0x06 => out = DecodedPacket::EntityAnimation(EntityAnimation::decode(&mut pd)),
+        0x07 => out = DecodedPacket::Statistics(Statistics::decode(&mut pd)),
+        0x08 => out = DecodedPacket::AcknowledgePlayerDigging(AcknowledgePlayerDigging::decode(&mut pd)),
+        0x09 => out = DecodedPacket::BlockBreakAnimation(BlockBreakAnimation::decode(&mut pd)),
+        0x0a => out = DecodedPacket::BlockEntityData(BlockEntityData::decode(&mut pd)),
+        0x0b => out = DecodedPacket::BlockAction(BlockAction::decode(&mut pd)),
+        0x0c => out = DecodedPacket::BlockChange(BlockChange::decode(&mut pd)),
+        0x0e => out = DecodedPacket::ServerDifficulty(ServerDifficulty::decode(&mut pd)),
+        0x0f => out = DecodedPacket::ChatIncoming(ChatIncoming::decode(&mut pd)),
+        0x10 => out = DecodedPacket::ClearTitles(ClearTitles::decode(&mut pd)),
+        0x11 => out = DecodedPacket::TabComplete(TabComplete::decode(&mut pd)),
+        0x13 => out = DecodedPacket::CloseWindowClientbound(CloseWindowClientbound::decode(&mut pd)),
+        //0x14 => out = WindowItems(WindowItems::decode(&mut pd)),
+        0x15 => out = DecodedPacket::WindowProperty(WindowProperty::decode(&mut pd)),
+        0x16 => out = DecodedPacket::SetSlot(SetSlot::decode(&mut pd)),
+        0x17 => out = DecodedPacket::SetCooldown(SetCooldown::decode(&mut pd)),
+        0x19 => out = DecodedPacket::NamedSoundEffect(NamedSoundEffect::decode(&mut pd)),
+        0x1a => out = DecodedPacket::Disconnect(Disconnect::decode(&mut pd)),
+        0x1b => out = DecodedPacket::EntityStatus(EntityStatus::decode(&mut pd)),
+        0x1c => out = DecodedPacket::Explosion(Explosion::decode(&mut pd)),
+        0x1d => out = DecodedPacket::UnloadChunk(UnloadChunk::decode(&mut pd)),
+        0x1e => out = DecodedPacket::ChangeGameState(ChangeGameState::decode(&mut pd)),
+        0x1f => out = DecodedPacket::OpenHorseWindow(OpenHorseWindow::decode(&mut pd)),
+        0x20 => out = DecodedPacket::InitializeWorldBorder(InitializeWorldBorder::decode(&mut pd)),
+        0x21 => out = DecodedPacket::KeepAliveClientbound(KeepAliveClientbound::decode(&mut pd)),
+        0x22 => out = DecodedPacket::ChunkData(ChunkData::decode(&mut pd)),
+        0x23 => out = DecodedPacket::Effect(Effect::decode(&mut pd)),
+        0x26 => out = DecodedPacket::JoinGame(JoinGame::decode(&mut pd)),
+        0x29 => out = DecodedPacket::EntityPosition(EntityPosition::decode(&mut pd)),
+        0x2a => out = DecodedPacket::EntityPositionAndRotation(EntityPositionAndRotation::decode(&mut pd)),
+        0x2b => out = DecodedPacket::EntityRotation(EntityRotation::decode(&mut pd)),
+        0x38 => out = DecodedPacket::PlayerPositionAndLook(PlayerPositionAndLook::decode(&mut pd)),
+        0x3a => out = DecodedPacket::DestroyEntities(DestroyEntities::decode(&mut pd)),
+        0x3e => out = DecodedPacket::EntityHeadLook(EntityHeadLook::decode(&mut pd)),
+        0x4d => out = DecodedPacket::EntityMetadata(EntityMetadata::decode(&mut pd)),
+        0x4f => out = DecodedPacket::EntityVelocity(EntityVelocity::decode(&mut pd)),
+        0x52 => out = DecodedPacket::UpdateHealth(UpdateHealth::decode(&mut pd)),
+        0x58 => out = DecodedPacket::TimeUpdate(TimeUpdate::decode(&mut pd)),
+        0x5c => out = DecodedPacket::SoundEffect(SoundEffect::decode(&mut pd)),
+        0x61 => out = DecodedPacket::EntityTeleport(EntityTeleport::decode(&mut pd)),
+        0x63 => out = DecodedPacket::EntityProperties(EntityProperties::decode(&mut pd)),
+        _ => out = DecodedPacket::Unknown(packet),
     }
 
     match &out {
-        Unknown(pack) => {
+        DecodedPacket::Unknown(pack) => {
             debug!("Unknown packet: {:02x}", pack[0]);
         }
         _ => {}

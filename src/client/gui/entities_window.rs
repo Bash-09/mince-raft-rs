@@ -4,7 +4,7 @@ use __core::any::Any;
 use imgui::*;
 use resources::entities::ENTITIES;
 
-use crate::app::client::{
+use crate::client::{
     entities::Entity,
     server::Server,
 };
