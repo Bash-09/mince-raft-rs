@@ -1,3 +1,5 @@
+use std::ops::{AddAssign, Mul};
+
 use crate::{client::{{
         entities::Entity,
         server::Difficulty,
@@ -7,6 +9,7 @@ use crate::{client::{{
 mod network;
 
 
+use cgmath::{Deg, InnerSpace, Matrix4, SquareMatrix, Vector3};
 use glium::{Display, Surface, glutin::event::VirtualKeyCode};
 use log::{debug, error, info};
 
@@ -46,10 +49,12 @@ pub struct Client {
 
 impl Client {
     pub fn new(dis: Display, gui: Gui) -> Client {
+        let rend = Renderer::new(&dis);
+
         Client {
             dis,
             gui,
-            rend: Renderer::new(),
+            rend,
 
             mouse: Mouse::new(),
             keyboard: Keyboard::new(),
@@ -100,11 +105,11 @@ impl Client {
                         send_packet(
                             &self.network,
                             DecodedPacket::PlayerPositionAndRotation(
-                                Double(serv.player.position.get_x()),
-                                Double(serv.player.position.get_y()),
-                                Double(serv.player.position.get_z()),
-                                Float(serv.player.orientation.get_yaw() as f32),
-                                Float(serv.player.orientation.get_head_pitch() as f32),
+                                Double(serv.player.get_position().x as f64),
+                                Double(serv.player.get_position().y as f64),
+                                Double(serv.player.get_position().z as f64),
+                                Float(serv.player.get_orientation().get_yaw() as f32),
+                                Float(serv.player.get_orientation().get_head_pitch() as f32),
                                 Boolean(true),
                             ),
                         );
@@ -119,8 +124,13 @@ impl Client {
         match &mut self.server {
             Some(serv) => {
 
+                // Update camera
+                self.rend.cam.set_pos(serv.player.get_position().clone());
+                self.rend.cam.translate(Vector3::new(0.0, 1.7, 0.0));
+                self.rend.cam.set_rot(serv.player.get_orientation().get_rotations() * -1.0);
+
                 if self.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
-                    serv.info_visible = !serv.info_visible;
+                    self.gui.show_gui = !self.gui.show_gui;
                 }
 
                 // Send chat message
@@ -131,29 +141,70 @@ impl Client {
                     send_packet(&self.network, DecodedPacket::ChatOutgoing(MCString(text)));
                 }
 
-                let vel = 5.0 * delta as f64;
-                // Move player
-                if self.mouse.is_pressed(0) & !self.gui.imgui.io().want_capture_mouse {
-                    let (x, y, z) = serv.player.orientation.get_look_vector();
-                    serv.player
-                        .position
-                        .translate(x as f64 * vel, y as f64 * vel, z as f64 * vel);
+
+                if !self.gui.show_gui {
+                    let vel = 5.0 * delta;
+
+                    if self.keyboard.is_pressed(&VirtualKeyCode::W) {
+                        let mut dir = serv.player.get_orientation().get_look_vector();
+                        dir.y = 0.0;
+                        dir = dir.normalize();
+                        dir *= vel;
+                        serv.player.get_position_mut().add_assign(dir);
+                    }
+
+                    if self.keyboard.is_pressed(&VirtualKeyCode::S) {
+                        let mut dir = serv.player.get_orientation().get_look_vector();
+                        dir.y = 0.0;
+                        dir = dir.normalize();
+                        dir *= -vel;
+                        serv.player.get_position_mut().add_assign(dir);
+                    }
+
+                    if self.keyboard.is_pressed(&VirtualKeyCode::A) {
+                        let mut dir = serv.player.get_orientation().get_look_vector();
+                        dir.y = 0.0;
+                        dir = dir.normalize();
+                        dir *= -vel;
+                        dir.y = dir.x;
+                        dir.x = -dir.z;
+                        dir.z = dir.y;
+                        dir.y = 0.0;
+                        serv.player.get_position_mut().add_assign(dir);
+                    }
+
+                    if self.keyboard.is_pressed(&VirtualKeyCode::D) {
+                        let mut dir = serv.player.get_orientation().get_look_vector();
+                        dir.y = 0.0;
+                        dir = dir.normalize();
+                        dir *= vel;
+                        dir.y = dir.x;
+                        dir.x = -dir.z;
+                        dir.z = dir.y;
+                        dir.y = 0.0;
+                        serv.player.get_position_mut().add_assign(dir);
+                    }
+
+                    if self.keyboard.is_pressed(&VirtualKeyCode::Space) {
+                        serv.player.get_position_mut().add_assign(Vector3::new(0.0, vel, 0.0));
+                    }
+
+                    if self.keyboard.is_pressed(&VirtualKeyCode::LShift) {
+                        serv.player.get_position_mut().add_assign(Vector3::new(0.0, -vel, 0.0));
+                    }
+
+                    if self.mouse.is_pressed(0) {
+                        let off = self.mouse.get_delta();
+                        serv.player.get_orientation_mut().rotate(
+                            off.0 as f32 * 0.1,
+                            off.1 as f32 * 0.1,
+                        );
+                    }
+
                 }
 
-                if self.mouse.is_pressed(2) & !self.gui.imgui.io().want_capture_mouse {
-                    let (x, y, z) = serv.player.orientation.get_look_vector();
-                    serv.player
-                        .position
-                        .translate(x as f64 * vel, y as f64 * vel, z as f64 * vel);
-                }
 
-                // Change player direction
-                if self.mouse.is_pressed(1) & !self.gui.imgui.io().want_capture_mouse {
-                    serv.player.orientation.rotate(
-                        self.mouse.get_delta().0 as f64 * 0.3,
-                        self.mouse.get_delta().1 as f64 * 0.2,
-                    );
-                }
+
             }
             None => {}
         }
@@ -206,6 +257,7 @@ impl Client {
                             _ => Difficulty::Peaceful,
                         };
                         server.difficulty_locked = pack.locked.0;
+                        info!("Changed difficulty: {}", pack.locked.0);
                     }
 
                     TimeUpdate(pack) => {
@@ -254,15 +306,15 @@ impl Client {
                                 pack.uuid.clone(),
                                 pack.entity_type.0,
                                 0,
-                                pack.x.0,
-                                pack.y.0,
-                                pack.z.0,
-                                (pack.yaw.0 as f64) / 255.0,
-                                (pack.pitch.0 as f64) / 255.0,
-                                (pack.head_pitch.0 as f64) / 255.0,
-                                (pack.vx.0 as f64) / 8000.0,
-                                (pack.vy.0 as f64) / 8000.0,
-                                (pack.vz.0 as f64) / 8000.0,
+                                pack.x.0 as f32,
+                                pack.y.0 as f32,
+                                pack.z.0 as f32,
+                                (pack.yaw.0 as f32) / 255.0,
+                                (pack.pitch.0 as f32) / 255.0,
+                                (pack.head_pitch.0 as f32) / 255.0,
+                                (pack.vx.0 as f32) / 8000.0,
+                                (pack.vy.0 as f32) / 8000.0,
+                                (pack.vz.0 as f32) / 8000.0,
                             ),
                         ) {
                             Some(_) => {}
@@ -278,15 +330,15 @@ impl Client {
                                 pack.uuid.clone(),
                                 pack.entity_type.0,
                                 pack.data.0,
-                                pack.x.0,
-                                pack.y.0,
-                                pack.z.0,
-                                (pack.yaw.0 as f64) / 255.0,
-                                (pack.pitch.0 as f64) / 255.0,
+                                pack.x.0 as f32,
+                                pack.y.0 as f32,
+                                pack.z.0 as f32,
+                                (pack.yaw.0 as f32) / 255.0,
+                                (pack.pitch.0 as f32) / 255.0,
                                 0.0,
-                                (pack.vx.0 as f64) / 8000.0,
-                                (pack.vy.0 as f64) / 8000.0,
-                                (pack.vz.0 as f64) / 8000.0,
+                                (pack.vx.0 as f32) / 8000.0,
+                                (pack.vy.0 as f32) / 8000.0,
+                                (pack.vz.0 as f32) / 8000.0,
                             ),
                         );
                     }
@@ -299,11 +351,11 @@ impl Client {
 
                     EntityPosition(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.pos.translate(
-                                (pack.dx.0 as f64) / 4096.0,
-                                (pack.dy.0 as f64) / 4096.0,
-                                (pack.dz.0 as f64) / 4096.0,
-                            );
+                            ent.pos.add_assign(Vector3::new(
+                                (pack.dx.0 as f32) / 4096.0,
+                                (pack.dy.0 as f32) / 4096.0,
+                                (pack.dz.0 as f32) / 4096.0,
+                            ));
                         }
                         None => {}
                     },
@@ -311,13 +363,13 @@ impl Client {
                     EntityPositionAndRotation(pack) => {
                         match server.entities.get_mut(&pack.entity_id.0) {
                             Some(ent) => {
-                                ent.pos.translate(
-                                    (pack.dx.0 as f64) / 4096.0,
-                                    (pack.dy.0 as f64) / 4096.0,
-                                    (pack.dz.0 as f64) / 4096.0,
-                                );
+                                ent.pos.add_assign(Vector3::new(
+                                    (pack.dx.0 as f32) / 4096.0,
+                                    (pack.dy.0 as f32) / 4096.0,
+                                    (pack.dz.0 as f32) / 4096.0,
+                                ));
                                 ent.ori
-                                    .set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
+                                    .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
                                 ent.on_ground = pack.on_ground.0;
                             }
                             None => {}
@@ -327,7 +379,7 @@ impl Client {
                     EntityRotation(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.ori
-                                .set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
+                                .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
                             ent.on_ground = pack.on_ground.0;
                         }
                         None => {}
@@ -336,7 +388,7 @@ impl Client {
                     EntityHeadLook(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.ori_head.set(
-                                pack.head_yaw.0 as f64 / 256.0,
+                                pack.head_yaw.0 as f32 / 256.0,
                                 ent.ori_head.get_head_pitch(),
                             );
                         }
@@ -345,44 +397,46 @@ impl Client {
 
                     EntityVelocity(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.vel.set(
-                                pack.vx.0 as f64 / 8000.0,
-                                pack.vy.0 as f64 / 8000.0,
-                                pack.vz.0 as f64 / 8000.0,
-                            );
+                            ent.vel.add_assign(Vector3::new(
+                                pack.vx.0 as f32 / 8000.0,
+                                pack.vy.0 as f32 / 8000.0,
+                                pack.vz.0 as f32 / 8000.0,
+                            ));
                         }
                         None => {}
                     },
 
                     EntityTeleport(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.pos.set(pack.x.0, pack.y.0, pack.z.0);
+                            ent.pos = Vector3::new(pack.x.0 as f32, pack.y.0 as f32, pack.z.0 as f32);
                             ent.ori
-                                .set(pack.yaw.0 as f64 / 256.0, pack.pitch.0 as f64 / 256.0);
+                                .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
                             ent.on_ground = pack.on_ground.0;
                         }
                         None => {}
                     },
 
                     PlayerPositionAndLook(pack) => {
-                        server.player.position.set(pack.x.0, pack.y.0, pack.z.0);
+                        debug!("Player position updated!");
+
+                        server.player.set_position(Vector3::new(pack.x.0 as f32, pack.y.0 as f32, pack.z.0 as f32));
                         server
                             .player
-                            .orientation
-                            .set(pack.yaw.0 as f64, pack.pitch.0 as f64);
+                            .get_orientation_mut()
+                            .set(pack.yaw.0 as f32, pack.pitch.0 as f32);
 
                         send_packet(&self.network, TeleportConfirm(pack.teleport_id.clone()));
 
-                        let px = server.player.position.get_x();
-                        let py = server.player.position.get_y();
-                        let pz = server.player.position.get_z();
+                        let px = server.player.get_position().x;
+                        let py = server.player.get_position().y;
+                        let pz = server.player.get_position().z;
 
                         send_packet(
                             &self.network,
                             PlayerPositionAndRotation(
-                                Double(px),
-                                Double(py),
-                                Double(pz),
+                                Double(px as f64),
+                                Double(py as f64),
+                                Double(pz as f64),
                                 Float(pack.yaw.0),
                                 Float(pack.pitch.0),
                                 Boolean(true),
@@ -395,7 +449,7 @@ impl Client {
                     }
 
                     ChunkData(cd) => {
-                        server.world.insert_chunk(Chunk::new(&cd));
+                        server.world.insert_chunk(Chunk::new(&self.dis, &cd));
                     }
 
                     // Currently ignoring these packets

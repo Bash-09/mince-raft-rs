@@ -1,6 +1,7 @@
+use cgmath::num_traits::Float;
 use imgui::*;
 
-use crate::client::{server::Server, world};
+use crate::client::{server::Server, world::{self, block_coords}};
 
 pub struct DebugWindow {}
 
@@ -10,11 +11,11 @@ impl DebugWindow {
     }
 
     pub fn render(&mut self, ui: &Ui, server: &Server) {
-        Window::new(im_str!("Debug"))
+        Window::new("Debug")
             .size([275.0, 300.0], Condition::FirstUseEver)
             .position([700.0, 25.0], Condition::FirstUseEver)
             .build(&ui, || {
-                ui.text(im_str!("Server: {}", server.network_destination));
+                ui.text(format!("Server: {}", server.network_destination));
 
                 let difficulty_locked: &str;
                 if server.difficulty_locked {
@@ -22,7 +23,7 @@ impl DebugWindow {
                 } else {
                     difficulty_locked = "";
                 }
-                ui.text(im_str!(
+                ui.text(format!(
                     "Difficulty: {:?} {}",
                     server.difficulty,
                     difficulty_locked
@@ -39,7 +40,7 @@ impl DebugWindow {
                 } else {
                     period = "Midnight"
                 }
-                ui.text(im_str!(
+                ui.text(format!(
                     "Day: {}    Time: {} ({})",
                     server.world_time / 24000,
                     day_time,
@@ -47,108 +48,107 @@ impl DebugWindow {
                 ));
 
                 // ui.new_line();
-                // ui.text(im_str!("Player: {}", server.player.id));
+                // ui.text(format!("Player: {}", server.player.id));
 
                 ui.new_line();
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Health");
-                stack.pop(ui);
-                ui.same_line(75.0);
+                stack.pop();
+                ui.same_line_with_pos(75.0);
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Food");
-                stack.pop(ui);
-                ui.same_line(150.0);
+                stack.pop();
+                ui.same_line_with_pos(150.0);
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Saturation");
-                stack.pop(ui);
+                stack.pop();
 
-                ui.text(im_str!("{}", server.player.health));
-                ui.same_line(75.0);
-                ui.text(im_str!("{}", server.player.food));
-                ui.same_line(150.0);
-                ui.text(im_str!("{}", server.player.saturation));
+                ui.text(format!("{}", server.player.health));
+                ui.same_line_with_pos(75.0);
+                ui.text(format!("{}", server.player.food));
+                ui.same_line_with_pos(150.0);
+                ui.text(format!("{}", server.player.saturation));
 
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.new_line();
                 ui.new_line();
-                ui.same_line(40.0);
+                ui.same_line_with_pos(40.0);
                 ui.text("Position");
-                ui.same_line(140.0);
+                ui.same_line_with_pos(140.0);
                 ui.text("Looking");
-                stack.pop(ui);
+                stack.pop();
 
-                let look = server.player.orientation.get_look_vector();
+                let look = server.player.get_orientation().get_look_vector();
 
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("X:");
-                stack.pop(ui);
-                ui.same_line(50.0);
-                ui.text(im_str!("{:.2}", server.player.position.get_x()));
-                ui.same_line(150.0);
-                ui.text(im_str!("{:.2}", look.0));
+                stack.pop();
+                ui.same_line_with_pos(50.0);
+                ui.text(format!("{:.2}", server.player.get_position().x));
+                ui.same_line_with_pos(150.0);
+                ui.text(format!("{:.2}", look.x));
 
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Y:");
-                stack.pop(ui);
-                ui.same_line(50.0);
-                ui.text(im_str!("{:.2}", server.player.position.get_y()));
-                ui.same_line(150.0);
-                ui.text(im_str!("{:.2}", look.1));
+                stack.pop();
+                ui.same_line_with_pos(50.0);
+                ui.text(format!("{:.2}", server.player.get_position().y));
+                ui.same_line_with_pos(150.0);
+                ui.text(format!("{:.2}", look.y));
 
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Z:");
-                stack.pop(ui);
-                ui.same_line(50.0);
-                ui.text(im_str!("{:.2}", server.player.position.get_z()));
-                ui.same_line(150.0);
-                ui.text(im_str!("{:.2}", look.2));
+                stack.pop();
+                ui.same_line_with_pos(50.0);
+                ui.text(format!("{:.2}", server.player.get_position().z));
+                ui.same_line_with_pos(150.0);
+                ui.text(format!("{:.2}", look.z));
 
-                let pos = server.player.position.get_block_coords();
-                let chunk = world::chunk_at_coords((pos.0, pos.2));
-                let chunk_coords = world::chunk_coords((pos.0, pos.2));
+                let pos = block_coords(&server.player.get_position());
+                let chunk = world::chunk_at_coords(&pos.xz());
+                let chunk_coords = world::chunk_coords(&pos);
 
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.new_line();
                 ui.new_line();
-                ui.same_line(40.0);
+                ui.same_line_with_pos(40.0);
                 ui.text("Chunk");
-                ui.same_line(140.0);
+                ui.same_line_with_pos(140.0);
                 ui.text("Block in Chunk");
-                stack.pop(ui);
+                stack.pop();
 
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("X:");
-                stack.pop(ui);
-                ui.same_line(40.0);
-                ui.text(im_str!("{}", chunk.0));
-                ui.same_line(140.0);
-                ui.text(im_str!("{}", chunk_coords.0));
+                stack.pop();
+                ui.same_line_with_pos(40.0);
+                ui.text(format!("{}", chunk.x));
+                ui.same_line_with_pos(140.0);
+                ui.text(format!("{}", chunk_coords.x));
 
                 let stack = ui.push_style_color(StyleColor::Text, [0.6, 0.6, 0.6, 1.0]);
                 ui.text("Z:");
-                stack.pop(ui);
-                ui.same_line(40.0);
-                ui.text(im_str!("{}", chunk.1));
-                ui.same_line(140.0);
-                ui.text(im_str!("{}", chunk_coords.1));
+                stack.pop();
+                ui.same_line_with_pos(40.0);
+                ui.text(format!("{}", chunk.y));
+                ui.same_line_with_pos(140.0);
+                ui.text(format!("{}", chunk_coords.z));
 
-                let mut pos = server.player.position.get_block_coords();
-
+                let mut pos = block_coords(server.player.get_position());
 
                 loop {
-                    if pos.1 <= 0 {break}
-                    match server.world.block_at(pos) {
+                    if pos.y <= 0 {break}
+                    match server.world.get_block_at(&pos) {
                         Some(b) => {
                             if b.state_id == 0 {
-                                pos.1 -= 1;
+                                pos.y -= 1;
                                 continue;
                             }
 
-                            ui.text(im_str!("Block beneath: {} - {}", pos.1, b.name));
+                            ui.text(format!("Block beneath: {} - {}", pos.y, b.name));
                             break;
                         },
                         None => {
-                            pos.1 -= 1;
+                            pos.y -= 1;
                             continue;
                         }
                     }

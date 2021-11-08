@@ -1,20 +1,30 @@
+use cgmath::{Vector2, Vector3};
+use glium::{Display, VertexBuffer};
 use log::debug;
-use quartz_nbt::NbtTag;
 use resources::blocks::{BLOCKS, BlockState};
 
-use crate::client::network::{packets::{ChunkData, PacketDecoder}, types::VarInt};
+use crate::client::{network::{packets::{ChunkData, PacketDecoder}}, renderer::Vertex};
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ChunkSection {
     pub y: i32,
     pub blocks: [u16; 4096],
+
+    vbo: VertexBuffer<Vertex>,
+}
+
+impl ChunkSection {
+
+    pub fn get_vbo(&self) -> &VertexBuffer<Vertex> {
+        &self.vbo
+    }
+
 }
 
 
 pub struct Chunk {
-    x: i32,
-    z: i32,
+    pos: Vector2<i32>,
 
     heightmap: [u16; 256],
 
@@ -25,38 +35,32 @@ pub struct Chunk {
 const MAX_BITS_PER_BLOCK: u64 = 15;
 
 impl Chunk {
-    pub fn new(data: &ChunkData) -> Chunk {
+    pub fn new(dis: &Display, data: &ChunkData) -> Chunk {
 
         debug!("Processing chunk data");
 
         Chunk {
-            x: data.x.0,
-            z: data.z.0,
+            pos: Vector2::new(data.x.0, data.z.0),
     
             heightmap: process_heightmap(data),
-            sections: process_sections(data),
+            sections: process_sections(dis, data),
         }    
     }
 
-    pub fn get_x(&self) -> i32 {
-        self.x
-    }
-    pub fn get_z(&self) -> i32 {
-        self.z
+    pub fn get_coords(&self) -> &Vector2<i32> {
+        &self.pos
     }
 
-    pub fn get_coords(&self) -> (i32, i32) {
-        (self.x, self.z)
+    /// Returns the y value of the highest block at the x/z position provided in this chunk
+    pub fn get_highest_block(&self, coords: Vector2<i32>) -> i32 {
+        self.heightmap[coords.y as usize * 16 + coords.x as usize] as i32
     }
 
-    pub fn get_highest_block(&self, coords: (i32, i32)) -> i32 {
-        self.heightmap[coords.1 as usize * 16 + coords.0 as usize] as i32
-    }
-
-    pub fn block_at(&self, pos: (i32, i32, i32)) -> &BlockState {
-        let x = pos.0 as usize;
-        let y = pos.1 as usize;
-        let z = pos.2 as usize;
+    /// Returns the block in this chunk at the position provided
+    pub fn block_at(&self, pos: Vector3<i32>) -> &BlockState {
+        let x = pos.x as usize;
+        let y = pos.y as usize;
+        let z = pos.z as usize;
         if y >= 16*16 || x >= 16 || z >= 16 {return &BLOCKS[0]}
         return match &self.sections[y/16] {
             Some(cs) => {
@@ -65,8 +69,11 @@ impl Chunk {
             None => &BLOCKS[0],
         }
     }
-}
 
+    pub fn get_sections(&self) -> &[Option<ChunkSection>; 16] {
+        &self.sections
+    }
+}
 
 /// Extracts the heightmap from chunk data
 fn process_heightmap(data: &ChunkData) -> [u16; 256] {
@@ -90,9 +97,9 @@ fn process_heightmap(data: &ChunkData) -> [u16; 256] {
     map
 }
 
-
+const INIT: Option<ChunkSection> = None;
 /// Builds a list of chunk sections from chunk data
-fn process_sections(data: &ChunkData) -> [Option<ChunkSection>; 16] {
+fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 16] {
 
     // Check bit mask for which chunk sections are present
     let mut chunk_sections_present = [false; 16];
@@ -102,7 +109,8 @@ fn process_sections(data: &ChunkData) -> [Option<ChunkSection>; 16] {
         }
     }
 
-    let mut sections = [None; 16];
+    let mut sections = [INIT; 16];
+    // let mut sections: [Option<ChunkSection>; 16] = Default::default();
 
     // Decode data array
     let mut pd = PacketDecoder::new(&data.data, 0);
@@ -169,10 +177,281 @@ fn process_sections(data: &ChunkData) -> [Option<ChunkSection>; 16] {
             }
 
         }
+
+        let vbo = generate_mesh(dis, &blocks);
+
         sections[i] = Some(ChunkSection{
             y: i as i32,
             blocks,
+            vbo,
         });
     }
     sections
+}
+
+fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
+    let mut shapes: Vec<Vertex> = Vec::new();
+
+    for (i, b) in blocks.iter().enumerate() {
+        if *b == 0 {continue}
+
+        let y = (i / (16*16)) as f32;
+        let z = ((i / 16) % 16) as f32;
+        let x = (i % 16) as f32;
+
+        // Top Face
+        let nx = x as i32;
+        let ny = y as i32 + 1;
+        let nz = z as i32;
+        let ni = ((ny%16)*16*16 + nz as i32*16 + nx as i32) as i32;
+        let mut extra = false;
+        if ni > 0 && ni < 4096 {extra = blocks[ni as usize] == 0;}
+        if nx < 0 || nx > 15 
+            || ny < 0 || ny > 15
+            || nz < 0 || nz > 15 || extra {
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z,
+            ]});
+            }
+
+        // Bottom Face
+        let nx = x as i32;
+        let ny = y as i32 - 1;
+        let nz = z as i32;
+        let ni = ((ny%16)*16*16 + nz as i32*16 + nx as i32) as i32;
+        let mut extra = false;
+        if ni > 0 && ni < 4096 {extra = blocks[ni as usize] == 0;}
+        if nx < 0 || nx > 15 
+            || ny < 0 || ny > 15
+            || nz < 0 || nz > 15 || extra {
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z,
+            ]});
+        }
+
+        // North Face
+        let nx = x as i32;
+        let ny = y as i32;
+        let nz = z as i32 - 1;
+        let ni = ((ny%16)*16*16 + nz as i32*16 + nx as i32) as i32;
+        let mut extra = false;
+        if ni > 0 && ni < 4096 {extra = blocks[ni as usize] == 0;}
+        if nx < 0 || nx > 15 
+            || ny < 0 || ny > 15
+            || nz < 0 || nz > 15 || extra {
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z,
+            ]});
+        }
+
+        // South Face
+        let nx = x as i32;
+        let ny = y as i32;
+        let nz = z as i32 + 1;
+        let ni = ((ny%16)*16*16 + nz as i32*16 + nx as i32) as i32;
+        let mut extra = false;
+        if ni > 0 && ni < 4096 {extra = blocks[ni as usize] == 0;}
+        if nx < 0 || nx > 15 
+            || ny < 0 || ny > 15
+            || nz < 0 || nz > 15 || extra {
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z + 1.0,
+            ]});
+        }
+
+        // East Face
+        let nx = x as i32 + 1;
+        let ny = y as i32;
+        let nz = z as i32;
+        let ni = ((ny%16)*16*16 + nz as i32*16 + nx as i32) as i32;
+        let mut extra = false;
+        if ni > 0 && ni < 4096 {extra = blocks[ni as usize] == 0;}
+        if nx < 0 || nx > 15 
+            || ny < 0 || ny > 15
+            || nz < 0 || nz > 15 || extra {
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x + 1.0,
+                y,
+                z + 1.0,
+            ]});
+        }
+
+        // West Face
+        let nx = x as i32 - 1;
+        let ny = y as i32;
+        let nz = z as i32;
+        let ni = ((ny%16)*16*16 + nz as i32*16 + nx as i32) as i32;
+        let mut extra = false;
+        if ni > 0 && ni < 4096 {extra = blocks[ni as usize] == 0;}
+        if nx < 0 || nx > 15 
+            || ny < 0 || ny > 15
+            || nz < 0 || nz > 15 || extra {
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y + 1.0,
+                z + 1.0,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z,
+            ]});
+            shapes.push(Vertex{position: [
+                x,
+                y,
+                z + 1.0,
+            ]});
+        }
+
+    }
+
+    glium::VertexBuffer::new(dis, &shapes).unwrap()
 }

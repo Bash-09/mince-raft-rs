@@ -36,8 +36,12 @@ impl Chat {
         });
     }
 
-    pub fn get_message(&mut self) -> &String {
+    pub fn get_message(&self) -> &String {
         &self.input
+    }
+
+    pub fn get_message_mut(&mut self) -> &mut String {
+        &mut self.input
     }
 
     pub fn get_message_and_clear(&mut self) -> String {

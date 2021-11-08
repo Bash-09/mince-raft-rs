@@ -28,14 +28,15 @@ impl Mouse {
     }
 
     pub fn translate(&mut self, delta: (i32, i32)) {
-        self.delta = delta;
+        self.delta.0 += delta.0;
+        self.delta.1 += delta.1;
         self.pos.0 += delta.0;
         self.pos.1 += delta.1;
     }
 
     pub fn update_pos(&mut self, pos: (i32, i32)) {
-        self.delta.0 = pos.0 - self.pos.0;
-        self.delta.1 = pos.1 - self.pos.1;
+        self.delta.0 += pos.0 - self.pos.0;
+        self.delta.1 += pos.1 - self.pos.1;
         self.pos = pos;
     }
 

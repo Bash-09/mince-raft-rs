@@ -19,11 +19,11 @@ impl EntitiesWindow {
     }
 
     pub fn render(&mut self, ui: &Ui, serv: &mut Server) {
-        Window::new(im_str!("Entities"))
+        Window::new(format!("Entities"))
             .size([225.0, 300.0], Condition::FirstUseEver)
             .position([25.0, 25.0], Condition::FirstUseEver)
             .build(&ui, || {
-                ui.text(im_str!("Entities: {}", serv.entities.len()));
+                ui.text(format!("Entities: {}", serv.entities.len()));
 
                 // Collect all entities into each type
                 let mut ents: HashMap<i32, Vec<&Entity>> = HashMap::new();
@@ -49,15 +49,15 @@ impl EntitiesWindow {
                 // List each present type of entity under dropdown menus
                 for (type_id, ent) in ents_vec {
                     let name = ENTITIES.get(type_id).unwrap().name;
-                    if CollapsingHeader::new(&im_str!("{}", name)).build(ui) {
+                    if CollapsingHeader::new(&format!("{}", name)).build(ui) {
                         // List each individual entity under its header
-                        ui.text(im_str!("{} ({})", name, ent.len()));
+                        ui.text(format!("{} ({})", name, ent.len()));
                         for e in ent {
-                            ui.text(im_str!(
+                            ui.text(format!(
                                 "Pos: {:.2} / {:.2} / {:.2}",
-                                e.pos.get_x(),
-                                e.pos.get_y(),
-                                e.pos.get_z()
+                                e.pos.x,
+                                e.pos.y,
+                                e.pos.z
                             ));
                         }
                     }

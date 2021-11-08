@@ -25,6 +25,8 @@ pub struct Gui {
     chat: ChatWindow,
     debug: DebugWindow,
     ents: EntitiesWindow,
+
+    pub show_gui: bool,
 }
 
 impl Gui {
@@ -36,6 +38,8 @@ impl Gui {
             chat: ChatWindow::new(),
             debug: DebugWindow::new(),
             ents: EntitiesWindow::new(),
+
+            show_gui: false,
         }
     }
 
@@ -54,7 +58,7 @@ impl Gui {
         match server {
             Some(serv) => {
 
-                if serv.info_visible {
+                if self.show_gui {
                     self.chat.render(&ui, &mut serv.chat);
                     self.debug.render(&ui, serv);
                     self.ents.render(&ui, serv);

@@ -4,6 +4,8 @@ extern crate imgui;
 extern crate imgui_glium_renderer;
 extern crate quartz_nbt;
 extern crate log;
+#[cfg(feature = "swizzle")]
+extern crate cgmath;
 
 mod timer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};

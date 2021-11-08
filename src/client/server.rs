@@ -30,8 +30,6 @@ pub struct Server {
 
     pub difficulty: Difficulty,
     pub difficulty_locked: bool,
-
-    pub info_visible: bool,
 }
 
 impl Server {
@@ -51,8 +49,6 @@ impl Server {
 
             difficulty: Difficulty::Easy,
             difficulty_locked: false,
-
-            info_visible: false,
         }
     }
 
