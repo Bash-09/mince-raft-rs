@@ -95,6 +95,8 @@ impl Client {
         let delta = t.delta();
         let time = t.absolute_time();
 
+        println!("Delta: {}", delta);
+
         // Runs some code only once every self.period seconds
         let modulus = time % self.period;
         if modulus < self.last_mod {
@@ -143,7 +145,7 @@ impl Client {
 
 
                 if !self.gui.show_gui {
-                    let vel = 5.0 * delta;
+                    let vel = 8.0 * delta;
 
                     if self.keyboard.is_pressed(&VirtualKeyCode::W) {
                         let mut dir = serv.player.get_orientation().get_look_vector();
@@ -511,7 +513,11 @@ fn send_packet(network: &Option<NetworkChannel>, packet: DecodedPacket) -> Optio
     match network {
         Some(channel) => match channel.send.send(NetworkCommand::SendPacket(packet)) {
             Ok(_) => Some(()),
-            Err(e) => {error!("Failed to communicate with network commander: {:?}", e); None},
+            Err(e) => {
+                error!("Failed to communicate with network commander: {:?}", e);
+                panic!("Disconnected");
+                None
+            },
         },
         None => None,
     }

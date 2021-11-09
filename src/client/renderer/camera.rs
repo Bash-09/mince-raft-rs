@@ -1,9 +1,11 @@
 use std::ops::{Mul, MulAssign};
 
-use cgmath::{Deg, Matrix4, PerspectiveFov, Rad, SquareMatrix, Vector3, prelude::*};
-use glium::Display;
+use cgmath::{Deg, Matrix4, PerspectiveFov, Rad, SquareMatrix, Vector1, Vector3, prelude::*};
+use glium::{Display, buffer::Content};
 
 
+const NEAR_PLANE: f32 = 0.001;
+const FAR_PLANE: f32 = 10_000.0;
 
 pub struct Camera {
     pos: Vector3<f32>,
@@ -177,8 +179,6 @@ impl Camera {
     fn update_vmat(&mut self) {
         let mut vmat: Matrix4<f32> = Matrix4::identity();
 
-        // vmat.z.z = -1.0; // Reflect across x/y plane
-
         vmat = vmat * Matrix4::from_angle_x(Deg(-self.rot.y));
         vmat = vmat * Matrix4::from_angle_y(Deg(-self.rot.x + 180.0));
         vmat = vmat * Matrix4::from_angle_z(Deg(-self.rot.z));
@@ -190,8 +190,8 @@ impl Camera {
         self.pmat = Matrix4::from(PerspectiveFov{
             fovy: Rad::from(Deg(self.fov)),
             aspect: self.aspect,
-            near: 0.001,
-            far: 10_000.0,
+            near: NEAR_PLANE,
+            far: FAR_PLANE,
         });
     }
 
@@ -205,6 +205,148 @@ impl Camera {
         self.update_pmat();
         self.update_vmat();
         self.update_pvmat();
+    }
+
+
+    pub fn get_look_vector(&self) -> Vector3<f32> {
+        let mut dir: Vector3<f32> = Vector3::new(0.0, 0.0, -1.0);
+
+        let mut vmat: Matrix4<f32> = Matrix4::identity();
+
+        vmat = vmat * Matrix4::from_angle_x(Deg(-self.rot.y));
+        vmat = vmat * Matrix4::from_angle_y(Deg(-self.rot.x + 180.0));
+        vmat = vmat * Matrix4::from_angle_z(Deg(-self.rot.z));
+
+        match vmat.inverse_transform_vector(dir) {
+            Some(d) => d,
+            None => Vector3::new(0.0, 0.0, 0.0)
+        }
+    }
+
+    pub fn generate_view_frustum(&self) -> ViewFrustum {
+        let dir = self.get_look_vector();
+
+        let near_pos = self.get_pos() + (dir * NEAR_PLANE);
+        let far_pos = self.get_pos() + (dir * FAR_PLANE);
+
+        let d_near = dir;
+        let d_far = dir * -1.0;
+
+        let mut vmat: Matrix4<f32> = Matrix4::identity();
+
+        vmat = vmat * Matrix4::from_angle_x(Deg(-self.rot.y));
+        vmat = vmat * Matrix4::from_angle_y(Deg(-self.rot.x + 180.0));
+        vmat = vmat * Matrix4::from_angle_z(Deg(-self.rot.z));
+
+        let fov_x = (self.aspect).atan();
+
+        let mut d_left: Vector3<f32> = Vector3::new(1.0, 0.0, 0.0);
+        d_left = Matrix4::from_angle_y(Rad(fov_x)).transform_vector(d_left);
+        d_left = d_left.normalize();
+        d_left = vmat.inverse_transform_vector(d_left).expect("Couldn't transform vector");
+
+        let mut d_right: Vector3<f32> = Vector3::new(-1.0, 0.0, 0.0);
+        d_right = Matrix4::from_angle_y(Rad(-fov_x)).transform_vector(d_right);
+        d_right = d_right.normalize();
+        d_right = vmat.inverse_transform_vector(d_right).expect("Couldn't transform vector");
+
+        let mut d_bottom: Vector3<f32> = Vector3::new(0.0, 1.0, 0.0);
+        d_bottom = Matrix4::from_angle_x(Deg(-self.fov/2.0)).transform_vector(d_bottom);
+        d_bottom = d_bottom.normalize();
+        d_bottom = vmat.inverse_transform_vector(d_bottom).expect("Couldn't transform vector");
+
+        let mut d_top: Vector3<f32> = Vector3::new(0.0, -1.0, 0.0);
+        d_top = Matrix4::from_angle_x(Deg(self.fov/2.0)).transform_vector(d_top);
+        d_top = d_top.normalize();
+        d_top = vmat.inverse_transform_vector(d_top).expect("Couldn't transform vector");
+
+
+        ViewFrustum {
+            near_pos,
+            far_pos,
+
+            d_near,
+            d_left,
+            d_right,
+            d_bottom,
+            d_top,
+            d_far
+        }
+    }
+
+}
+
+
+pub struct ViewFrustum {
+    near_pos: Vector3<f32>,
+    far_pos: Vector3<f32>,
+
+    d_near: Vector3<f32>,
+    d_left: Vector3<f32>,
+    d_right: Vector3<f32>,
+    d_bottom: Vector3<f32>,
+    d_top: Vector3<f32>,
+    d_far: Vector3<f32>
+}
+
+impl ViewFrustum {
+
+    pub fn accept_point(&self, point: &Vector3<f32>) -> bool {
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_near, point) {return false}
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_left, point) {return false}
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_right, point) {return false}
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_bottom, point) {return false}
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_top, point) {return false}
+        if !ViewFrustum::check_plane(&self.far_pos, &self.d_far, point) {return false}
+
+        true
+    }
+
+
+    pub fn accept_points(&self, points: &Vec<Vector3<f32>>) -> bool {
+
+        let mut accepted = false;
+        for p in points {
+            if ViewFrustum::check_plane(&self.near_pos,&self.d_near, p) {accepted = true}
+        }
+        if !accepted {return false}
+
+        accepted = true;
+        for p in points {
+            if ViewFrustum::check_plane(&self.near_pos,&self.d_left, p) {accepted = true}
+        }
+        if !accepted {return false}
+
+        accepted = true;
+        for p in points {
+            if ViewFrustum::check_plane(&self.near_pos,&self.d_right, p) {accepted = true}
+        }
+        if !accepted {return false}
+
+        accepted = true;
+        for p in points {
+            if ViewFrustum::check_plane(&self.near_pos,&self.d_bottom, p) {accepted = true}
+        }
+        if !accepted {return false}
+
+        accepted = true;
+        for p in points {
+            if ViewFrustum::check_plane(&self.near_pos,&self.d_top, p) {accepted = true}
+        }
+        if !accepted {return false}
+
+        accepted = true;
+        for p in points {
+            if ViewFrustum::check_plane(&self.far_pos,&self.d_far, p) {accepted = true}
+        }
+        if !accepted {return false}
+
+        true
+    }
+
+    fn check_plane(plane_pos: &Vector3<f32>, plane_norm: &Vector3<f32>, point: &Vector3<f32>) -> bool {
+        let v = point - plane_pos;
+        plane_norm.dot(v) > 0.0
     }
 
 }

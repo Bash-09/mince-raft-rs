@@ -69,22 +69,40 @@ impl Renderer {
                 write: true,
                 .. Default::default()
             },
+            backface_culling: BackfaceCullingMode::CullClockwise,
             .. Default::default()
         };
 
+
+        let vf = self.cam.generate_view_frustum();
         let pvmat = mat_to_array(self.cam.get_pvmat());
+        let mut points = vec![Vector3::new(0.0, 0.0, 0.0); 8];
 
         for (pos, chunk) in serv.world.get_chunks() {
-            // if pos.x != 0 || pos.y != 0 {continue;}
             for (y, section) in chunk.get_sections().iter().enumerate() {
                 match section {
                     None => continue,
                     Some(cs) => {
 
+                        let cx = (pos.x * 16) as f32;
+                        let cy = (y     * 16) as f32;
+                        let cz = (pos.y * 16) as f32;
+
+                        // Get points for corners of chunk section
+                        points[0].x = cx;        points[0].y = cy;               points[0].z =  cz;
+                        points[1].x = cx + 16.0; points[1].y = cy;               points[1].z =  cz;
+                        points[2].x = cx;        points[2].y = cy + 16.0;        points[2].z =  cz;
+                        points[3].x = cx;        points[3].y = cy;               points[3].z =  cz + 16.0;
+                        points[4].x = cx + 16.0; points[4].y = cy + 16.0;        points[4].z =  cz;
+                        points[5].x = cx + 16.0; points[5].y = cy;               points[5].z =  cz + 16.0;
+                        points[6].x = cx;        points[6].y = cy + 16.0;        points[6].z =  cz + 16.0;
+                        points[7].x = cx + 16.0; points[7].y = cy + 16.0;        points[7].z =  cz + 16.0;
+
+                        // Frustum cull this chunk section
+                        if !vf.accept_points(&points) {continue}
+
                         let tmat: Matrix4<f32> = Matrix4::from_translation(Vector3::new(
-                            (pos.x * 16) as f32,
-                            (y     * 16) as f32,
-                            (pos.y * 16) as f32,
+                            cx, cy, cz,
                         ));
 
                         let uniforms = uniform! {

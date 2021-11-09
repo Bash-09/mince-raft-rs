@@ -215,9 +215,9 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
                 z + 1.0,
             ]});
             shapes.push(Vertex{position: [
-                x,
+                x + 1.0,
                 y + 1.0,
-                z + 1.0,
+                z,
             ]});
             shapes.push(Vertex{position: [
                 x,
@@ -235,9 +235,9 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
                 z,
             ]});
             shapes.push(Vertex{position: [
-                x + 1.0,
+                x,
                 y + 1.0,
-                z,
+                z + 1.0,
             ]});
             }
 
@@ -300,12 +300,12 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
             ]});
             shapes.push(Vertex{position: [
                 x,
-                y + 1.0,
+                y,
                 z,
             ]});
             shapes.push(Vertex{position: [
                 x,
-                y,
+                y + 1.0,
                 z,
             ]});
             shapes.push(Vertex{position: [
@@ -314,12 +314,12 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
                 z,
             ]});
             shapes.push(Vertex{position: [
-                x,
+                x + 1.0,
                 y,
                 z,
             ]});
             shapes.push(Vertex{position: [
-                x + 1.0,
+                x,
                 y,
                 z,
             ]});
@@ -384,12 +384,12 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
             ]});
             shapes.push(Vertex{position: [
                 x + 1.0,
-                y + 1.0,
+                y,
                 z,
             ]});
             shapes.push(Vertex{position: [
                 x + 1.0,
-                y,
+                y + 1.0,
                 z,
             ]});
             shapes.push(Vertex{position: [
@@ -400,12 +400,12 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
             shapes.push(Vertex{position: [
                 x + 1.0,
                 y,
-                z,
+                z + 1.0,
             ]});
             shapes.push(Vertex{position: [
                 x + 1.0,
                 y,
-                z + 1.0,
+                z,
             ]});
         }
 
