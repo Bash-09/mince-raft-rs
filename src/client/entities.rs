@@ -1,8 +1,8 @@
 use crate::client::network::types::UUID;
 
 pub mod components;
-use cgmath::Vector3;
 use components::*;
+use glam::Vec3;
 use resources::entities::{ENTITIES, EntityType};
 
 pub struct Entity {
@@ -13,8 +13,8 @@ pub struct Entity {
 
     pub data: i32,
 
-    pub pos: Vector3<f32>,
-    pub vel: Vector3<f32>,
+    pub pos: Vec3,
+    pub vel: Vec3,
     pub ori: Orientation,
     pub ori_head: Orientation,
 
@@ -30,8 +30,8 @@ impl Entity {
             entity_type: ENTITIES.get(&id).expect("Failed to get entity from ID"),
             data: 0,
 
-            pos: Vector3::new(0.0, 0.0, 0.0),
-            vel: Vector3::new(0.0, 0.0, 0.0),
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            vel: Vec3::new(0.0, 0.0, 0.0),
             ori: Orientation::new(),
             ori_head: Orientation::new(),
 
@@ -59,8 +59,8 @@ impl Entity {
             uuid,
             entity_type: ENTITIES.get(&entity_type).expect(&format!("Failed to get entity from ID: {}", entity_type)),
             data,
-            pos: Vector3::new(px, py, pz),
-            vel: Vector3::new(vx, vy, vz),
+            pos: Vec3::new(px, py, pz),
+            vel: Vec3::new(vx, vy, vz),
             ori: Orientation::new_with_values(yaw, pitch, 0.0, 0.0),
             ori_head: Orientation::new_with_values(0.0, head_pitch, -90.0, 90.0),
             on_ground: true,

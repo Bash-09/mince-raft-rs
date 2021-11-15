@@ -1,5 +1,4 @@
-use cgmath::{Matrix4, SquareMatrix, Vector3};
-use glium::backend::Facade;
+use glam::{Mat4, Vec3};
 use glium::index::NoIndices;
 use glium::{Display, Surface};
 use glium::*;
@@ -48,8 +47,8 @@ impl Renderer {
 
             cam: Camera::new_with_values(
                 dis.get_framebuffer_dimensions(),
-                Vector3::new(0.0, 0.0, 2.0),
-                Vector3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 2.0),
+                Vec3::new(0.0, 0.0, 0.0),
                 90.0
             ),
 
@@ -75,8 +74,8 @@ impl Renderer {
 
 
         let vf = self.cam.generate_view_frustum();
-        let pvmat = mat_to_array(self.cam.get_pvmat());
-        let mut points = vec![Vector3::new(0.0, 0.0, 0.0); 8];
+        let pvmat = self.cam.get_pvmat().to_cols_array_2d();
+        let mut points = vec![Vec3::new(0.0, 0.0, 0.0); 8];
 
         for (pos, chunk) in serv.world.get_chunks() {
             for (y, section) in chunk.get_sections().iter().enumerate() {
@@ -101,13 +100,13 @@ impl Renderer {
                         // Frustum cull this chunk section
                         if !vf.accept_points(&points) {continue}
 
-                        let tmat: Matrix4<f32> = Matrix4::from_translation(Vector3::new(
+                        let tmat: Mat4 = Mat4::from_translation(Vec3::new(
                             cx, cy, cz,
                         ));
 
                         let uniforms = uniform! {
                             pvmat: pvmat,
-                            tmat: mat_to_array(&tmat),
+                            tmat: tmat.to_cols_array_2d(),
                         };
 
                         target.draw(cs.get_vbo(), &self.inds, &self.prog, &uniforms, &params).unwrap();
@@ -120,13 +119,4 @@ impl Renderer {
 
     }
 
-}
-
-pub fn mat_to_array(m: &Matrix4<f32>) -> [[f32; 4]; 4] {
-    [
-        [m.x.x, m.x.y, m.x.z, m.x.w],
-        [m.y.x, m.y.y, m.y.z, m.y.w],
-        [m.z.x, m.z.y, m.z.z, m.z.w],
-        [m.w.x, m.w.y, m.w.z, m.w.w]
-    ]
 }

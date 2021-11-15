@@ -1,6 +1,5 @@
-use std::ops::{Mul, MulAssign};
 
-use cgmath::{Deg, Matrix4, PerspectiveFov, Rad, SquareMatrix, Vector1, Vector3, prelude::*};
+use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
 use glium::{Display, buffer::Content};
 
 
@@ -8,15 +7,15 @@ const NEAR_PLANE: f32 = 0.001;
 const FAR_PLANE: f32 = 10_000.0;
 
 pub struct Camera {
-    pos: Vector3<f32>,
-    rot: Vector3<f32>,
+    pos: Vec3,
+    rot: Vec3,
 
     fov: f32,
     aspect: f32,
 
-    pmat: Matrix4<f32>,
-    vmat: Matrix4<f32>,
-    pvmat: Matrix4<f32>,
+    pmat: Mat4,
+    vmat: Mat4,
+    pvmat: Mat4,
 }
 
 impl Camera {
@@ -31,13 +30,13 @@ impl Camera {
     /// * Asepct Ratio: 1.333
     /// 
     pub fn new() -> Camera {
-        let pmat = Matrix4::identity();
-        let vmat = Matrix4::identity();
-        let pvmat = Matrix4::identity();
+        let pmat = Mat4::IDENTITY;
+        let vmat = Mat4::IDENTITY;
+        let pvmat = Mat4::IDENTITY;
 
         Camera {
-            pos: Vector3::new(0.0, 0.0, 0.0),
-            rot: Vector3::new(0.0, 0.0, 0.0),
+            pos: Vec3::new(0.0, 0.0, 0.0),
+            rot: Vec3::new(0.0, 0.0, 0.0),
 
             fov: 90.0,
             aspect: 1.333,
@@ -53,14 +52,14 @@ impl Camera {
     /// # Arguments
     /// 
     /// * `dims: (u32, u32)` - The x/y dimensions of the display, used to calculate the perspective matrix according to the aspect ratio
-    /// * `pos: Vector3<f32>` - The position in 3D space for this camera to be located at
-    /// * `rot: Vector3<f32>` - The X/Y/Z rotations for the camera
+    /// * `pos: Vec3` - The position in 3D space for this camera to be located at
+    /// * `rot: Vec3` - The X/Y/Z rotations for the camera
     /// * `fov: f32` - The fov of the camera along the y-axis
-    pub fn new_with_values(dims: (u32, u32), pos: Vector3<f32>, rot: Vector3<f32>, fov: f32) -> Camera {
+    pub fn new_with_values(dims: (u32, u32), pos: Vec3, rot: Vec3, fov: f32) -> Camera {
 
-        let pmat = Matrix4::identity();
-        let vmat = Matrix4::identity();
-        let pvmat = Matrix4::identity();
+        let pmat = Mat4::IDENTITY;
+        let vmat = Mat4::IDENTITY;
+        let pvmat = Mat4::IDENTITY;
 
         let mut cam = Camera {
             pos,
@@ -100,21 +99,21 @@ impl Camera {
     }
 
     /// Set the position of this camera
-    pub fn set_pos(&mut self, pos: Vector3<f32>) {
+    pub fn set_pos(&mut self, pos: Vec3) {
         self.pos = pos;
         self.update_vmat();
         self.update_pvmat();
     }
 
     /// Set the rotation of this camera
-    pub fn set_rot(&mut self, rot: Vector3<f32>) {
+    pub fn set_rot(&mut self, rot: Vec3) {
         self.rot = rot;
         self.update_vmat();
         self.update_pvmat();
     }
 
     /// Set the position and rotation of this camera
-    pub fn set_transform(&mut self, pos: Vector3<f32>, rot: Vector3<f32>) {
+    pub fn set_transform(&mut self, pos: Vec3, rot: Vec3) {
         self.pos = pos;
         self.rot = rot;
         self.update_vmat();
@@ -122,14 +121,14 @@ impl Camera {
     }
 
     /// Translate this camera by the given amount
-    pub fn translate(&mut self, pos: Vector3<f32>) {
+    pub fn translate(&mut self, pos: Vec3) {
         self.pos += pos;
         self.update_vmat();
         self.update_pvmat();
     }
 
     /// Rotate this camera by the given amount
-    pub fn rotate(&mut self, rot: Vector3<f32>) {
+    pub fn rotate(&mut self, rot: Vec3) {
         self.rot += rot;
         self.update_vmat();
         self.update_pvmat();
@@ -139,10 +138,10 @@ impl Camera {
     /// 
     /// # Arguments
     /// 
-    /// * `pos: Vector3<f32>` - How much to translate this camera by
+    /// * `pos: Vec3` - How much to translate this camera by
     /// 
-    /// * `rote: Vector3<f32>` - How much to rotate this camera by
-    pub fn transform(&mut self, pos: Vector3<f32>, rot: Vector3<f32>) {
+    /// * `rote: Vec3` - How much to rotate this camera by
+    pub fn transform(&mut self, pos: Vec3, rot: Vec3) {
         self.pos += pos;
         self.rot += rot;
         self.update_vmat();
@@ -150,11 +149,11 @@ impl Camera {
     }
 
     /// Returns the current position of the camera
-    pub fn get_pos(&self) -> &Vector3<f32> {
+    pub fn get_pos(&self) -> &Vec3 {
         &self.pos
     }
     /// Returns the current X/Y/Z rotations of the camera
-    pub fn get_rot(&self) -> &Vector3<f32> {
+    pub fn get_rot(&self) -> &Vec3 {
         &self.rot
     }
     /// Returns the current y-fov of the camera
@@ -163,40 +162,41 @@ impl Camera {
     }
 
     /// Returns the perspectiva matrix for this camera
-    pub fn get_pmat(&self) -> &Matrix4<f32> {
+    pub fn get_pmat(&self) -> &Mat4 {
         &self.pmat
     }
     /// Returns the view matrix for this camera
-    pub fn get_vmat(&self) -> &Matrix4<f32> {
+    pub fn get_vmat(&self) -> &Mat4 {
         &self.vmat
     }
     /// Returns the combine Perspective/View matrix for this camera
-    pub fn get_pvmat(&self) -> &Matrix4<f32> {
+    pub fn get_pvmat(&self) -> &Mat4 {
         &self.pvmat
     }
 
 
     fn update_vmat(&mut self) {
-        let mut vmat: Matrix4<f32> = Matrix4::identity();
+        let mut vmat: Mat4 = Mat4::IDENTITY;
 
-        vmat = vmat * Matrix4::from_angle_x(Deg(-self.rot.y));
-        vmat = vmat * Matrix4::from_angle_y(Deg(-self.rot.x + 180.0));
-        vmat = vmat * Matrix4::from_angle_z(Deg(-self.rot.z));
-        vmat = vmat * Matrix4::from_translation(self.pos * -1.0);
+        vmat *= Mat4::from_rotation_x((-self.rot.y).to_radians());
+        vmat *= Mat4::from_rotation_y((-self.rot.x + 180.0).to_radians());
+        vmat *= Mat4::from_rotation_z((-self.rot.z).to_radians());
+
+        vmat *= Mat4::from_translation(self.pos * -1.0);
+
         self.vmat = vmat;
     }
 
     fn update_pmat(&mut self) {
-        self.pmat = Matrix4::from(PerspectiveFov{
-            fovy: Rad::from(Deg(self.fov)),
-            aspect: self.aspect,
-            near: NEAR_PLANE,
-            far: FAR_PLANE,
-        });
+        self.pmat = Mat4::perspective_rh(
+            self.fov.to_radians(), 
+            self.aspect, 
+            NEAR_PLANE, 
+            FAR_PLANE);
     }
 
     fn update_pvmat(&mut self) {
-        self.pvmat = Matrix4::identity();
+        self.pvmat = Mat4::IDENTITY;
         self.pvmat = self.pvmat * self.pmat;
         self.pvmat = self.pvmat * self.vmat;
     }
@@ -208,57 +208,56 @@ impl Camera {
     }
 
 
-    pub fn get_look_vector(&self) -> Vector3<f32> {
-        let mut dir: Vector3<f32> = Vector3::new(0.0, 0.0, -1.0);
+    pub fn get_look_vector(&self) -> Vec3 {
+        let mut dir: Vec4 = Vec4::new(0.0, 0.0, -1.0, 1.0);
 
-        let mut vmat: Matrix4<f32> = Matrix4::identity();
+        let mut vmat: Mat4 = Mat4::IDENTITY;
 
-        vmat = vmat * Matrix4::from_angle_x(Deg(-self.rot.y));
-        vmat = vmat * Matrix4::from_angle_y(Deg(-self.rot.x + 180.0));
-        vmat = vmat * Matrix4::from_angle_z(Deg(-self.rot.z));
+        vmat *= Mat4::from_rotation_x((-self.rot.y).to_radians());
+        vmat *= Mat4::from_rotation_y((-self.rot.x + 180.0).to_radians());
+        vmat *= Mat4::from_rotation_z((-self.rot.z).to_radians());
 
-        match vmat.inverse_transform_vector(dir) {
-            Some(d) => d,
-            None => Vector3::new(0.0, 0.0, 0.0)
-        }
+        (vmat.inverse() * dir).xyz()
     }
 
     pub fn generate_view_frustum(&self) -> ViewFrustum {
         let dir = self.get_look_vector();
 
-        let near_pos = self.get_pos() + (dir * NEAR_PLANE);
-        let far_pos = self.get_pos() + (dir * FAR_PLANE);
+        let near_pos = *self.get_pos() + (dir * NEAR_PLANE);
+        let far_pos = *self.get_pos() + (dir * FAR_PLANE);
 
         let d_near = dir;
         let d_far = dir * -1.0;
 
-        let mut vmat: Matrix4<f32> = Matrix4::identity();
+        let mut vmat: Mat4 = Mat4::IDENTITY;
 
-        vmat = vmat * Matrix4::from_angle_x(Deg(-self.rot.y));
-        vmat = vmat * Matrix4::from_angle_y(Deg(-self.rot.x + 180.0));
-        vmat = vmat * Matrix4::from_angle_z(Deg(-self.rot.z));
+        vmat = vmat * Mat4::from_rotation_x((-self.rot.y).to_radians());
+        vmat = vmat * Mat4::from_rotation_y((-self.rot.x + 180.0).to_radians());
+        vmat = vmat * Mat4::from_rotation_z((-self.rot.z).to_radians());
+
+        let inv_vmat = vmat.inverse();
 
         let fov_x = (self.aspect).atan();
 
-        let mut d_left: Vector3<f32> = Vector3::new(1.0, 0.0, 0.0);
-        d_left = Matrix4::from_angle_y(Rad(fov_x)).transform_vector(d_left);
+        let mut d_left: Vec4 = Vec4::new(1.0, 0.0, 0.0, 1.0);
+        d_left = Mat4::from_rotation_y(fov_x) * d_left;
         d_left = d_left.normalize();
-        d_left = vmat.inverse_transform_vector(d_left).expect("Couldn't transform vector");
+        d_left = inv_vmat * d_left;
 
-        let mut d_right: Vector3<f32> = Vector3::new(-1.0, 0.0, 0.0);
-        d_right = Matrix4::from_angle_y(Rad(-fov_x)).transform_vector(d_right);
+        let mut d_right: Vec4 = Vec4::new(-1.0, 0.0, 0.0, 1.0);
+        d_right = Mat4::from_rotation_y(-fov_x) * d_right;
         d_right = d_right.normalize();
-        d_right = vmat.inverse_transform_vector(d_right).expect("Couldn't transform vector");
+        d_right = inv_vmat * d_right;
 
-        let mut d_bottom: Vector3<f32> = Vector3::new(0.0, 1.0, 0.0);
-        d_bottom = Matrix4::from_angle_x(Deg(-self.fov/2.0)).transform_vector(d_bottom);
+        let mut d_bottom: Vec4 = Vec4::new(0.0, 1.0, 0.0, 1.0);
+        d_bottom = Mat4::from_rotation_x((-self.fov/2.0).to_radians()) * d_bottom;
         d_bottom = d_bottom.normalize();
-        d_bottom = vmat.inverse_transform_vector(d_bottom).expect("Couldn't transform vector");
+        d_bottom = inv_vmat * d_bottom;
 
-        let mut d_top: Vector3<f32> = Vector3::new(0.0, -1.0, 0.0);
-        d_top = Matrix4::from_angle_x(Deg(self.fov/2.0)).transform_vector(d_top);
+        let mut d_top: Vec4 = Vec4::new(0.0, -1.0, 0.0, 1.0);
+        d_top = Mat4::from_rotation_x((self.fov/2.0).to_radians()) * d_top;
         d_top = d_top.normalize();
-        d_top = vmat.inverse_transform_vector(d_top).expect("Couldn't transform vector");
+        d_top = inv_vmat * d_top;
 
 
         ViewFrustum {
@@ -266,10 +265,10 @@ impl Camera {
             far_pos,
 
             d_near,
-            d_left,
-            d_right,
-            d_bottom,
-            d_top,
+            d_left: d_left.xyz(),
+            d_right: d_right.xyz(),
+            d_bottom: d_bottom.xyz(),
+            d_top: d_top.xyz(),
             d_far
         }
     }
@@ -278,20 +277,20 @@ impl Camera {
 
 
 pub struct ViewFrustum {
-    near_pos: Vector3<f32>,
-    far_pos: Vector3<f32>,
+    near_pos: Vec3,
+    far_pos: Vec3,
 
-    d_near: Vector3<f32>,
-    d_left: Vector3<f32>,
-    d_right: Vector3<f32>,
-    d_bottom: Vector3<f32>,
-    d_top: Vector3<f32>,
-    d_far: Vector3<f32>
+    d_near: Vec3,
+    d_left: Vec3,
+    d_right: Vec3,
+    d_bottom: Vec3,
+    d_top: Vec3,
+    d_far: Vec3
 }
 
 impl ViewFrustum {
 
-    pub fn accept_point(&self, point: &Vector3<f32>) -> bool {
+    pub fn accept_point(&self, point: &Vec3) -> bool {
         if !ViewFrustum::check_plane(&self.near_pos, &self.d_near, point) {return false}
         if !ViewFrustum::check_plane(&self.near_pos, &self.d_left, point) {return false}
         if !ViewFrustum::check_plane(&self.near_pos, &self.d_right, point) {return false}
@@ -303,7 +302,7 @@ impl ViewFrustum {
     }
 
 
-    pub fn accept_points(&self, points: &Vec<Vector3<f32>>) -> bool {
+    pub fn accept_points(&self, points: &Vec<Vec3>) -> bool {
 
         let mut accepted = false;
         for p in points {
@@ -344,8 +343,8 @@ impl ViewFrustum {
         true
     }
 
-    fn check_plane(plane_pos: &Vector3<f32>, plane_norm: &Vector3<f32>, point: &Vector3<f32>) -> bool {
-        let v = point - plane_pos;
+    fn check_plane(plane_pos: &Vec3, plane_norm: &Vec3, point: &Vec3) -> bool {
+        let v = *point - *plane_pos;
         plane_norm.dot(v) > 0.0
     }
 

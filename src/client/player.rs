@@ -1,11 +1,12 @@
-use cgmath::Vector3;
+
+use glam::Vec3;
 
 use super::entities::components::Orientation;
 
 pub struct Player {
     pub id: i32,
 
-    position: Vector3<f32>,
+    position: Vec3,
     orientation: Orientation,
 
     pub health: f32,
@@ -26,7 +27,7 @@ impl Player {
         Player {
             id: 0,
 
-            position: Vector3::new(0.0, 0.0, 0.0),
+            position: Vec3::new(0.0, 0.0, 0.0),
             orientation: Orientation::new_with_values(0.0, 0.0, -90.0, 90.0),
 
             health: 20.0,
@@ -42,10 +43,10 @@ impl Player {
         }
     }
 
-    pub fn set_position(&mut self, pos: Vector3<f32>) {
+    pub fn set_position(&mut self, pos: Vec3) {
         self.position = pos;
     }
-    pub fn get_position(&self) -> &Vector3<f32> {
+    pub fn get_position(&self) -> &Vec3 {
         &self.position
     }
 
@@ -56,7 +57,7 @@ impl Player {
         &self.orientation
     }
 
-    pub fn get_position_mut(&mut self) -> &mut Vector3<f32> {
+    pub fn get_position_mut(&mut self) -> &mut Vec3 {
         &mut self.position
     }
     pub fn get_orientation_mut(&mut self) -> &mut Orientation {

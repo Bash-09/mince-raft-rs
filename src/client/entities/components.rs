@@ -1,4 +1,5 @@
-use cgmath::Vector3;
+use glam::Vec3;
+
 
 #[derive(Debug)]
 pub struct Orientation {
@@ -50,7 +51,7 @@ impl Orientation {
     }
 
     // Sets yaw and pitch to face in the direction of a provided vector
-    pub fn set_by_look_vector(&mut self, dir: Vector3<f32>) {
+    pub fn set_by_look_vector(&mut self, dir: Vec3) {
         let r = (dir.x * dir.x + dir.y * dir.y + dir.z * dir.z).sqrt();
         let mut yaw = -dir.x.atan2(dir.z).to_degrees();
         if yaw < 0.0 {
@@ -98,11 +99,11 @@ impl Orientation {
     }
 
     /// Returns a 3-tuple for a unit vector in the direction of the yaw and pitch
-    pub fn get_look_vector(&self) -> Vector3<f32> {
+    pub fn get_look_vector(&self) -> Vec3 {
         let x = -self.pitch.to_radians().cos() * self.yaw.to_radians().sin();
         let y = -self.pitch.to_radians().sin();
         let z = self.pitch.to_radians().cos() * self.yaw.to_radians().cos();
-        Vector3::new(x, y, z)
+        Vec3::new(x, y, z)
     }
 
     pub fn get_min_pitch(&self) -> f32 {
@@ -119,7 +120,7 @@ impl Orientation {
         self.pitch_max = pitch_max;
     }
 
-    pub fn get_rotations(&self) -> Vector3<f32> {
-        Vector3::new(self.yaw, self.pitch, 0.0)
+    pub fn get_rotations(&self) -> Vec3 {
+        Vec3::new(self.yaw, self.pitch, 0.0)
     }
 }
