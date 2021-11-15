@@ -9,7 +9,7 @@ use crate::{client::{{
 mod network;
 
 
-use cgmath::{Deg, InnerSpace, Matrix4, SquareMatrix, Vector3};
+use glam::{Vec2, Vec3};
 use glium::{Display, Surface, glutin::event::VirtualKeyCode};
 use log::{debug, error, info};
 
@@ -128,7 +128,7 @@ impl Client {
 
                 // Update camera
                 self.rend.cam.set_pos(serv.player.get_position().clone());
-                self.rend.cam.translate(Vector3::new(0.0, 1.7, 0.0));
+                self.rend.cam.translate(Vec3::new(0.0, 1.7, 0.0));
                 self.rend.cam.set_rot(serv.player.get_orientation().get_rotations() * -1.0);
 
                 if self.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
@@ -188,11 +188,11 @@ impl Client {
                     }
 
                     if self.keyboard.is_pressed(&VirtualKeyCode::Space) {
-                        serv.player.get_position_mut().add_assign(Vector3::new(0.0, vel, 0.0));
+                        serv.player.get_position_mut().add_assign(Vec3::new(0.0, vel, 0.0));
                     }
 
                     if self.keyboard.is_pressed(&VirtualKeyCode::LShift) {
-                        serv.player.get_position_mut().add_assign(Vector3::new(0.0, -vel, 0.0));
+                        serv.player.get_position_mut().add_assign(Vec3::new(0.0, -vel, 0.0));
                     }
 
                     if self.mouse.is_pressed(0) {
@@ -353,7 +353,7 @@ impl Client {
 
                     EntityPosition(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.pos.add_assign(Vector3::new(
+                            ent.pos.add_assign(Vec3::new(
                                 (pack.dx.0 as f32) / 4096.0,
                                 (pack.dy.0 as f32) / 4096.0,
                                 (pack.dz.0 as f32) / 4096.0,
@@ -365,7 +365,7 @@ impl Client {
                     EntityPositionAndRotation(pack) => {
                         match server.entities.get_mut(&pack.entity_id.0) {
                             Some(ent) => {
-                                ent.pos.add_assign(Vector3::new(
+                                ent.pos.add_assign(Vec3::new(
                                     (pack.dx.0 as f32) / 4096.0,
                                     (pack.dy.0 as f32) / 4096.0,
                                     (pack.dz.0 as f32) / 4096.0,
@@ -399,7 +399,7 @@ impl Client {
 
                     EntityVelocity(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.vel.add_assign(Vector3::new(
+                            ent.vel.add_assign(Vec3::new(
                                 pack.vx.0 as f32 / 8000.0,
                                 pack.vy.0 as f32 / 8000.0,
                                 pack.vz.0 as f32 / 8000.0,
@@ -410,7 +410,7 @@ impl Client {
 
                     EntityTeleport(pack) => match server.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.pos = Vector3::new(pack.x.0 as f32, pack.y.0 as f32, pack.z.0 as f32);
+                            ent.pos = Vec3::new(pack.x.0 as f32, pack.y.0 as f32, pack.z.0 as f32);
                             ent.ori
                                 .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
                             ent.on_ground = pack.on_ground.0;
@@ -421,7 +421,7 @@ impl Client {
                     PlayerPositionAndLook(pack) => {
                         debug!("Player position updated!");
 
-                        server.player.set_position(Vector3::new(pack.x.0 as f32, pack.y.0 as f32, pack.z.0 as f32));
+                        server.player.set_position(Vec3::new(pack.x.0 as f32, pack.y.0 as f32, pack.z.0 as f32));
                         server
                             .player
                             .get_orientation_mut()

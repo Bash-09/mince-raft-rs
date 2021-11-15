@@ -1,4 +1,4 @@
-use cgmath::{Vector2, Vector3};
+use glam::{IVec2, IVec3, Vec2};
 use glium::{Display, VertexBuffer};
 use log::debug;
 use resources::blocks::{BLOCKS, BlockState};
@@ -24,7 +24,7 @@ impl ChunkSection {
 
 
 pub struct Chunk {
-    pos: Vector2<i32>,
+    pos: IVec2,
 
     heightmap: [u16; 256],
 
@@ -40,24 +40,24 @@ impl Chunk {
         debug!("Processing chunk data");
 
         Chunk {
-            pos: Vector2::new(data.x.0, data.z.0),
+            pos: IVec2::new(data.x.0, data.z.0),
     
             heightmap: process_heightmap(data),
             sections: process_sections(dis, data),
         }    
     }
 
-    pub fn get_coords(&self) -> &Vector2<i32> {
+    pub fn get_coords(&self) -> &IVec2 {
         &self.pos
     }
 
     /// Returns the y value of the highest block at the x/z position provided in this chunk
-    pub fn get_highest_block(&self, coords: Vector2<i32>) -> i32 {
+    pub fn get_highest_block(&self, coords: IVec2) -> i32 {
         self.heightmap[coords.y as usize * 16 + coords.x as usize] as i32
     }
 
     /// Returns the block in this chunk at the position provided
-    pub fn block_at(&self, pos: Vector3<i32>) -> &BlockState {
+    pub fn block_at(&self, pos: IVec3) -> &BlockState {
         let x = pos.x as usize;
         let y = pos.y as usize;
         let z = pos.z as usize;
