@@ -19,10 +19,6 @@ Currently this does not have any title menu or settings and just automatically c
 The client currently only has some basic functionality:
 * Connect to unsecured vanilla Minecraft servers
 
-* Send a receive basic chat messages with the server and execute commands
-
-![Chat Being Used](journal/Chat.gif)
-
 * Understand information about the server and the player
 
 ![Information panel](journal/Information.png)
@@ -30,6 +26,10 @@ The client currently only has some basic functionality:
 * Get nearby entities and their data
 
 ![Entity Information](journal/Entities.png)
+
+* Send a receive basic chat messages with the server and execute commands
+
+![Chat Being Used](journal/Chat.gif)
 
 * Read Chunk Data and get blocks to construct chunks
 
