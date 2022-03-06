@@ -11,8 +11,9 @@ This is just a personal project to learn and practice, don't expect it to become
 
 # Compiling/Running
 
-Currently this does not have any title menu or settings and just automatically connects to a server to play. If you want to try the current client, you will need to start a Minecraft server (like Spigot) and turn off authentication, set the IP of the server in `src/client.rs` to your server and recompile the project.
-(You will probably also need to enable flying in the server properties to prevent the client from getting kicked regularly)
+Currently to run this client, you will just need to start a spigot server (1.17.1 probably) and turn off authentication (the setting might be called something like `online`?). It may also be a good idea to enable flying to prevent the client from getting kicked, as currently it doesn't have any physics or collisions.
+
+After running the client, there is an area to input a server IP and connect.
 
 # Current Features
 
