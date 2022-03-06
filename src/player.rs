@@ -1,4 +1,3 @@
-
 use glam::Vec3;
 
 use super::entities::components::Orientation;

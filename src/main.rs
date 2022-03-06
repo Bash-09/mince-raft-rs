@@ -1,193 +1,262 @@
 extern crate chrono;
+extern crate egui;
 extern crate glium;
-extern crate imgui;
-extern crate imgui_glium_renderer;
-extern crate quartz_nbt;
+extern crate glium_app;
 extern crate log;
-#[cfg(feature = "swizzle")]
-extern crate cgmath;
+extern crate quartz_nbt;
 
-mod timer;
-use imgui_winit_support::{HiDpiMode, WinitPlatform};
-use log::info;
-use timer::*;
+use std::ops::AddAssign;
 
-mod client;
-use client::*;
-
-pub mod io;
-
-use glium::{
-    glutin::{
-        dpi::{PhysicalSize, Size},
-        window::WindowBuilder,
-        ContextBuilder,
-    },
-    *,
+use crate::{
+    network::{types::*, *},
+    {entities::Entity, server::Difficulty, world::chunks::Chunk},
 };
-use imgui::Context;
-use imgui_glium_renderer::Renderer;
+
+mod network;
+
+use glam::Vec3;
+use glium::glutin::event::VirtualKeyCode;
+use gui::{main_menu, pause_menu::{self, PauseAction}};
+use log::{debug, error, info};
+
+use glium_app::context::Context;
+use glium_app::*;
+use settings::Settings;
+
+pub mod chat;
+pub mod entities;
+pub mod player;
+pub mod renderer;
+pub mod server;
+pub mod world;
+pub mod gui;
+pub mod settings;
+
+use self::{
+    network::{packets::DecodedPacket, NetworkManager},
+    renderer::Renderer,
+    server::Server,
+};
 
 fn main() {
-
     env_logger::init();
+    debug!("Starting logger");
 
-    info!("Starting logger");
-
-    let mut event_loop = glutin::event_loop::EventLoop::new();
     let wb = WindowBuilder::new()
-        .with_title("Mince-Raft")
-        .with_inner_size(PhysicalSize::new(1000, 600));
-    let cb = ContextBuilder::new().with_vsync(false);
-    let display = Display::new(wb, cb, &event_loop).expect("Failed to open Display!");
+        .with_title("Minceraft!")
+        .with_resizable(true)
+        .with_inner_size(PhysicalSize::new(1000i32, 600i32));
 
-    let mut imgui = Context::create();
-    imgui.set_ini_filename(None);
+    let (ctx, el) = glium_app::create(wb);
 
-    //Stuff to handle Imgui input
-    let mut platform = WinitPlatform::init(&mut imgui);
-    platform.attach_window(
-        imgui.io_mut(),
-        display.gl_window().window(),
-        HiDpiMode::Default,
-    );
+    let client = Box::new(Client::new(&ctx));
 
-    let renderer = Renderer::init(&mut imgui, &display).expect("Failed to initialise renderer!");
-    let gui = gui::Gui::new(imgui, renderer);
-
-    let mut client: Client = Client::new(display, gui);
-    let mut t = Timer::new();
-
-
-
-    t.reset();
-    event_loop.run(move |ev, _, control_flow| {
-        // Imgui handle events
-        platform.handle_event(client.gui.imgui.io_mut(), client.dis.gl_window().window(), &ev);
-
-        use glutin::event::WindowEvent;
-
-        // Handle our own events
-        let mut events_cleared = false;
-        use glutin::event::{Event::*, *};
-        match &ev {
-            glutin::event::Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => {
-                    client.close();
-                    info!("Closing Application");
-                    *control_flow = glutin::event_loop::ControlFlow::Exit;
-                }
-                WindowEvent::CursorMoved {
-                    device_id,
-                    position,
-                    ..
-                } => {
-                    client.mouse.update_pos((position.x as i32, position.y as i32));
-                }
-                WindowEvent::MouseInput {
-                    device_id,
-                    state,
-                    button,
-                    ..
-                } => {
-                    let mut mbutton: u16 = 0;
-                    match button {
-                        MouseButton::Left => {
-                            mbutton = 0;
-                        }
-                        MouseButton::Middle => {
-                            mbutton = 1;
-                        }
-                        MouseButton::Right => {
-                            mbutton = 2;
-                        }
-                        MouseButton::Other(bnum) => {
-                            if bnum > &(9 as u16) {
-                                return;
-                            }
-                            mbutton = *bnum;
-                        }
-                    }
-                    let mut pressed = false;
-                    if state == &ElementState::Pressed {
-                        pressed = true;
-                    }
-                    if pressed {
-                        client.mouse.press_button(mbutton as usize);
-                    } else {
-                        client.mouse.release_button(mbutton as usize);
-                    }
-                }
-                WindowEvent::MouseWheel {
-                    device_id, delta, ..
-                } => match delta {
-                    MouseScrollDelta::LineDelta(y, x) => {
-                        client.mouse.scroll((*x, *y));
-                    }
-                    _ => {}
-                },
-                WindowEvent::AxisMotion {
-                    device_id,
-                    axis,
-                    value,
-                } => {}
-                WindowEvent::KeyboardInput {
-                    device_id,
-                    input,
-                    is_synthetic,
-                    ..
-                } => match input {
-                    KeyboardInput {
-                        scancode,
-                        state,
-                        virtual_keycode,
-                        ..
-                    } => match virtual_keycode {
-                        None => {}
-                        Some(key) => {
-                            if state == &ElementState::Pressed {
-                                client.keyboard.press(*key);
-                            } else {
-                                client.keyboard.release(*key);
-                            }
-                        }
-                    },
-                },
-                WindowEvent::ReceivedCharacter(char) => {}
-                _ => {
-                    //println!("Unhandled event: {:?}", ev);
-                }
-            },
-            MainEventsCleared => {
-                events_cleared = true;
-            }
-            RedrawEventsCleared => {}
-            NewEvents(cause) => match cause {
-                StartCause::Init => {
-                    client.init();
-                }
-                _ => {}
-            },
-            _ => {
-                //println!("Unhandled event: {:?}", ev);
-            }
-        }
-
-        if !events_cleared {
-            return;
-        }
-
-        // Update
-        match t.go() {
-            None => {}
-            Some(_) => {
-                client.update(&t);
-                client.render();
-
-                client.mouse.next_frame();
-                client.keyboard.next_frame();
-                client.gui.update(t.delta(), &client.mouse);
-            }
-        }
-    });
+    glium_app::run_with_context(client, ctx, el);
 }
+
+pub struct Client {
+    rend: Renderer,
+
+    server: Option<Server>,
+    settings: Settings,
+
+    period: f32,
+    last_mod: f32,
+}
+
+impl Application for Client {
+    fn init(&mut self, ctx: &mut Context) {
+        // Creates a network manager and attempts to connect to and login to a server
+        // match NetworkManager::connect("192.168.20.9:25565") {
+        //     Ok(server) => {
+        //         debug!("Connected to server.");
+        //         server.network
+        //             .send
+        //             .send(NetworkCommand::Login(
+        //                 PROTOCOL_1_17_1,
+        //                 Short(25565),
+        //                 MCString("Harry".to_string()),
+        //             ))
+        //             .expect("Failed to login");
+
+        //         self.server = Some(server);
+        //     }
+        //     Err(e) => {
+        //         error!("Error connecting: {}", e);
+        //     }
+        // }
+    }
+
+    fn update(&mut self, t: &glium_app::timer::Timer, ctx: &mut glium_app::context::Context) {
+        let delta = t.delta();
+        let time = t.absolute_time();
+
+        // Runs some code only once every self.period seconds
+        let modulus = time % self.period;
+        if modulus < self.last_mod {
+            match &self.server {
+                Some(serv) => {
+                    // Send player position update packets
+                    if serv.player.id != 0 {
+                        serv.send_packet(
+                            DecodedPacket::PlayerPositionAndRotation(
+                                Double(serv.player.get_position().x as f64),
+                                Double(serv.player.get_position().y as f64),
+                                Double(serv.player.get_position().z as f64),
+                                Float(serv.player.get_orientation().get_yaw() as f32),
+                                Float(serv.player.get_orientation().get_head_pitch() as f32),
+                                Boolean(true),
+                            ),
+                        );
+                    }
+                }
+                None => {
+
+                }
+            }
+        }
+        self.last_mod = modulus;
+
+        // Runs some code while the server is valid
+        match &mut self.server {
+            Some(serv) => {
+                // Update camera
+                self.rend.cam.set_pos(serv.player.get_position().clone());
+                self.rend.cam.translate(Vec3::new(0.0, 1.7, 0.0));
+                self.rend
+                    .cam
+                    .set_rot(serv.player.get_orientation().get_rotations() * -1.0);
+
+                serv.update(ctx, delta);
+
+                if serv.disconnect {
+                    self.server = None;
+                }
+            }
+            None => {}
+        }
+
+
+    }
+
+    fn render(&mut self, ctx: &mut glium_app::context::Context) {
+        let Context {dis, gui, mouse, keyboard} = ctx;
+
+        let mut target = dis.draw();
+
+        // Render world if it exists
+        match &self.server {
+            Some(s) => {
+                self.rend.render_server(&mut target, s);
+            }
+            None => {
+
+            }
+        }
+
+        let mut grab = false;
+
+        // GUI
+        let _repaint = gui.run(&dis, |gui_ctx| {
+
+            match &mut self.server {
+                Some(s) => {
+
+                    egui::Window::new("Test Window")
+                    .collapsible(true)
+                    .show(gui_ctx, |ui| {
+    
+                        ui.label("Hello World!");
+    
+                        ui.label(format!("Mouse pos: {}, {}", mouse.get_pos().0, mouse.get_pos().1));
+    
+                    });
+
+                    if s.paused {
+                        match pause_menu::render(gui_ctx, &mut self.settings) {
+                            PauseAction::Unpause => {
+                                s.paused = false;
+                                grab = true;
+                            },
+                            PauseAction::Disconnect => {
+                                s.disconnect();
+                                self.server = None;
+                            }
+                            _ => {}
+                        }
+                    }
+
+                },
+                None => {
+                    match main_menu::render(gui_ctx, &mut self.settings) {
+                        Some(s) => {
+                            self.server = Some(s);
+                            grab = true;
+                        },
+                        None => {
+                            
+                        }
+                    }
+                }
+            }
+        });
+        gui.paint(dis, &mut target);
+
+        if grab {
+            ctx.set_mouse_grabbed(true).unwrap();
+            ctx.set_mouse_visible(false);
+            println!("Setting mouse invisible!");
+        }
+
+        target.finish().unwrap();
+    }
+
+    fn close(&mut self) {
+        debug!("Closing App");
+    }
+
+    fn handle_event(&mut self, ctx: &mut Context, event: &Event<()>) {
+        match event {
+            Event::WindowEvent{ window_id: _, event: glutin::event::WindowEvent::Focused(focused) } => {
+                if let Some(server) = &mut self.server {
+                    if !focused {
+                        ctx.set_mouse_grabbed(false).expect("Couldn't release mouse!");
+                        ctx.set_mouse_visible(true);
+                        server.paused = true;
+                    }                
+                }
+
+            }
+            _ => {}
+        }
+    }
+}
+
+impl Client {
+    // pub fn new(dis: Display, gui: Gui) -> Client {
+    pub fn new(ctx: &Context) -> Client {
+        Client {
+            rend: Renderer::new(&ctx.dis),
+
+            server: None,
+            settings: Settings::default(),
+
+            period: 0.05,
+            last_mod: 0.0,
+        }
+    }
+
+    pub fn close(&mut self) {
+        debug!("Closing client.");
+        match &self.server {
+            Some(serv) => {
+                serv.network.send
+                    .send(NetworkCommand::Disconnect)
+                    .expect("Failed to send disconnect command to network commander.");
+            }
+            None => {}
+        }
+    }
+}
+
+

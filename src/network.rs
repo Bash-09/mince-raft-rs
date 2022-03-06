@@ -1,8 +1,8 @@
 pub mod packets;
 use log::{error, info, warn};
 use miniz_oxide::{
-    deflate::{compress_to_vec, compress_to_vec_zlib},
-    inflate::{decompress_to_vec, decompress_to_vec_zlib},
+    deflate::compress_to_vec_zlib,
+    inflate::decompress_to_vec_zlib,
 };
 use packets::*;
 
@@ -16,9 +16,7 @@ use std::{
     time::Duration,
 };
 
-use crate::client::{
-    server::*,
-};
+use crate::server::*;
 
 use self::types::*;
 
@@ -48,7 +46,7 @@ impl NetworkManager {
     /// * `Result<(NetworkChannel, Server), Error>` - Ok holding a channel to communicate with the new network thread, and a `Server` struct
     ///     Or errors if the TcpStream could not be established.
     ///
-    pub fn connect(destination: &str) -> Result<(NetworkChannel, Server), Error> {
+    pub fn connect(destination: &str) -> Result<Server, Error> {
         let (tx, ri) = mpsc::channel::<NetworkCommand>();
         let (ti, rx) = mpsc::channel::<NetworkCommand>();
 
@@ -71,10 +69,7 @@ impl NetworkManager {
                         });
 
                         // Send all clear to other thread
-                        nm.channel
-                            .send
-                            .send(NetworkCommand::Ok)
-                            .expect("NetworkChannel Receiver cannot be reached");
+                        nm.send_message(NetworkCommand::Ok);
 
                         nm.stream
                             .set_read_timeout(Some(Duration::from_millis(10)))
@@ -107,10 +102,9 @@ impl NetworkManager {
             _ => {}
         }
 
-        Ok((
-            NetworkChannel { send: tx, recv: rx },
-            Server::new(destination.to_string()),
-        ))
+        Ok(
+            Server::new(destination.to_string(), NetworkChannel { send: tx, recv: rx }),
+        )
     }
 
     /// Manages any incoming packets or messages from other threads
@@ -123,7 +117,7 @@ impl NetworkManager {
         }
 
         // Handles incoming packets
-        loop {
+        while !self.close {
             match self.next_packet() {
                 None => {
                     break;
@@ -243,28 +237,23 @@ impl NetworkManager {
                             }
                         }
                         DecodedPacket::Disconnect(_) => {
-                            self.channel
-                                .send
-                                .send(NetworkCommand::ReceivePacket(packet))
-                                .unwrap();
+                            self.send_message(NetworkCommand::ReceivePacket(packet));
                             self.close = true;
                             return None;
                         }
                         DecodedPacket::LoginPluginRequest(_) => {
                             panic!("I don't want to think about LoginPlugin");
                         }
-                        DecodedPacket::LoginSuccess(pack) => {
+                        DecodedPacket::LoginSuccess(_) => {
                             warn!("Connecting to server with no authentication!");
-                            self.state = ServerState::Play;
 
-                            self.channel
-                                .send
-                                .send(NetworkCommand::ReceivePacket(packet))
-                                .unwrap();
+                            self.state = ServerState::Play;
+                            self.send_message(NetworkCommand::ReceivePacket(packet));
+
                             return Some(());
                         }
                         _ => {
-                            warn!("Git unexpected packet during login: {:?}", packet);
+                            warn!("Got unexpected packet during login: {:?}", packet);
                         }
                     }
                 }
@@ -305,7 +294,7 @@ impl NetworkManager {
                             Err(e) => {
                                 error!("Failed to write to TcpStream: {}", e);
                                 None
-                            },
+                            }
                         };
                     } else {
                         // Send without compression while compression is enabled
@@ -319,7 +308,7 @@ impl NetworkManager {
                             Err(e) => {
                                 error!("Failed to write to TcpStream: {}", e);
                                 None
-                            },
+                            }
                         };
                     }
                 } else {
@@ -330,7 +319,7 @@ impl NetworkManager {
                         Err(e) => {
                             error!("Failed to write to TcpStream: {}", e);
                             None
-                        },
+                        }
                     }
                 }
             }
@@ -346,10 +335,11 @@ impl NetworkManager {
     fn handle_message(&mut self, msg: NetworkCommand) {
         match msg {
             NetworkCommand::Login(protocol, port, name) => {
-                info!("Loggin in.");
+                info!("Attempting to login to server");
                 self.login(protocol, port, name);
             }
             NetworkCommand::Disconnect => {
+                self.send_packet(DecodedPacket::Disconnect(Disconnect { reason: MCString(String::from("Player Disconnected")) }));
                 self.close = true;
             }
             NetworkCommand::SendPacket(dp) => {
@@ -364,21 +354,12 @@ impl NetworkManager {
         use DecodedPacket::*;
 
         match &packet {
-            Unknown(buf) => {
+            Unknown(_buf) => {
                 // println!("Got unknown packet: {:02x}", buf[0]);
             }
             KeepAliveClientbound(pack) => {
                 self.send_packet(KeepAliveServerbound(pack.keep_alive_id.clone()))
                     .expect("Failed to send heartbeat");
-            }
-
-            Disconnect(pack) => {
-                self.close = true;
-                info!("Disconnected from server: {}", pack.reason.0);
-                self.channel
-                    .send
-                    .send(NetworkCommand::ReceivePacket(packet))
-                    .expect("Failed to send message back to client");
             }
 
             SetCompression(pack) => {
@@ -394,11 +375,16 @@ impl NetworkManager {
 
             // Forward other packets to the main thread
             _ => {
-                self.channel
-                    .send
-                    .send(NetworkCommand::ReceivePacket(packet))
-                    .expect("Failed to send message back to client");
+                self.send_message(NetworkCommand::ReceivePacket(packet));
             }
+        }
+    }
+
+    fn send_message(&mut self, comm: NetworkCommand) {
+        if let Err(_) = self.channel.send.send(comm) {
+            error!("Couldn't communicated with main thread, assuming connection was closed and disconnecting from server.");
+            self.close = true;
+            self.send_packet(DecodedPacket::Disconnect(packets::Disconnect { reason: MCString(String::from("Player Disconnected")) }));
         }
     }
 }

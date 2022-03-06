@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::client::network::{
+use crate::network::{
     packets::{ChatIncoming, DecodedPacket},
     types::UUID,
 };

@@ -1,7 +1,5 @@
-
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
-use glium::{Display, buffer::Content};
-
+use glium::{buffer::Content, Display};
 
 const NEAR_PLANE: f32 = 0.001;
 const FAR_PLANE: f32 = 10_000.0;
@@ -19,16 +17,15 @@ pub struct Camera {
 }
 
 impl Camera {
-
-    /// Creates a new camera with default values and a 
-    /// 
+    /// Creates a new camera with default values and a
+    ///
     /// # Default Values:
-    /// 
+    ///
     /// * Position: 0,0,0
     /// * Rotation: 0,0,0
     /// * Fov: 90 Degrees
     /// * Asepct Ratio: 1.333
-    /// 
+    ///
     pub fn new() -> Camera {
         let pmat = Mat4::IDENTITY;
         let vmat = Mat4::IDENTITY;
@@ -48,15 +45,14 @@ impl Camera {
     }
 
     /// Create a new camera with the given values
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `dims: (u32, u32)` - The x/y dimensions of the display, used to calculate the perspective matrix according to the aspect ratio
     /// * `pos: Vec3` - The position in 3D space for this camera to be located at
     /// * `rot: Vec3` - The X/Y/Z rotations for the camera
     /// * `fov: f32` - The fov of the camera along the y-axis
     pub fn new_with_values(dims: (u32, u32), pos: Vec3, rot: Vec3, fov: f32) -> Camera {
-
         let pmat = Mat4::IDENTITY;
         let vmat = Mat4::IDENTITY;
         let pvmat = Mat4::IDENTITY;
@@ -75,7 +71,6 @@ impl Camera {
         cam.update();
         cam
     }
-
 
     /// Set the fov in the y-direction of this camera
     pub fn set_fov(&mut self, fov: f32) {
@@ -135,11 +130,11 @@ impl Camera {
     }
 
     /// Translate and Rotate this camera by the given amounts
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `pos: Vec3` - How much to translate this camera by
-    /// 
+    ///
     /// * `rote: Vec3` - How much to rotate this camera by
     pub fn transform(&mut self, pos: Vec3, rot: Vec3) {
         self.pos += pos;
@@ -174,7 +169,6 @@ impl Camera {
         &self.pvmat
     }
 
-
     fn update_vmat(&mut self) {
         let mut vmat: Mat4 = Mat4::IDENTITY;
 
@@ -188,11 +182,7 @@ impl Camera {
     }
 
     fn update_pmat(&mut self) {
-        self.pmat = Mat4::perspective_rh(
-            self.fov.to_radians(), 
-            self.aspect, 
-            NEAR_PLANE, 
-            FAR_PLANE);
+        self.pmat = Mat4::perspective_rh(self.fov.to_radians(), self.aspect, NEAR_PLANE, FAR_PLANE);
     }
 
     fn update_pvmat(&mut self) {
@@ -206,7 +196,6 @@ impl Camera {
         self.update_vmat();
         self.update_pvmat();
     }
-
 
     pub fn get_look_vector(&self) -> Vec3 {
         let mut dir: Vec4 = Vec4::new(0.0, 0.0, -1.0, 1.0);
@@ -250,15 +239,14 @@ impl Camera {
         d_right = inv_vmat * d_right;
 
         let mut d_bottom: Vec4 = Vec4::new(0.0, 1.0, 0.0, 1.0);
-        d_bottom = Mat4::from_rotation_x((-self.fov/2.0).to_radians()) * d_bottom;
+        d_bottom = Mat4::from_rotation_x((-self.fov / 2.0).to_radians()) * d_bottom;
         d_bottom = d_bottom.normalize();
         d_bottom = inv_vmat * d_bottom;
 
         let mut d_top: Vec4 = Vec4::new(0.0, -1.0, 0.0, 1.0);
-        d_top = Mat4::from_rotation_x((self.fov/2.0).to_radians()) * d_top;
+        d_top = Mat4::from_rotation_x((self.fov / 2.0).to_radians()) * d_top;
         d_top = d_top.normalize();
         d_top = inv_vmat * d_top;
-
 
         ViewFrustum {
             near_pos,
@@ -269,12 +257,10 @@ impl Camera {
             d_right: d_right.xyz(),
             d_bottom: d_bottom.xyz(),
             d_top: d_top.xyz(),
-            d_far
+            d_far,
         }
     }
-
 }
-
 
 pub struct ViewFrustum {
     near_pos: Vec3,
@@ -285,60 +271,93 @@ pub struct ViewFrustum {
     d_right: Vec3,
     d_bottom: Vec3,
     d_top: Vec3,
-    d_far: Vec3
+    d_far: Vec3,
 }
 
 impl ViewFrustum {
-
     pub fn accept_point(&self, point: &Vec3) -> bool {
-        if !ViewFrustum::check_plane(&self.near_pos, &self.d_near, point) {return false}
-        if !ViewFrustum::check_plane(&self.near_pos, &self.d_left, point) {return false}
-        if !ViewFrustum::check_plane(&self.near_pos, &self.d_right, point) {return false}
-        if !ViewFrustum::check_plane(&self.near_pos, &self.d_bottom, point) {return false}
-        if !ViewFrustum::check_plane(&self.near_pos, &self.d_top, point) {return false}
-        if !ViewFrustum::check_plane(&self.far_pos, &self.d_far, point) {return false}
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_near, point) {
+            return false;
+        }
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_left, point) {
+            return false;
+        }
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_right, point) {
+            return false;
+        }
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_bottom, point) {
+            return false;
+        }
+        if !ViewFrustum::check_plane(&self.near_pos, &self.d_top, point) {
+            return false;
+        }
+        if !ViewFrustum::check_plane(&self.far_pos, &self.d_far, point) {
+            return false;
+        }
 
         true
     }
 
-
     pub fn accept_points(&self, points: &Vec<Vec3>) -> bool {
-
         let mut accepted = false;
         for p in points {
-            if ViewFrustum::check_plane(&self.near_pos,&self.d_near, p) {accepted = true}
+            if ViewFrustum::check_plane(&self.near_pos, &self.d_near, p) {
+                accepted = true
+            }
         }
-        if !accepted {return false}
+        if !accepted {
+            return false;
+        }
 
         accepted = true;
         for p in points {
-            if ViewFrustum::check_plane(&self.near_pos,&self.d_left, p) {accepted = true}
+            if ViewFrustum::check_plane(&self.near_pos, &self.d_left, p) {
+                accepted = true
+            }
         }
-        if !accepted {return false}
+        if !accepted {
+            return false;
+        }
 
         accepted = true;
         for p in points {
-            if ViewFrustum::check_plane(&self.near_pos,&self.d_right, p) {accepted = true}
+            if ViewFrustum::check_plane(&self.near_pos, &self.d_right, p) {
+                accepted = true
+            }
         }
-        if !accepted {return false}
+        if !accepted {
+            return false;
+        }
 
         accepted = true;
         for p in points {
-            if ViewFrustum::check_plane(&self.near_pos,&self.d_bottom, p) {accepted = true}
+            if ViewFrustum::check_plane(&self.near_pos, &self.d_bottom, p) {
+                accepted = true
+            }
         }
-        if !accepted {return false}
+        if !accepted {
+            return false;
+        }
 
         accepted = true;
         for p in points {
-            if ViewFrustum::check_plane(&self.near_pos,&self.d_top, p) {accepted = true}
+            if ViewFrustum::check_plane(&self.near_pos, &self.d_top, p) {
+                accepted = true
+            }
         }
-        if !accepted {return false}
+        if !accepted {
+            return false;
+        }
 
         accepted = true;
         for p in points {
-            if ViewFrustum::check_plane(&self.far_pos,&self.d_far, p) {accepted = true}
+            if ViewFrustum::check_plane(&self.far_pos, &self.d_far, p) {
+                accepted = true
+            }
         }
-        if !accepted {return false}
+        if !accepted {
+            return false;
+        }
 
         true
     }
@@ -347,5 +366,4 @@ impl ViewFrustum {
         let v = *point - *plane_pos;
         plane_norm.dot(v) > 0.0
     }
-
 }

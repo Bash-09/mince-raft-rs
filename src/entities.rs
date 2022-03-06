@@ -1,9 +1,9 @@
-use crate::client::network::types::UUID;
+use crate::network::types::UUID;
 
 pub mod components;
 use components::*;
 use glam::Vec3;
-use resources::entities::{ENTITIES, EntityType};
+use resources::entities::{EntityType, ENTITIES};
 
 pub struct Entity {
     pub id: i32,
@@ -57,7 +57,9 @@ impl Entity {
         Entity {
             id,
             uuid,
-            entity_type: ENTITIES.get(&entity_type).expect(&format!("Failed to get entity from ID: {}", entity_type)),
+            entity_type: ENTITIES
+                .get(&entity_type)
+                .expect(&format!("Failed to get entity from ID: {}", entity_type)),
             data,
             pos: Vec3::new(px, py, pz),
             vel: Vec3::new(vx, vy, vz),
@@ -79,4 +81,3 @@ impl Entity {
         self.entity_type
     }
 }
-
