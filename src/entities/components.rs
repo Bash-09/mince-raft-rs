@@ -1,6 +1,5 @@
 use glam::Vec3;
 
-
 #[derive(Debug)]
 pub struct Orientation {
     yaw: f32,

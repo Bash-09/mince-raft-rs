@@ -9,11 +9,13 @@ edition = "2018"
 
 
 [dependencies]
-glium = "0.30"
+glium = "0.31"
 
-imgui = "0.8.0"
-imgui-glium-renderer = "0.8.0"
-imgui-winit-support = "0.8.0"
+egui = "0.17.0"
+egui-winit = { version = "0.17.0", default-features = false }
+egui_glium = { version = "0.17.0", default-features = false, features = ["clipboard", "epi", "links"]}
+
+glium_app = { path = "glium-app" }
 
 glam = "0.20.0"
 

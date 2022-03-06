@@ -5,7 +5,7 @@ use std::io::{Cursor, Error};
 use log::debug;
 use quartz_nbt::io;
 
-use crate::{client::server::ServerState};
+use crate::server::ServerState;
 
 use super::types::*;
 
@@ -25,11 +25,6 @@ pub trait ServerboundPacket {
     const ID: u8;
 }
 
-
-
-
-
-
 // **************** CLIENTBOUND PACKETS ******************
 
 // ********* STATUS MODE ***********
@@ -42,12 +37,13 @@ pub struct Status {
 
 impl ClientboundPacket for Status {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        Status{response: pd.next_string()}
+        Status {
+            response: pd.next_string(),
+        }
     }
 
     const ID: u8 = 0x00;
 }
-
 
 #[derive(Debug)]
 pub struct ClientPong {
@@ -57,12 +53,13 @@ pub struct ClientPong {
 
 impl ClientboundPacket for ClientPong {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        ClientPong{payload: pd.next_long()}
+        ClientPong {
+            payload: pd.next_long(),
+        }
     }
 
     const ID: u8 = 0x01;
 }
-
 
 // ********* LOGIN MODE ***********
 
@@ -93,13 +90,12 @@ impl ClientboundPacket for EncryptionRequest {
             public_key_len,
             public_key,
             verify_token_len,
-            verify_token
+            verify_token,
         }
     }
 
     const ID: u8 = 0x01;
 }
-
 
 #[derive(Debug)]
 pub struct LoginSuccess {
@@ -118,7 +114,6 @@ impl ClientboundPacket for LoginSuccess {
     const ID: u8 = 0x02;
 }
 
-
 #[derive(Debug)]
 pub struct SetCompression {
     pub threshold: VarInt,
@@ -126,12 +121,13 @@ pub struct SetCompression {
 
 impl ClientboundPacket for SetCompression {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        SetCompression{threshold: pd.next_varint()}
+        SetCompression {
+            threshold: pd.next_varint(),
+        }
     }
 
     const ID: u8 = 0x03;
 }
-
 
 #[derive(Debug)]
 pub struct LoginPluginRequest {
@@ -150,7 +146,6 @@ impl ClientboundPacket for LoginPluginRequest {
 
     const ID: u8 = 0x04;
 }
-
 
 // ********* PLAYER MODE **********
 
@@ -204,7 +199,7 @@ pub struct SpawnExperienceOrb {
 
 impl ClientboundPacket for SpawnExperienceOrb {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        SpawnExperienceOrb{
+        SpawnExperienceOrb {
             entity_id: pd.next_varint(),
             x: pd.next_double(),
             y: pd.next_double(),
@@ -266,7 +261,7 @@ pub struct SpawnPainting {
 
 impl ClientboundPacket for SpawnPainting {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        SpawnPainting{
+        SpawnPainting {
             entity_id: pd.next_varint(),
             uuid: pd.next_uuid(),
             painting_id: pd.next_varint(),
@@ -292,7 +287,7 @@ pub struct SpawnPlayer {
 
 impl ClientboundPacket for SpawnPlayer {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        SpawnPlayer{
+        SpawnPlayer {
             entity_id: pd.next_varint(),
             uuid: pd.next_uuid(),
             x: pd.next_double(),
@@ -314,7 +309,7 @@ pub struct SculkVibrationSignal {
 
 impl ClientboundPacket for SculkVibrationSignal {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        SculkVibrationSignal{}
+        SculkVibrationSignal {}
     }
 
     const ID: u8 = 0x05;
@@ -329,7 +324,7 @@ pub struct EntityAnimation {
 
 impl ClientboundPacket for EntityAnimation {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        EntityAnimation{
+        EntityAnimation {
             player_id: pd.next_varint(),
             animation_id: pd.next_ubyte(),
         }
@@ -354,17 +349,10 @@ impl ClientboundPacket for Statistics {
         let stats_len = pd.next_varint();
         let mut stats: Vec<(VarInt, VarInt, VarInt)> = Vec::new();
         for _ in 0..stats_len.0 {
-            stats.push((
-               pd.next_varint(),
-               pd.next_varint(),
-               pd.next_varint(), 
-            ));
+            stats.push((pd.next_varint(), pd.next_varint(), pd.next_varint()));
         }
 
-        Statistics {
-            stats_len,
-            stats
-        }
+        Statistics { stats_len, stats }
     }
 
     const ID: u8 = 0x07;
@@ -572,8 +560,8 @@ impl ClientboundPacket for TabComplete {
                 boolean,
                 match present {
                     true => Some(pd.next_string()),
-                    false => None
-                }
+                    false => None,
+                },
             ));
         }
         TabComplete {
@@ -680,7 +668,7 @@ pub struct SetSlot {
 
 impl ClientboundPacket for SetSlot {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        SetSlot{
+        SetSlot {
             window_id: pd.next_byte(),
             state_id: pd.next_varint(),
             slot_id: pd.next_short(),
@@ -814,14 +802,12 @@ impl ClientboundPacket for Explosion {
         let blocks_len = pd.next_varint();
         let mut block_offsets: Vec<(Byte, Byte, Byte)> = Vec::new();
         for _ in 0..blocks_len.0 {
-            block_offsets.push((
-                pd.next_byte(),
-                pd.next_byte(),
-                pd.next_byte(),
-            ));
+            block_offsets.push((pd.next_byte(), pd.next_byte(), pd.next_byte()));
         }
         Explosion {
-            x, y, z,
+            x,
+            y,
+            z,
             strength,
             blocks_len,
             block_offsets,
@@ -843,7 +829,7 @@ pub struct UnloadChunk {
 
 impl ClientboundPacket for UnloadChunk {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        UnloadChunk{
+        UnloadChunk {
             x: pd.next_int(),
             z: pd.next_int(),
         }
@@ -861,7 +847,7 @@ pub struct ChangeGameState {
 
 impl ClientboundPacket for ChangeGameState {
     fn decode(pd: &mut PacketDecoder) -> Self {
-        ChangeGameState{
+        ChangeGameState {
             reason: pd.next_ubyte(),
             value: pd.next_float(),
         }
@@ -1310,7 +1296,6 @@ impl ClientboundPacket for EntityHeadLook {
     const ID: u8 = 0x3e;
 }
 
-
 #[derive(Debug)]
 pub struct EntityMetadata {
     // 0x4d
@@ -1327,7 +1312,6 @@ impl ClientboundPacket for EntityMetadata {
 
     const ID: u8 = 0x4d;
 }
-
 
 #[derive(Debug)]
 pub struct EntityVelocity {
@@ -1403,7 +1387,6 @@ impl ClientboundPacket for SoundEffect {
     const ID: u8 = 0x5c;
 }
 
-
 #[derive(Debug)]
 pub struct EntityTeleport {
     // 0x61
@@ -1432,19 +1415,20 @@ impl ClientboundPacket for EntityTeleport {
     const ID: u8 = 0x61;
 }
 
-
 #[derive(Debug)]
 pub struct EntityProperties {
     pub entity_id: VarInt,
     pub num_properties: VarInt,
-    pub properties: Vec<( // List of properties
+    pub properties: Vec<(
+        // List of properties
         Identifier, // Key
         Double,     // Value
         VarInt,     // Num of Modifiers
-        Vec<(       // List of Modifier Data
-            UUID,       // UUID
-            Double,     // Amount
-            Byte,       // Operation
+        Vec<(
+            // List of Modifier Data
+            UUID,   // UUID
+            Double, // Amount
+            Byte,   // Operation
         )>,
     )>,
 }
@@ -1453,24 +1437,17 @@ impl ClientboundPacket for EntityProperties {
     fn decode(pd: &mut PacketDecoder) -> Self {
         let entity_id = pd.next_varint();
         let num_properties = pd.next_varint();
-        let mut properties: Vec<(
-            Identifier, Double, VarInt,
-            Vec<(UUID, Double, Byte)>)> = Vec::new();
+        let mut properties: Vec<(Identifier, Double, VarInt, Vec<(UUID, Double, Byte)>)> =
+            Vec::new();
         for _ in 0..num_properties.0 {
             let iden = pd.next_string();
             let doub = pd.next_double();
             let num_modifiers = pd.next_varint();
             let mut modifiers: Vec<(UUID, Double, Byte)> = Vec::new();
             for _ in 0..num_modifiers.0 {
-                modifiers.push((
-                    pd.next_uuid(),
-                    pd.next_double(),
-                    pd.next_byte(),
-                ));
+                modifiers.push((pd.next_uuid(), pd.next_double(), pd.next_byte()));
             }
-            properties.push((
-                iden, doub, num_modifiers, modifiers
-            ));
+            properties.push((iden, doub, num_modifiers, modifiers));
         }
         EntityProperties {
             entity_id,
@@ -1481,7 +1458,6 @@ impl ClientboundPacket for EntityProperties {
 
     const ID: u8 = 0x63;
 }
-
 
 /// All the different types of packets that will be going back and forth
 #[derive(Debug)]
@@ -1517,7 +1493,6 @@ pub enum DecodedPacket {
     // CLIENTBOUND *************************************CLIENTBOUND
 
     // ********************** LOGIN
-
     EncryptionRequest(EncryptionRequest),
     LoginSuccess(LoginSuccess),
     SetCompression(SetCompression),
@@ -1745,29 +1720,41 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
             ServerState::Status => out = DecodedPacket::Status(Status::decode(&mut pd)),
         },
         0x01 => match state {
-            ServerState::Play => out = DecodedPacket::SpawnExperienceOrb(SpawnExperienceOrb::decode(&mut pd)),
-            ServerState::Login => out = DecodedPacket::EncryptionRequest(EncryptionRequest::decode(&mut pd)),
+            ServerState::Play => {
+                out = DecodedPacket::SpawnExperienceOrb(SpawnExperienceOrb::decode(&mut pd))
+            }
+            ServerState::Login => {
+                out = DecodedPacket::EncryptionRequest(EncryptionRequest::decode(&mut pd))
+            }
             _ => out = DecodedPacket::Unknown(packet),
         },
         0x02 => match state {
             ServerState::Login => out = DecodedPacket::LoginSuccess(LoginSuccess::decode(&mut pd)),
-            ServerState::Play => out = DecodedPacket::SpawnLivingEntity(SpawnLivingEntity::decode(&mut pd)),
+            ServerState::Play => {
+                out = DecodedPacket::SpawnLivingEntity(SpawnLivingEntity::decode(&mut pd))
+            }
             _ => out = DecodedPacket::Unknown(packet),
         },
         0x03 => match state {
-            ServerState::Login => out = DecodedPacket::SetCompression(SetCompression::decode(&mut pd)),
+            ServerState::Login => {
+                out = DecodedPacket::SetCompression(SetCompression::decode(&mut pd))
+            }
             ServerState::Play => out = DecodedPacket::SpawnPainting(SpawnPainting::decode(&mut pd)),
             _ => out = DecodedPacket::Unknown(packet),
         },
         0x04 => match state {
             ServerState::Play => out = DecodedPacket::SpawnPlayer(SpawnPlayer::decode(&mut pd)),
-            ServerState::Login => out = DecodedPacket::LoginPluginRequest(LoginPluginRequest::decode(&mut pd)),
+            ServerState::Login => {
+                out = DecodedPacket::LoginPluginRequest(LoginPluginRequest::decode(&mut pd))
+            }
             _ => out = DecodedPacket::Unknown(packet),
         },
         0x05 => out = DecodedPacket::SculkVibrationSignal(SculkVibrationSignal::decode(&mut pd)),
         0x06 => out = DecodedPacket::EntityAnimation(EntityAnimation::decode(&mut pd)),
         0x07 => out = DecodedPacket::Statistics(Statistics::decode(&mut pd)),
-        0x08 => out = DecodedPacket::AcknowledgePlayerDigging(AcknowledgePlayerDigging::decode(&mut pd)),
+        0x08 => {
+            out = DecodedPacket::AcknowledgePlayerDigging(AcknowledgePlayerDigging::decode(&mut pd))
+        }
         0x09 => out = DecodedPacket::BlockBreakAnimation(BlockBreakAnimation::decode(&mut pd)),
         0x0a => out = DecodedPacket::BlockEntityData(BlockEntityData::decode(&mut pd)),
         0x0b => out = DecodedPacket::BlockAction(BlockAction::decode(&mut pd)),
@@ -1776,7 +1763,9 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
         0x0f => out = DecodedPacket::ChatIncoming(ChatIncoming::decode(&mut pd)),
         0x10 => out = DecodedPacket::ClearTitles(ClearTitles::decode(&mut pd)),
         0x11 => out = DecodedPacket::TabComplete(TabComplete::decode(&mut pd)),
-        0x13 => out = DecodedPacket::CloseWindowClientbound(CloseWindowClientbound::decode(&mut pd)),
+        0x13 => {
+            out = DecodedPacket::CloseWindowClientbound(CloseWindowClientbound::decode(&mut pd))
+        }
         //0x14 => out = WindowItems(WindowItems::decode(&mut pd)),
         0x15 => out = DecodedPacket::WindowProperty(WindowProperty::decode(&mut pd)),
         0x16 => out = DecodedPacket::SetSlot(SetSlot::decode(&mut pd)),
@@ -1794,7 +1783,10 @@ pub fn decode_packet(packet: Vec<u8>, state: &ServerState) -> DecodedPacket {
         0x23 => out = DecodedPacket::Effect(Effect::decode(&mut pd)),
         0x26 => out = DecodedPacket::JoinGame(JoinGame::decode(&mut pd)),
         0x29 => out = DecodedPacket::EntityPosition(EntityPosition::decode(&mut pd)),
-        0x2a => out = DecodedPacket::EntityPositionAndRotation(EntityPositionAndRotation::decode(&mut pd)),
+        0x2a => {
+            out =
+                DecodedPacket::EntityPositionAndRotation(EntityPositionAndRotation::decode(&mut pd))
+        }
         0x2b => out = DecodedPacket::EntityRotation(EntityRotation::decode(&mut pd)),
         0x38 => out = DecodedPacket::PlayerPositionAndLook(PlayerPositionAndLook::decode(&mut pd)),
         0x3a => out = DecodedPacket::DestroyEntities(DestroyEntities::decode(&mut pd)),
@@ -1948,9 +1940,15 @@ impl PacketDecoder<'_> {
         let mut y = (big & 0xfff) as i32;
         let mut z = (big << 26 >> 38) as i32;
 
-        if x >= 2i32.pow(25) { x -= 2i32.pow(26) }
-        if y >= 2i32.pow(11) { y -= 2i32.pow(12) }
-        if z >= 2i32.pow(25){ z -= 2i32.pow(26) }
+        if x >= 2i32.pow(25) {
+            x -= 2i32.pow(26)
+        }
+        if y >= 2i32.pow(11) {
+            y -= 2i32.pow(12)
+        }
+        if z >= 2i32.pow(25) {
+            z -= 2i32.pow(26)
+        }
 
         self.ind += 8;
         Position(x, y, z)
