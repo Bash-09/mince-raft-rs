@@ -209,7 +209,7 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
         let nz = z as i32;
         let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
         let mut extra = false;
-        if ni > 0 && ni < 4096 {
+        if ni >= 0 && ni < 4096 {
             extra = blocks[ni as usize] == 0;
         }
         if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
@@ -239,7 +239,7 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
         let nz = z as i32;
         let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
         let mut extra = false;
-        if ni > 0 && ni < 4096 {
+        if ni >= 0 && ni < 4096 {
             extra = blocks[ni as usize] == 0;
         }
         if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
@@ -269,7 +269,7 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
         let nz = z as i32 - 1;
         let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
         let mut extra = false;
-        if ni > 0 && ni < 4096 {
+        if ni >= 0 && ni < 4096 {
             extra = blocks[ni as usize] == 0;
         }
         if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
@@ -299,7 +299,7 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
         let nz = z as i32 + 1;
         let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
         let mut extra = false;
-        if ni > 0 && ni < 4096 {
+        if ni >= 0 && ni < 4096 {
             extra = blocks[ni as usize] == 0;
         }
         if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
@@ -329,7 +329,7 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
         let nz = z as i32;
         let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
         let mut extra = false;
-        if ni > 0 && ni < 4096 {
+        if ni >= 0 && ni < 4096 {
             extra = blocks[ni as usize] == 0;
         }
         if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
@@ -359,7 +359,7 @@ fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
         let nz = z as i32;
         let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
         let mut extra = false;
-        if ni > 0 && ni < 4096 {
+        if ni >= 0 && ni < 4096 {
             extra = blocks[ni as usize] == 0;
         }
         if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {

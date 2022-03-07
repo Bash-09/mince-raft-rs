@@ -5,7 +5,7 @@ use glam::Vec3;
 use glium_app::context::Context;
 use log::{error, info, debug};
 
-use crate::{network::{NetworkChannel, packets::DecodedPacket, NetworkCommand, types::*}, world::chunks::Chunk};
+use crate::{network::{NetworkChannel, packets::DecodedPacket, NetworkCommand, types::*}, world::chunks::Chunk, settings::Settings};
 
 use super::{
     chat::Chat,
@@ -84,17 +84,19 @@ impl Server {
     }
 
 
-    pub fn update(&mut self, ctx: &Context, delta: f32) {
+    pub fn update(&mut self, ctx: &Context, settings: &mut Settings, delta: f32) {
 
         if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
 
             self.paused = !self.paused;
             if !self.paused {
                 ctx.set_mouse_grabbed(true).expect("Couldn't grab mouse!");
-                ctx.set_mouse_visible(false);
+                settings.mouse_visible = false;
+                // ctx.set_mouse_visible(false);
             } else {
                 ctx.set_mouse_grabbed(false).expect("Couldn't release mouse!");
-                ctx.set_mouse_visible(true);
+                settings.mouse_visible = true;
+                // ctx.set_mouse_visible(true);
             }
 
             // self.gui.show_gui = !self.gui.show_gui;

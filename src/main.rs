@@ -127,7 +127,7 @@ impl Application for Client {
                     .cam
                     .set_rot(serv.player.get_orientation().get_rotations() * -1.0);
 
-                serv.update(ctx, delta);
+                serv.update(ctx, &mut self.settings, delta);
 
                 if serv.disconnect {
                     self.server = None;
@@ -163,7 +163,8 @@ impl Application for Client {
                 Some(s) => {
 
                     egui::Window::new("Test Window")
-                    .collapsible(true)
+                    .resizable(false)
+                    .title_bar(false)
                     .show(gui_ctx, |ui| {
     
                         ui.label("Hello World!");
@@ -203,9 +204,14 @@ impl Application for Client {
         gui.paint(dis, &mut target);
 
         if grab {
-            ctx.set_mouse_grabbed(true).unwrap();
+            self.settings.mouse_visible = false;
+            ctx.set_mouse_grabbed(true).expect("Couldn't grab mouse!");
+        }
+
+        if self.settings.mouse_visible {
+            ctx.set_mouse_visible(true);
+        } else {
             ctx.set_mouse_visible(false);
-            println!("Setting mouse invisible!");
         }
 
         target.finish().unwrap();
@@ -221,7 +227,8 @@ impl Application for Client {
                 if let Some(server) = &mut self.server {
                     if !focused {
                         ctx.set_mouse_grabbed(false).expect("Couldn't release mouse!");
-                        ctx.set_mouse_visible(true);
+                        self.settings.mouse_visible = true;
+                        // ctx.set_mouse_visible(true);
                         server.paused = true;
                     }                
                 }
