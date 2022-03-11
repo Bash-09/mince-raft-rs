@@ -27,7 +27,7 @@ impl Player {
             id: 0,
 
             position: Vec3::new(0.0, 0.0, 0.0),
-            orientation: Orientation::new_with_values(0.0, 0.0, -90.0, 90.0),
+            orientation: Orientation::new_with_values(0.0, 0.0, -89.0, 89.0),
 
             health: 20.0,
             food: 20,

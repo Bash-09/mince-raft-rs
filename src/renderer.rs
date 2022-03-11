@@ -77,13 +77,29 @@ impl Renderer {
         let mut points = vec![Vec3::new(0.0, 0.0, 0.0); 8];
 
         for (pos, chunk) in serv.world.get_chunks() {
+
+            // Try to frustum cull this whole chunk column
+            let cx = (pos.x * 16) as f32;
+            let cz = (pos.y * 16) as f32;
+
+            points[0] = Vec3::new(cx, 0.0, cz);
+            points[1] = Vec3::new(cx + 16.0, 0.0, cz);
+            points[2] = Vec3::new(cx + 16.0, 0.0, cz + 16.0);
+            points[3] = Vec3::new(cx, 0.0, cz + 16.0);
+            points[4] = Vec3::new(cx, 256.0, cz);
+            points[5] = Vec3::new(cx + 16.0, 256.0, cz);
+            points[6] = Vec3::new(cx + 16.0, 256.0, cz + 16.0);
+            points[7] = Vec3::new(cx, 256.0, cz + 16.0);
+
+            if !vf.accept_points(&points) {
+                continue;
+            }
+
             for (y, section) in chunk.get_sections().iter().enumerate() {
                 match section {
                     None => continue,
                     Some(cs) => {
-                        let cx = (pos.x * 16) as f32;
                         let cy = (y * 16) as f32;
-                        let cz = (pos.y * 16) as f32;
 
                         // Get points for corners of chunk section
                         points[0].x = cx;

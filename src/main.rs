@@ -14,9 +14,10 @@ use crate::{
 
 mod network;
 
+use egui::{FontDefinitions, FontData, FontFamily};
 use glam::Vec3;
 use glium::glutin::event::VirtualKeyCode;
-use gui::{main_menu, pause_menu::{self, PauseAction}};
+use gui::{main_menu, pause_menu::{self, PauseAction}, fps_counter};
 use log::{debug, error, info};
 
 use glium_app::context::Context;
@@ -66,25 +67,20 @@ pub struct Client {
 
 impl Application for Client {
     fn init(&mut self, ctx: &mut Context) {
-        // Creates a network manager and attempts to connect to and login to a server
-        // match NetworkManager::connect("192.168.20.9:25565") {
-        //     Ok(server) => {
-        //         debug!("Connected to server.");
-        //         server.network
-        //             .send
-        //             .send(NetworkCommand::Login(
-        //                 PROTOCOL_1_17_1,
-        //                 Short(25565),
-        //                 MCString("Harry".to_string()),
-        //             ))
-        //             .expect("Failed to login");
 
-        //         self.server = Some(server);
-        //     }
-        //     Err(e) => {
-        //         error!("Error connecting: {}", e);
-        //     }
-        // }
+        let mut fonts = FontDefinitions::default();
+
+        fonts.font_data.insert("minecraft".to_string(), 
+            FontData::from_static(include_bytes!("../minecraft_font.ttf")));
+
+        fonts.families.get_mut(&FontFamily::Proportional).unwrap()
+            .insert(0, "minecraft".to_owned());
+        
+        fonts.families.get_mut(&FontFamily::Monospace).unwrap()
+            .insert(0, "minecraft".to_owned());
+
+        ctx.gui.egui_ctx.set_fonts(fonts);
+
     }
 
     fn update(&mut self, t: &glium_app::timer::Timer, ctx: &mut glium_app::context::Context) {
@@ -136,10 +132,7 @@ impl Application for Client {
             None => {}
         }
 
-
-    }
-
-    fn render(&mut self, ctx: &mut glium_app::context::Context) {
+        // *********************** RENDER ***************************8
         let Context {dis, gui, mouse, keyboard} = ctx;
 
         let mut target = dis.draw();
@@ -162,16 +155,9 @@ impl Application for Client {
             match &mut self.server {
                 Some(s) => {
 
-                    egui::Window::new("Test Window")
-                    .resizable(false)
-                    .title_bar(false)
-                    .show(gui_ctx, |ui| {
-    
-                        ui.label("Hello World!");
-    
-                        ui.label(format!("Mouse pos: {}, {}", mouse.get_pos().0, mouse.get_pos().1));
-    
-                    });
+                    if self.settings.show_fps {
+                        fps_counter::render(gui_ctx, t.fps(), delta);
+                    }
 
                     if s.paused {
                         match pause_menu::render(gui_ctx, &mut self.settings) {
@@ -215,6 +201,7 @@ impl Application for Client {
         }
 
         target.finish().unwrap();
+
     }
 
     fn close(&mut self) {
@@ -228,7 +215,6 @@ impl Application for Client {
                     if !focused {
                         ctx.set_mouse_grabbed(false).expect("Couldn't release mouse!");
                         self.settings.mouse_visible = true;
-                        // ctx.set_mouse_visible(true);
                         server.paused = true;
                     }                
                 }
@@ -240,7 +226,6 @@ impl Application for Client {
 }
 
 impl Client {
-    // pub fn new(dis: Display, gui: Gui) -> Client {
     pub fn new(ctx: &Context) -> Client {
         Client {
             rend: Renderer::new(&ctx.dis),

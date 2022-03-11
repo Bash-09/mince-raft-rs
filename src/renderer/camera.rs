@@ -1,8 +1,7 @@
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
-use glium::{buffer::Content, Display};
 
-const NEAR_PLANE: f32 = 0.001;
-const FAR_PLANE: f32 = 10_000.0;
+const NEAR_PLANE: f32 = 0.05;
+const FAR_PLANE: f32 = 1000.0;
 
 pub struct Camera {
     pos: Vec3,
@@ -309,7 +308,7 @@ impl ViewFrustum {
             return false;
         }
 
-        accepted = true;
+        accepted = false;
         for p in points {
             if ViewFrustum::check_plane(&self.near_pos, &self.d_left, p) {
                 accepted = true
@@ -319,7 +318,7 @@ impl ViewFrustum {
             return false;
         }
 
-        accepted = true;
+        accepted = false;
         for p in points {
             if ViewFrustum::check_plane(&self.near_pos, &self.d_right, p) {
                 accepted = true
@@ -329,7 +328,7 @@ impl ViewFrustum {
             return false;
         }
 
-        accepted = true;
+        accepted = false;
         for p in points {
             if ViewFrustum::check_plane(&self.near_pos, &self.d_bottom, p) {
                 accepted = true
@@ -339,7 +338,7 @@ impl ViewFrustum {
             return false;
         }
 
-        accepted = true;
+        accepted = false;
         for p in points {
             if ViewFrustum::check_plane(&self.near_pos, &self.d_top, p) {
                 accepted = true
@@ -349,7 +348,7 @@ impl ViewFrustum {
             return false;
         }
 
-        accepted = true;
+        accepted = false;
         for p in points {
             if ViewFrustum::check_plane(&self.far_pos, &self.d_far, p) {
                 accepted = true

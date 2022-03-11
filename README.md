@@ -43,3 +43,7 @@ The client currently only has some basic functionality:
 * Fly around in the world
 
 ![Flying around in Minecraft](journal/MovementRendering.gif)
+
+# Credits
+
+Font (minecraft_font.ttf) from [Here](https://fontmeme.com/fonts/minecraft-font/)

@@ -1,4 +1,4 @@
-use egui::Context;
+use egui::{Context, Align2, Rect, Vec2};
 
 use crate::settings::Settings;
 
@@ -16,6 +16,8 @@ pub fn render(gui_ctx: &Context, settings: &mut Settings) -> PauseAction {
     let mut out = PauseAction::Nothing;
 
     egui::Window::new("Game Paused!")
+    .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+    .resizable(false)
     .collapsible(false)
     .open(&mut paused)
     .show(gui_ctx, |ui| {
