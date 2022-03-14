@@ -1,0 +1,20 @@
+Refactor pause / mouse visibility stuff
+
+Create Frame and Chat window in Egui
+    Add chat functionality
+
+Settings / Options
+    Figure out how to store/handle settings and state
+    Persistant settings
+        Struct change resilience (try to load settings by name isntead of ser/de the entire struct)
+
+    Settings:
+        FOV
+        Fullscreen / Window / Window-borderless modes
+        Mouse sensitivity
+
+        Key binds?
+        
+        Online/Offline mode:
+            Login/Logout
+            Offline Username
