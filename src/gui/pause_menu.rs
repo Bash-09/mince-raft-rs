@@ -1,6 +1,6 @@
 use egui::{Context, Align2, Rect, Vec2};
 
-use crate::settings::Settings;
+use crate::{settings::Settings, state::State};
 
 pub enum PauseAction {
     Nothing,
@@ -9,7 +9,7 @@ pub enum PauseAction {
 }
 
 /// Returns if the player has chosen to disconnect from the server
-pub fn render(gui_ctx: &Context, settings: &mut Settings) -> PauseAction {
+pub fn render(gui_ctx: &Context, state: &mut State) -> PauseAction {
 
     let mut paused = true;
 
@@ -21,6 +21,10 @@ pub fn render(gui_ctx: &Context, settings: &mut Settings) -> PauseAction {
     .collapsible(false)
     .open(&mut paused)
     .show(gui_ctx, |ui| {
+
+        if ui.button("Settings").clicked() {
+            state.options_visible = true;
+        }
 
         if ui.button("Disconnect").clicked() {
             out = PauseAction::Disconnect;

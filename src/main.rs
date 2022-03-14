@@ -5,24 +5,18 @@ extern crate glium_app;
 extern crate log;
 extern crate quartz_nbt;
 
-use std::ops::AddAssign;
-
-use crate::{
-    network::{types::*, *},
-    {entities::Entity, server::Difficulty, world::chunks::Chunk},
-};
+use crate::network::{types::*, *};
 
 mod network;
 
 use egui::{FontDefinitions, FontData, FontFamily};
 use glam::Vec3;
-use glium::glutin::event::VirtualKeyCode;
-use gui::{main_menu, pause_menu::{self, PauseAction}, fps_counter, entities_window, info_window};
 use log::{debug, error, info};
 
 use glium_app::context::Context;
 use glium_app::*;
 use settings::Settings;
+use state::State;
 
 pub mod chat;
 pub mod entities;
@@ -32,9 +26,10 @@ pub mod server;
 pub mod world;
 pub mod gui;
 pub mod settings;
+pub mod state;
 
 use self::{
-    network::{packets::DecodedPacket, NetworkManager},
+    network::{packets::DecodedPacket},
     renderer::Renderer,
     server::Server,
 };
@@ -46,7 +41,7 @@ fn main() {
     let wb = WindowBuilder::new()
         .with_title("Minceraft!")
         .with_resizable(true)
-        .with_inner_size(PhysicalSize::new(1600i32, 900i32));
+        .with_inner_size(PhysicalSize::new(1200i32, 700i32));
 
     let (ctx, el) = glium_app::create(wb);
 
@@ -56,10 +51,12 @@ fn main() {
 }
 
 pub struct Client {
-    rend: Renderer,
+    pub rend: Renderer,
 
-    server: Option<Server>,
-    settings: Settings,
+    pub server: Option<Server>,
+
+    pub settings: Settings,
+    pub state: State,
 
     period: f32,
     last_mod: f32,
@@ -73,13 +70,17 @@ impl Application for Client {
         fonts.font_data.insert("minecraft".to_string(), 
             FontData::from_static(include_bytes!("../minecraft_font.ttf")));
 
-        // fonts.families.get_mut(&FontFamily::Proportional).unwrap()
-        //     .insert(0, "minecraft".to_owned());
+        fonts.families.get_mut(&FontFamily::Proportional).unwrap()
+            .insert(0, "minecraft".to_owned());
         
-        // fonts.families.get_mut(&FontFamily::Monospace).unwrap()
-        //     .insert(0, "minecraft".to_owned());
+        fonts.families.get_mut(&FontFamily::Monospace).unwrap()
+            .insert(0, "minecraft".to_owned());
 
         ctx.gui.egui_ctx.set_fonts(fonts);
+
+        let dims = ctx.dis.get_framebuffer_dimensions();
+        let aspect = dims.0 as f32 / dims.1 as f32;
+        self.rend.cam.set_aspect_ratio(aspect);
 
     }
 
@@ -93,14 +94,14 @@ impl Application for Client {
             match &self.server {
                 Some(serv) => {
                     // Send player position update packets
-                    if serv.player.id != 0 {
+                    if serv.get_player().id != 0 {
                         serv.send_packet(
                             DecodedPacket::PlayerPositionAndRotation(
-                                Double(serv.player.get_position().x as f64),
-                                Double(serv.player.get_position().y as f64),
-                                Double(serv.player.get_position().z as f64),
-                                Float(serv.player.get_orientation().get_yaw() as f32),
-                                Float(serv.player.get_orientation().get_head_pitch() as f32),
+                                Double(serv.get_player().get_position().x as f64),
+                                Double(serv.get_player().get_position().y as f64),
+                                Double(serv.get_player().get_position().z as f64),
+                                Float(serv.get_player().get_orientation().get_yaw() as f32),
+                                Float(serv.get_player().get_orientation().get_head_pitch() as f32),
                                 Boolean(true),
                             ),
                         );
@@ -117,13 +118,13 @@ impl Application for Client {
         match &mut self.server {
             Some(serv) => {
                 // Update camera
-                self.rend.cam.set_pos(serv.player.get_position().clone());
+                self.rend.cam.set_pos(serv.get_player().get_position().clone());
                 self.rend.cam.translate(Vec3::new(0.0, 1.7, 0.0));
                 self.rend
                     .cam
-                    .set_rot(serv.player.get_orientation().get_rotations() * -1.0);
+                    .set_rot(serv.get_player().get_orientation().get_rotations() * -1.0);
 
-                serv.update(ctx, &mut self.settings, delta);
+                serv.update(ctx, &mut self.state, &self.settings, delta);
 
                 if serv.disconnect {
                     self.server = None;
@@ -138,72 +139,20 @@ impl Application for Client {
         let mut target = dis.draw();
 
         // Render world if it exists
-        match &self.server {
-            Some(s) => {
-                self.rend.render_server(&mut target, s);
-            }
-            None => {
-
-            }
+        if let Some(s) = &self.server {
+            self.rend.render_server(&mut target, s);
         }
-
-        let mut grab = false;
 
         // GUI
         let _repaint = gui.run(&dis, |gui_ctx| {
 
-            match &mut self.server {
-                Some(s) => {
-
-                    if self.settings.show_fps {
-                        fps_counter::render(gui_ctx, t.fps(), delta);
-                    }
-
-                    if s.paused {
-
-                        entities_window::render(gui_ctx, &s);
-                        info_window::render(gui_ctx, &s);
-
-                        match pause_menu::render(gui_ctx, &mut self.settings) {
-                            PauseAction::Unpause => {
-                                s.paused = false;
-                                grab = true;
-                            },
-                            PauseAction::Disconnect => {
-                                s.disconnect();
-                                self.server = None;
-                            }
-                            _ => {}
-                        }
-                    }
-
-                },
-                None => {
-                    match main_menu::render(gui_ctx, &mut self.settings) {
-                        Some(s) => {
-                            self.server = Some(s);
-                            grab = true;
-                        },
-                        None => {
-                            
-                        }
-                    }
-                }
-            }
+            gui::render(gui_ctx, self, t);
+            
         });
         gui.paint(dis, &mut target);
 
-        if grab {
-            self.settings.mouse_visible = false;
-            ctx.set_mouse_grabbed(true).expect("Couldn't grab mouse!");
-            ctx.set_mouse_visible(false);
-        }
-
-        if self.settings.mouse_visible {
-            ctx.set_mouse_visible(true);
-        } else {
-            ctx.set_mouse_visible(false);
-        }
+        ctx.set_mouse_grabbed(self.state.mouse_grabbed).ok();
+        ctx.set_mouse_visible(self.state.mouse_visible);
 
         target.finish().unwrap();
 
@@ -218,12 +167,16 @@ impl Application for Client {
             Event::WindowEvent{ window_id: _, event: glutin::event::WindowEvent::Focused(focused) } => {
                 if let Some(server) = &mut self.server {
                     if !focused {
-                        ctx.set_mouse_grabbed(false).expect("Couldn't release mouse!");
-                        self.settings.mouse_visible = true;
-                        server.paused = true;
+                        self.state.mouse_grabbed = false;
+                        self.state.mouse_visible = true;
+                        server.set_paused(true, &mut self.state);
                     }                
                 }
 
+            },
+            Event::WindowEvent{ window_id: _, event: glutin::event::WindowEvent::Resized(new) } => {
+                let aspect = new.width as f32 / new.height as f32;
+                self.rend.cam.set_aspect_ratio(aspect);
             }
             _ => {}
         }
@@ -236,10 +189,13 @@ impl Client {
             rend: Renderer::new(&ctx.dis),
 
             server: None,
+
             settings: Settings::default(),
+            state: State::new(),
 
             period: 0.05,
             last_mod: 0.0,
+
         }
     }
 
@@ -247,8 +203,7 @@ impl Client {
         debug!("Closing client.");
         match &self.server {
             Some(serv) => {
-                serv.network.send
-                    .send(NetworkCommand::Disconnect)
+                serv.send_command(NetworkCommand::Disconnect)
                     .expect("Failed to send disconnect command to network commander.");
             }
             None => {}

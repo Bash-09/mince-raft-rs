@@ -18,9 +18,8 @@ pub fn render(gui_ctx: &Context, settings: &mut Settings) -> Option<Server> {
             match NetworkManager::connect(&settings.direct_connection) {
                 Ok(server) => {
                     debug!("Connected to server.");
-                    server.network
-                        .send
-                        .send(NetworkCommand::Login(
+                    server.send_command(
+                            NetworkCommand::Login(
                             PROTOCOL_1_17_1,
                             Short(25565),
                             MCString("Harry".to_string()),

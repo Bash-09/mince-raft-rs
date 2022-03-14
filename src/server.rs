@@ -5,7 +5,7 @@ use glam::Vec3;
 use glium_app::context::Context;
 use log::{error, info, debug};
 
-use crate::{network::{NetworkChannel, packets::DecodedPacket, NetworkCommand, types::*}, world::chunks::Chunk, settings::Settings};
+use crate::{network::{NetworkChannel, packets::DecodedPacket, NetworkCommand, types::*}, world::chunks::Chunk, settings::Settings, state::State};
 
 use super::{
     chat::Chat,
@@ -21,24 +21,23 @@ pub enum ServerState {
 }
 
 pub struct Server {
-    pub network_destination: String,
-    pub network: NetworkChannel,
+    network_destination: String,
+    network: NetworkChannel,
 
-    pub world_time: i64,
-    pub day_time: i64,
+    world_time: i64,
+    day_time: i64,
 
-    pub player: Player,
-    pub chat: Chat,
+    player: Player,
+    chat: Chat,
 
-    pub world: World,
+    world: World,
 
-    pub entities: HashMap<i32, Entity>,
+    entities: HashMap<i32, Entity>,
 
-    pub difficulty: Difficulty,
-    pub difficulty_locked: bool,
+    difficulty: Difficulty,
+    difficulty_locked: bool,
 
-    pub paused: bool,
-
+    paused: bool,
     pub disconnect: bool,
 }
 
@@ -66,6 +65,57 @@ impl Server {
         }
     }
 
+    pub fn get_network_destination(&self) -> &str {
+        &self.network_destination
+    }
+
+    pub fn get_world_time(&self) -> i64 {
+        self.world_time
+    }
+
+    pub fn get_day_time(&self) -> i64 {
+        self.day_time
+    }
+
+    pub fn get_player(&self) -> &Player {
+        &self.player
+    }
+
+    pub fn get_chat(&self) -> &Chat {
+        &self.chat
+    }
+
+    pub fn get_world(&self) -> &World {
+        &self.world
+    }
+
+    pub fn get_entities(&self) -> &HashMap<i32, Entity> {
+        &self.entities
+    }
+
+    pub fn get_difficulty(&self) -> Difficulty {
+        self.difficulty
+    }
+
+    pub fn is_difficulty_locked(&self) -> bool {
+        self.difficulty_locked
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
+
+    pub fn set_paused(&mut self, paused: bool, state: &mut State) {
+        self.paused = paused;
+        state.mouse_visible = self.paused;
+        state.mouse_grabbed = !self.paused;
+
+        if !paused {
+            state.options_visible = false;
+        }
+    }
+
+
     pub fn join_game(&mut self, player_id: i32) {
         self.player.id = player_id;
     }
@@ -83,23 +133,24 @@ impl Server {
         }
     }
 
+    /// Attempts to send a packet over the provided (possible) network channel
+    pub fn send_command(&self, command: NetworkCommand) -> Option<()> {
+        match self.network.send.send(command) {
+            Ok(_) => Some(()),
+            Err(e) => {
+                error!("Failed to communicate with network commander: {:?}", e);
+                panic!("Disconnected");
+                None
+            }
+        }
+    }
 
-    pub fn update(&mut self, ctx: &Context, settings: &mut Settings, delta: f32) {
+    pub fn update(&mut self, ctx: &Context, state: &mut State, settings: &Settings, delta: f32) {
 
         if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
 
-            self.paused = !self.paused;
-            if !self.paused {
-                ctx.set_mouse_grabbed(true).expect("Couldn't grab mouse!");
-                settings.mouse_visible = false;
-                // ctx.set_mouse_visible(false);
-            } else {
-                ctx.set_mouse_grabbed(false).expect("Couldn't release mouse!");
-                settings.mouse_visible = true;
-                // ctx.set_mouse_visible(true);
-            }
+            self.set_paused(!self.paused, state);
 
-            // self.gui.show_gui = !self.gui.show_gui;
         }
 
         // Send chat message
@@ -174,7 +225,7 @@ impl Server {
             let off = ctx.mouse.get_delta();
             self.player
                 .get_orientation_mut()
-                .rotate(off.0 as f32 * 0.1, off.1 as f32 * 0.1);
+                .rotate(off.0 as f32 * 0.05 * settings.mouse_sensitivity, off.1 as f32 * 0.05 * settings.mouse_sensitivity);
         }
 
 
@@ -441,7 +492,7 @@ impl Server {
 
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Difficulty {
     Peaceful,
     Easy,

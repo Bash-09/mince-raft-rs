@@ -8,12 +8,12 @@ use crate::{server::Server, entities::Entity};
 
 pub fn render(gui_ctx: &Context, server: &Server) {
 
-    egui::Window::new(format!("Entities: {}", server.entities.len()))
+    egui::Window::new(format!("Entities: {}", server.get_entities().len()))
     .id(Id::new("Entities"))
     .show(gui_ctx, |ui| {
 
         let mut ents: HashMap<i32, Vec<&Entity>> = HashMap::new();
-        for (id, e) in &server.entities {
+        for (id, e) in server.get_entities() {
             match ents.get_mut(&e.entity_type.id) {
                 Some(vec) => {
                     vec.push(e);

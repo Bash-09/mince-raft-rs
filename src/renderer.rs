@@ -76,7 +76,7 @@ impl Renderer {
         let pvmat = self.cam.get_pvmat().to_cols_array_2d();
         let mut points = vec![Vec3::new(0.0, 0.0, 0.0); 8];
 
-        for (pos, chunk) in serv.world.get_chunks() {
+        for (pos, chunk) in serv.get_world().get_chunks() {
 
             // Try to frustum cull this whole chunk column
             let cx = (pos.x * 16) as f32;

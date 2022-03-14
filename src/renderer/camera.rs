@@ -225,7 +225,7 @@ impl Camera {
 
         let inv_vmat = vmat.inverse();
 
-        let fov_x = (self.aspect).atan();
+        let fov_x = (self.aspect * (self.fov.to_radians() / 2.0).tan()).atan();
 
         let mut d_left: Vec4 = Vec4::new(1.0, 0.0, 0.0, 1.0);
         d_left = Mat4::from_rotation_y(fov_x) * d_left;
