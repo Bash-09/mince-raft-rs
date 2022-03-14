@@ -3,6 +3,8 @@
 pub mod main_menu;
 pub mod pause_menu;
 pub mod fps_counter;
+pub mod entities_window;
+pub mod info_window;
 
 // use glium::{Display, Frame};
 

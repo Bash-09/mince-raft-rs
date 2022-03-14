@@ -17,7 +17,7 @@ mod network;
 use egui::{FontDefinitions, FontData, FontFamily};
 use glam::Vec3;
 use glium::glutin::event::VirtualKeyCode;
-use gui::{main_menu, pause_menu::{self, PauseAction}, fps_counter};
+use gui::{main_menu, pause_menu::{self, PauseAction}, fps_counter, entities_window, info_window};
 use log::{debug, error, info};
 
 use glium_app::context::Context;
@@ -46,7 +46,7 @@ fn main() {
     let wb = WindowBuilder::new()
         .with_title("Minceraft!")
         .with_resizable(true)
-        .with_inner_size(PhysicalSize::new(1000i32, 600i32));
+        .with_inner_size(PhysicalSize::new(1600i32, 900i32));
 
     let (ctx, el) = glium_app::create(wb);
 
@@ -73,11 +73,11 @@ impl Application for Client {
         fonts.font_data.insert("minecraft".to_string(), 
             FontData::from_static(include_bytes!("../minecraft_font.ttf")));
 
-        fonts.families.get_mut(&FontFamily::Proportional).unwrap()
-            .insert(0, "minecraft".to_owned());
+        // fonts.families.get_mut(&FontFamily::Proportional).unwrap()
+        //     .insert(0, "minecraft".to_owned());
         
-        fonts.families.get_mut(&FontFamily::Monospace).unwrap()
-            .insert(0, "minecraft".to_owned());
+        // fonts.families.get_mut(&FontFamily::Monospace).unwrap()
+        //     .insert(0, "minecraft".to_owned());
 
         ctx.gui.egui_ctx.set_fonts(fonts);
 
@@ -160,6 +160,10 @@ impl Application for Client {
                     }
 
                     if s.paused {
+
+                        entities_window::render(gui_ctx, &s);
+                        info_window::render(gui_ctx, &s);
+
                         match pause_menu::render(gui_ctx, &mut self.settings) {
                             PauseAction::Unpause => {
                                 s.paused = false;
@@ -192,6 +196,7 @@ impl Application for Client {
         if grab {
             self.settings.mouse_visible = false;
             ctx.set_mouse_grabbed(true).expect("Couldn't grab mouse!");
+            ctx.set_mouse_visible(false);
         }
 
         if self.settings.mouse_visible {
