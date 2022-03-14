@@ -1,0 +1,4 @@
+[submodule "glium-app"]
+	path = glium-app
+	url = git@github.com:Googe14/glium-app.git
+	branch = master
