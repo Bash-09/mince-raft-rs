@@ -1,10 +1,10 @@
-use std::{fs, io};
+use std::string::FromUtf8Error;
 
 use glium::{Display, Program};
 
-pub fn read_shader(d: &Display, v_filename: &str, f_filename: &str) -> io::Result<Program> {
-    let v_src = fs::read_to_string(v_filename)?;
-    let f_src = fs::read_to_string(f_filename)?;
+pub fn compile_shaders(d: &Display, v_bytes: &[u8], f_bytes: &[u8]) -> Result<Program, FromUtf8Error> {
+    let v_src = String::from_utf8(v_bytes.to_vec())?;
+    let f_src = String::from_utf8(f_bytes.to_vec())?;
 
     Ok(Program::from_source(d, &v_src, &f_src, None).unwrap())
 }

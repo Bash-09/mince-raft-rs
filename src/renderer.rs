@@ -36,10 +36,10 @@ impl Renderer {
 
         let hitbox_model = glium::VertexBuffer::new(dis, &entities::hitbox_model()).unwrap();
 
-        let prog = shader::read_shader(dis, "shaders/test/v.glsl", "shaders/test/f.glsl")
+        let prog = shader::compile_shaders(dis, include_bytes!("../shaders/test/v.glsl"), include_bytes!("../shaders/test/f.glsl"))
             .expect("Failed to compile shaders");
 
-        let hitbox_prog = shader::read_shader(dis, "shaders/hitboxes/v.glsl", "shaders/hitboxes/f.glsl")
+        let hitbox_prog = shader::compile_shaders(dis, include_bytes!("../shaders/hitboxes/v.glsl"), include_bytes!("../shaders/hitboxes/f.glsl"))
             .expect("Failed to compile shaders");
 
         log::debug!("Setup renderer!");
