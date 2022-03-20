@@ -1,11 +1,10 @@
 use glam::{IVec2, IVec3, Vec2};
 use glium::{Display, VertexBuffer};
 use log::debug;
-use resources::blocks::{BlockState, BLOCKS};
 
 use crate::{
     network::packets::{ChunkData, PacketDecoder},
-    renderer::Vertex,
+    renderer::Vertex, resources::{BlockState, BLOCKS},
 };
 
 #[derive(Debug)]
@@ -60,11 +59,11 @@ impl Chunk {
         let y = pos.y as usize;
         let z = pos.z as usize;
         if y >= 16 * 16 || x >= 16 || z >= 16 {
-            return &BLOCKS[0];
+            return &BLOCKS.get(&0).unwrap();
         }
         return match &self.sections[y / 16] {
-            Some(cs) => &BLOCKS[cs.blocks[((y % 16) * 16 * 16 + z * 16 + x) as usize] as usize],
-            None => &BLOCKS[0],
+            Some(cs) => &BLOCKS.get(&(cs.blocks[((y % 16) * 16 * 16 + z * 16 + x) as usize] as u32)).unwrap(),
+            None => &BLOCKS.get(&0).unwrap(),
         };
     }
 

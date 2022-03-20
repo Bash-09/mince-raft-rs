@@ -1,17 +1,15 @@
-use std::ops::Mul;
-
-use crate::{network::types::UUID, renderer::Vertex};
+use crate::{network::types::UUID, renderer::Vertex, resources::{ENTITIES, self}};
 
 pub mod components;
 use components::*;
 use glam::Vec3;
-use resources::entities::{EntityType, ENTITIES};
+use serde_json::Value;
 
 pub struct Entity {
     pub id: i32,
     pub uuid: UUID,
 
-    pub entity_type: &'static EntityType,
+    pub entity_type: &'static resources::Entity,
 
     pub data: i32,
 
@@ -25,12 +23,12 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub fn new(id: i32) -> Entity {
+    pub fn new(entity_type: u32) -> Entity {
         Entity {
-            id,
+            id: 0,
             uuid: UUID([0, 0]),
 
-            entity_type: ENTITIES.get(&id).expect("Failed to get entity from ID"),
+            entity_type: ENTITIES.get(&entity_type).expect(&format!("No entity with id {}", &entity_type)),
             data: 0,
 
             pos: Vec3::new(0.0, 0.0, 0.0),
@@ -46,7 +44,7 @@ impl Entity {
     pub fn new_with_values(
         id: i32,
         uuid: UUID,
-        entity_type: i32,
+        entity_type: u32,
         data: i32,
         px: f32,
         py: f32,
@@ -82,7 +80,7 @@ impl Entity {
         self.uuid.clone()
     }
 
-    pub fn get_type(&self) -> &'static EntityType {
+    pub fn get_type(&self) -> &'static resources::Entity {
         self.entity_type
     }
 

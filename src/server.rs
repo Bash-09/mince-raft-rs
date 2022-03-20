@@ -323,7 +323,7 @@ impl Server {
                             Entity::new_with_values(
                                 pack.entity_id.0,
                                 pack.uuid.clone(),
-                                pack.entity_type.0,
+                                pack.entity_type.0 as u32,
                                 0,
                                 pack.x.0 as f32,
                                 pack.y.0 as f32,
@@ -347,7 +347,7 @@ impl Server {
                             Entity::new_with_values(
                                 pack.entity_id.0,
                                 pack.uuid.clone(),
-                                pack.entity_type.0,
+                                pack.entity_type.0 as u32,
                                 pack.data.0,
                                 pack.x.0 as f32,
                                 pack.y.0 as f32,

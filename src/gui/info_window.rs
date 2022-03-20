@@ -102,7 +102,7 @@ pub fn render(gui_ctx: &Context, server: &Server) {
                     if pos.y <= 0 {break}
                     match server.get_world().get_block_at(&pos) {
                         Some(b) => {
-                            if b.state_id == 0 {
+                            if b.id == 0 {
                                 pos.y -= 1;
                                 continue;
                             }

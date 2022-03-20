@@ -93,9 +93,7 @@ impl Application for Client {
         std::thread::spawn(|| {
             let start = Instant::now();
             resources::BLOCKS.len();
-            resources::BLOCKSTATE_IDS.len();
             resources::ENTITIES.len();
-            resources::ENTITY_IDS.len();
             resources::MODELS.len();
             let dur = Instant::now() - start;
     

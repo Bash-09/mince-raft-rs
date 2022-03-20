@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
-use resources::blocks::BlockState;
+use serde_json::Value;
+
+use crate::resources::BlockState;
 
 use self::chunks::Chunk;
 
