@@ -4,12 +4,17 @@ extern crate glium;
 extern crate glium_app;
 extern crate log;
 extern crate quartz_nbt;
+extern crate lazy_static;
+
+use std::time::Instant;
 
 use crate::network::{types::*, *};
 
 mod network;
 
+use chrono::Duration;
 use egui::{FontDefinitions, FontData, FontFamily};
+use egui_winit::winit::window::Icon;
 use glam::Vec3;
 use log::{debug, error, info};
 
@@ -27,6 +32,7 @@ pub mod world;
 pub mod gui;
 pub mod settings;
 pub mod state;
+pub mod resources;
 
 use self::{
     network::{packets::DecodedPacket},
@@ -41,6 +47,7 @@ fn main() {
     let wb = WindowBuilder::new()
         .with_title("Minceraft!")
         .with_resizable(true)
+        .with_window_icon(Some(Icon::from_rgba(include_bytes!("../assets/img.bmp")[70..].to_vec(), 512, 512).unwrap()))
         .with_inner_size(PhysicalSize::new(1200i32, 700i32));
 
     let (ctx, el) = glium_app::create(wb);
@@ -81,6 +88,19 @@ impl Application for Client {
         let dims = ctx.dis.get_framebuffer_dimensions();
         let aspect = dims.0 as f32 / dims.1 as f32;
         self.rend.cam.set_aspect_ratio(aspect);
+
+
+        std::thread::spawn(|| {
+            let start = Instant::now();
+            resources::BLOCKS.len();
+            resources::BLOCKSTATE_IDS.len();
+            resources::ENTITIES.len();
+            resources::ENTITY_IDS.len();
+            resources::MODELS.len();
+            let dur = Instant::now() - start;
+    
+            info!("Loading assets took {}ms", dur.as_millis());
+        });
 
     }
 

@@ -147,6 +147,10 @@ impl Server {
 
     pub fn update(&mut self, ctx: &Context, state: &mut State, settings: &Settings, delta: f32) {
 
+        for ent in self.entities.values_mut() {
+            ent.update(delta);
+        }
+
         if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
 
             self.set_paused(!self.paused, state);
@@ -327,9 +331,9 @@ impl Server {
                                 (pack.yaw.0 as f32) / 255.0,
                                 (pack.pitch.0 as f32) / 255.0,
                                 (pack.head_pitch.0 as f32) / 255.0,
-                                (pack.vx.0 as f32) / 8000.0,
-                                (pack.vy.0 as f32) / 8000.0,
-                                (pack.vz.0 as f32) / 8000.0,
+                                (pack.vx.0 as f32) / 400.0,
+                                (pack.vy.0 as f32) / 400.0,
+                                (pack.vz.0 as f32) / 400.0,
                             ),
                         ) {
                             Some(_) => {}
@@ -351,9 +355,9 @@ impl Server {
                                 (pack.yaw.0 as f32) / 255.0,
                                 (pack.pitch.0 as f32) / 255.0,
                                 0.0,
-                                (pack.vx.0 as f32) / 8000.0,
-                                (pack.vy.0 as f32) / 8000.0,
-                                (pack.vz.0 as f32) / 8000.0,
+                                (pack.vx.0 as f32) / 400.0,
+                                (pack.vy.0 as f32) / 400.0,
+                                (pack.vz.0 as f32) / 400.0,
                             ),
                         );
                     }
@@ -366,11 +370,13 @@ impl Server {
 
                     EntityPosition(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.pos.add_assign(Vec3::new(
+                            let new_pos = ent.last_pos + Vec3::new(
                                 (pack.dx.0 as f32) / 4096.0,
                                 (pack.dy.0 as f32) / 4096.0,
                                 (pack.dz.0 as f32) / 4096.0,
-                            ));
+                            );
+                            ent.pos = new_pos;
+                            ent.last_pos = new_pos;
                         }
                         None => {}
                     },
@@ -378,11 +384,13 @@ impl Server {
                     EntityPositionAndRotation(pack) => {
                         match self.entities.get_mut(&pack.entity_id.0) {
                             Some(ent) => {
-                                ent.pos.add_assign(Vec3::new(
+                                let new_pos = ent.last_pos + Vec3::new(
                                     (pack.dx.0 as f32) / 4096.0,
                                     (pack.dy.0 as f32) / 4096.0,
                                     (pack.dz.0 as f32) / 4096.0,
-                                ));
+                                );
+                                ent.pos = new_pos;
+                                ent.last_pos = new_pos;
                                 ent.ori
                                     .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
                                 ent.on_ground = pack.on_ground.0;
@@ -412,11 +420,11 @@ impl Server {
 
                     EntityVelocity(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.vel.add_assign(Vec3::new(
-                                pack.vx.0 as f32 / 8000.0,
-                                pack.vy.0 as f32 / 8000.0,
-                                pack.vz.0 as f32 / 8000.0,
-                            ));
+                            ent.vel = Vec3::new(
+                                pack.vx.0 as f32 / 400.0,
+                                pack.vy.0 as f32 / 400.0,
+                                pack.vz.0 as f32 / 400.0,
+                            );
                         }
                         None => {}
                     },

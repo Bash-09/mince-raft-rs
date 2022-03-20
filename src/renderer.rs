@@ -1,12 +1,14 @@
+use std::collections::HashMap;
+
 use glam::{Mat4, Vec3};
-use glium::index::NoIndices;
+use glium::index::{NoIndices, PrimitiveType::{LineStrip, TrianglesList}};
 use glium::*;
 use glium::{Display, Surface};
 use log::info;
 
-use crate::renderer::camera::Camera;
+use crate::{renderer::camera::Camera, entities::{self, Entity}};
 
-use super::{server::Server, Client};
+use super::{server::Server};
 
 mod camera;
 mod shader;
@@ -21,26 +23,23 @@ implement_vertex!(Vertex, position);
 pub struct Renderer {
     pub cam: Camera,
 
-    vbo: VertexBuffer<Vertex>,
-    inds: NoIndices,
-    prog: Program,
+    chunk_prog: Program,
+
+
+    hitbox_prog: Program,
+    hitbox_model: VertexBuffer<Vertex>,
+
 }
 
 impl Renderer {
     pub fn new(dis: &Display) -> Renderer {
-        let v1 = Vertex {
-            position: [-0.5, -0.5, 0.0],
-        };
-        let v2 = Vertex {
-            position: [0.0, 0.5, 0.0],
-        };
-        let v3 = Vertex {
-            position: [0.5, -0.25, 0.0],
-        };
-        let shape = vec![v1, v2, v3];
-        let vbo = glium::VertexBuffer::new(dis, &shape).unwrap();
-        let inds = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
+
+        let hitbox_model = glium::VertexBuffer::new(dis, &entities::hitbox_model()).unwrap();
+
         let prog = shader::read_shader(dis, "shaders/test/v.glsl", "shaders/test/f.glsl")
+            .expect("Failed to compile shaders");
+
+        let hitbox_prog = shader::read_shader(dis, "shaders/hitboxes/v.glsl", "shaders/hitboxes/f.glsl")
             .expect("Failed to compile shaders");
 
         log::debug!("Setup renderer!");
@@ -53,10 +52,46 @@ impl Renderer {
                 90.0,
             ),
 
-            vbo,
-            inds,
-            prog,
+            hitbox_model,
+            chunk_prog: prog,
+            hitbox_prog,
         }
+    }
+
+    pub fn render_hitboxes(&mut self, target: &mut Frame, ents: &HashMap<i32, Entity>) {
+
+        let params = DrawParameters {
+            depth: Depth {
+                test: draw_parameters::DepthTest::IfLess,
+                write: true,
+                ..Default::default()
+            },
+            backface_culling: BackfaceCullingMode::CullingDisabled,
+            polygon_mode: PolygonMode::Line,
+            line_width: Some(2.0),
+            ..Default::default()
+        };
+
+        let inds = NoIndices(glium::index::PrimitiveType::LinesList);
+        let pvmat = self.cam.get_pvmat().to_cols_array_2d();
+
+        for ent in ents.values() {
+            let e = ent.get_type();
+
+            let mut tmat = Mat4::IDENTITY;
+            tmat *= Mat4::from_translation(ent.pos);
+            tmat *= Mat4::from_scale(Vec3::new(e.width, e.height, e.width));
+    
+            let uniforms = uniform! {
+                pvmat: pvmat,
+                tmat: tmat.to_cols_array_2d(),
+            };
+
+            target.draw(&self.hitbox_model, inds, &self.hitbox_prog, &uniforms, &params)
+                .expect("Error rendering hitbox");
+
+        }
+
     }
 
     pub fn render_server(&mut self, target: &mut Frame, serv: &Server) {
@@ -71,6 +106,8 @@ impl Renderer {
             backface_culling: BackfaceCullingMode::CullClockwise,
             ..Default::default()
         };
+
+        let inds = NoIndices(TrianglesList);
 
         let vf = self.cam.generate_view_frustum();
         let pvmat = self.cam.get_pvmat().to_cols_array_2d();
@@ -140,11 +177,14 @@ impl Renderer {
                         };
 
                         target
-                            .draw(cs.get_vbo(), &self.inds, &self.prog, &uniforms, &params)
+                            .draw(cs.get_vbo(), inds, &self.chunk_prog, &uniforms, &params)
                             .unwrap();
                     }
                 }
             }
         }
+
+        self.render_hitboxes(target, serv.get_entities());
+
     }
 }

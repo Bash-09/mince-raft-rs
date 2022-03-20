@@ -14,3 +14,13 @@ Settings / Options
         Online/Offline mode:
             Login/Logout
             Offline Username
+
+Models/Rendering
+    Refactor Chunk sections to use palette and indices
+    Refactor mesh construction to take a bundle of chunk sections
+        Construct block mesh from self and adjacent blocks
+    Refactor stuff to use vanilla asset json files
+    Wrap chunk sections with reference handler stuff and figure out thread logistics
+    Separate chunk building onto separate thread
+
+    Build block models from json instructions

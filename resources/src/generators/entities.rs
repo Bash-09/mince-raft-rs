@@ -11,6 +11,8 @@ use super::{export_file, read_json};
 pub struct EntityType {
     id: i32,
     name: String,
+    width: f32,
+    height: f32,
 }
 
 /// Reads a minecraft entities json file and creates a module to include those entities in the binary
@@ -42,9 +44,31 @@ pub fn get_entities_string(filename: &str) -> std::io::Result<Option<String>> {
                     _ => continue
                 }
 
+                let width: f32;
+                match val.get("width") {
+                    Some(Number(num)) => {
+                        width = num.as_f64().expect("Width is not a f64") as f32;
+                    },
+                    _ => {
+                        panic!("Entity {} didn't have width!", name);
+                    }
+                }
+
+                let height: f32;
+                match val.get("height") {
+                    Some(Number(num)) => {
+                        height = num.as_f64().expect("height is not a f64") as f32;
+                    },
+                    _ => {
+                        panic!("Entity {} didn't have height!", name);
+                    }
+                }
+
                 let e = EntityType {
                     id,
                     name: name.replace("minecraft:", "").replace("_", " ").to_title_case(),
+                    width,
+                    height,
                 };
                 out.insert(id, e);
 
@@ -65,6 +89,8 @@ use phf::phf_map;
 pub struct EntityType {
     pub id: i32,
     pub name: &'static str,
+    pub width: f32,
+    pub height: f32,
 }
 
 pub static ENTITIES: phf::Map<i32, EntityType> = phf_map! {
@@ -80,7 +106,7 @@ pub static ENTITIES: phf::Map<i32, EntityType> = phf_map! {
 
 
     for e in ents_vec.iter() {
-        file += format!("\t{0}i32 => EntityType{{ id: {0}, name: \"{1}\" }},\n", e.id, e.name).as_str();
+        file += format!("\t{0}i32 => EntityType{{ id: {0}, name: \"{1}\", width: {2:.2}, height: {3:.2} }},\n", e.id, e.name, e.width, e.height).as_str();
     }
 
     file += "};";
