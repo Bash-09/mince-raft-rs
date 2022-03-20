@@ -9,7 +9,11 @@ This is just a personal project to learn and practice, don't expect it to become
 ![Minecraft Client](journal/Client.png)
 
 
-# Compiling/Running
+# Building and Running
+
+Import the git submodule with `git submodule init && git submodule update`\
+The run the `get_assets.sh` script to download the required Minecraft assets and resources.\
+Then the client should build without too much issue with Cargo.
 
 Currently to run this client, you will just need to start a spigot server (1.17.1 probably) and turn off authentication (the setting might be called something like `online`?). It may also be a good idea to enable flying to prevent the client from getting kicked, as currently it doesn't have any physics or collisions.
 
