@@ -5,7 +5,7 @@ use glam::Vec3;
 use glium_app::context::Context;
 use log::{error, info, debug};
 
-use crate::{network::{NetworkChannel, packets::DecodedPacket, NetworkCommand, types::*}, world::chunks::Chunk, settings::Settings, state::State};
+use crate::{network::{NetworkChannel, packets::PacketData, NetworkCommand, types::*}, world::chunks::Chunk, settings::Settings, state::State};
 
 use super::{
     chat::Chat,
@@ -122,7 +122,7 @@ impl Server {
 
 
     /// Attempts to send a packet over the provided (possible) network channel
-    pub fn send_packet(&self, packet: DecodedPacket) -> Option<()> {
+    pub fn send_packet(&self, packet: PacketData) -> Option<()> {
         match self.network.send.send(NetworkCommand::SendPacket(packet)) {
             Ok(_) => Some(()),
             Err(e) => {
@@ -162,7 +162,7 @@ impl Server {
             let text = self.chat.get_message_and_clear();
             self.chat.send = false;
 
-            self.send_packet(DecodedPacket::ChatOutgoing(MCString(text)));
+            self.send_packet(PacketData::ChatOutgoing(MCString(text)));
         }
 
         // if !self.gui.show_gui {
@@ -268,7 +268,7 @@ impl Server {
         match comm {
             // Handles any incoming packets
             ReceivePacket(packet) => {
-                use DecodedPacket::*;
+                use PacketData::*;
                 match &packet {
                     ServerDifficulty(pack) => {
                         self.difficulty = match pack.difficulty.0 {

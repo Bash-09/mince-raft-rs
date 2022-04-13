@@ -6,6 +6,8 @@ extern crate log;
 extern crate quartz_nbt;
 extern crate lazy_static;
 
+extern crate mcnetwork;
+
 use std::time::Instant;
 
 use crate::network::{types::*, *};
@@ -35,7 +37,7 @@ pub mod state;
 pub mod resources;
 
 use self::{
-    network::{packets::DecodedPacket},
+    network::{packets::PacketData},
     renderer::Renderer,
     server::Server,
 };
@@ -114,7 +116,7 @@ impl Application for Client {
                     // Send player position update packets
                     if serv.get_player().id != 0 {
                         serv.send_packet(
-                            DecodedPacket::PlayerPositionAndRotation(
+                            PacketData::PlayerPositionAndRotation(
                                 Double(serv.get_player().get_position().x as f64),
                                 Double(serv.get_player().get_position().y as f64),
                                 Double(serv.get_player().get_position().z as f64),

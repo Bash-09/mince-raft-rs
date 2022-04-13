@@ -1,12 +1,16 @@
-pub mod packets;
 use log::{error, info, warn};
 use miniz_oxide::{
     deflate::compress_to_vec_zlib,
     inflate::decompress_to_vec_zlib,
 };
-use packets::*;
 
+pub mod packets;
+use packets::*;
 pub mod types;
+use types::*;
+
+// use mcnetwork::packets::*;
+// use mcnetwork::types::*;
 
 use std::{
     io::{Error, Read, Write},
@@ -18,7 +22,6 @@ use std::{
 
 use crate::server::*;
 
-use self::types::*;
 
 pub const PROTOCOL_1_17_1: VarInt = VarInt(756);
 
@@ -135,14 +138,15 @@ impl NetworkManager {
     ///
     /// Returns a Decoded Packet ready for processing, or None if there was no packet to receive.
     ///
-    fn next_packet(&mut self) -> Option<DecodedPacket> {
+    fn next_packet(&mut self) -> Option<PacketData> {
         // Check there is packet and get size of it
         match VarInt::from_stream(&mut self.stream) {
-            Ok(Some(VarInt(0))) => {
+            Ok(Some((VarInt(0), _))) => {
                 return None;
             }
-            Ok(Some(VarInt(len))) => {
+            Ok(Some((VarInt(len), _))) => {
                 let mut buf = vec![0; len as usize];
+
 
                 match self.stream.read_exact(&mut buf) {
                     Ok(_) => {
@@ -171,7 +175,7 @@ impl NetworkManager {
                         return Some(decode_packet(buf, &self.state));
                     }
                     Err(e) => {
-                        error!("Failed reading packet from stream: {}", e);
+                        error!("Failed reading packet from stream: {:?}", e);
                         panic!("Force stopped to prevent unexpected behaviour.");
                     }
                 }
@@ -207,9 +211,9 @@ impl NetworkManager {
 
         // Construct and send handshake and login packets
         let handshake =
-            DecodedPacket::Handshake(protocol, MCString(local_addr), port, HandshakeMode::Login);
+            PacketData::Handshake(protocol, MCString(local_addr), port, HandshakeMode::Login);
 
-        let login = DecodedPacket::LoginStart(name);
+        let login = PacketData::LoginStart(name);
 
         self.send_packet(handshake)
             .expect("Failed to send handshake");
@@ -223,10 +227,10 @@ impl NetworkManager {
                 Some(packet) => {
                     match &packet {
                         // Please no
-                        DecodedPacket::EncryptionRequest(_) => {
+                        PacketData::EncryptionRequest(_) => {
                             panic!("I ain't implemented this shit yet");
                         }
-                        DecodedPacket::SetCompression(pack) => {
+                        PacketData::SetCompression(pack) => {
                             if pack.threshold.0 <= 0 {
                                 self.compress = false;
                                 info!("Disabled Compression");
@@ -236,15 +240,15 @@ impl NetworkManager {
                                 info!("Set compression: {}", pack.threshold.0);
                             }
                         }
-                        DecodedPacket::Disconnect(_) => {
+                        PacketData::Disconnect(_) => {
                             self.send_message(NetworkCommand::ReceivePacket(packet));
                             self.close = true;
                             return None;
                         }
-                        DecodedPacket::LoginPluginRequest(_) => {
+                        PacketData::LoginPluginRequest(_) => {
                             panic!("I don't want to think about LoginPlugin");
                         }
-                        DecodedPacket::LoginSuccess(_) => {
+                        PacketData::LoginSuccess(_) => {
                             warn!("Connecting to server with no authentication!");
 
                             self.state = ServerState::Play;
@@ -268,7 +272,7 @@ impl NetworkManager {
     ///
     /// * `Some(())` if the packet is successfully sent
     /// * `None` if it is not
-    fn send_packet(&mut self, packet: DecodedPacket) -> Option<()> {
+    fn send_packet(&mut self, packet: PacketData) -> Option<()> {
         // Attempt to encode packet
         match packet.encode() {
             Some(pack) => {
@@ -339,7 +343,7 @@ impl NetworkManager {
                 self.login(protocol, port, name);
             }
             NetworkCommand::Disconnect => {
-                self.send_packet(DecodedPacket::Disconnect(Disconnect { reason: MCString(String::from("Player Disconnected")) }));
+                self.send_packet(PacketData::Disconnect(Disconnect { reason: MCString(String::from("Player Disconnected")) }));
                 self.close = true;
             }
             NetworkCommand::SendPacket(dp) => {
@@ -350,8 +354,8 @@ impl NetworkManager {
     }
 
     /// Handles an incoming packet
-    fn handle_packet(&mut self, packet: DecodedPacket) {
-        use DecodedPacket::*;
+    fn handle_packet(&mut self, packet: PacketData) {
+        use PacketData::*;
 
         match &packet {
             Unknown(_buf) => {
@@ -384,7 +388,7 @@ impl NetworkManager {
         if let Err(_) = self.channel.send.send(comm) {
             error!("Couldn't communicated with main thread, assuming connection was closed and disconnecting from server.");
             self.close = true;
-            self.send_packet(DecodedPacket::Disconnect(packets::Disconnect { reason: MCString(String::from("Player Disconnected")) }));
+            self.send_packet(PacketData::Disconnect(packets::Disconnect { reason: MCString(String::from("Player Disconnected")) }));
         }
     }
 }
@@ -404,8 +408,8 @@ pub enum NetworkCommand {
     // Login(protocol, port, name)
     Login(VarInt, Short, MCString),
 
-    SendPacket(DecodedPacket),
-    ReceivePacket(DecodedPacket),
+    SendPacket(PacketData),
+    ReceivePacket(PacketData),
 
     Spawn,
 }

@@ -231,11 +231,11 @@ impl VarInt {
         }
     }
 
-    /// Reads a varint from a TcpStream, consuming the bytes
+    /// Reads a varint from a Read-able, consuming the bytes
     ///
     /// # Arguments
     ///
-    /// * `TcpStream` - The TcpStream from which to read
+    /// * `stream` - The Read-able from which to read
     ///
     /// # Returns
     ///
@@ -243,7 +243,7 @@ impl VarInt {
     /// * `Err(e)` if there is an error reading it
     /// * `Ok(None)` I don't think it actually returns this, I should probably clean this up later
     ///
-    pub fn from_stream(stream: &mut TcpStream) -> Result<Option<VarInt>, io::Error> {
+    pub fn from_stream<S: Read>(stream: &mut S) -> Result<Option<(VarInt, usize)>, io::Error> {
         const PART: u32 = 0x7F;
         let mut size = 0;
         let mut val = 0u32;
@@ -269,7 +269,7 @@ impl VarInt {
                 Err(e) => return Err(e),
             }
         }
-        Ok(Some(VarInt(val as i32)))
+        Ok(Some((VarInt(val as i32), size)))
     }
 
     pub fn num_bytes(&self) -> usize {

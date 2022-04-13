@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::network::{
-    packets::{ChatIncoming, DecodedPacket},
+    packets::{ChatIncoming, PacketData},
     types::UUID,
 };
 
