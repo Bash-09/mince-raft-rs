@@ -20,15 +20,15 @@ pub trait Packet {
 
 #[derive(Debug, Clone)]
 pub struct Unknown {
-    pub bytes: Vec<u8>
+    pub i8s: Vec<u8>
 }
 
 impl Packet for Unknown {
     const ID: VarInt = VarInt(0);
 
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
-        let bytes: Vec<u8> = r.bytes().map(|f| f.unwrap()).collect();
-        Ok(Unknown {bytes})
+        let i8s: Vec<u8> = r.bytes().map(|f| f.unwrap()).collect();
+        Ok(Unknown {i8s})
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
@@ -40,8 +40,8 @@ impl Packet for Unknown {
 #[derive_packet(0x00)]
 pub struct Handshake {
     pub protocol_version: VarInt,
-    pub address: MCString,
-    pub port: UShort,
+    pub address: String,
+    pub port: u16,
     pub next: VarInt,
 }
 
@@ -55,7 +55,7 @@ pub struct Request {} // Status request
 #[derive(Debug, Clone)]
 #[derive_packet(0x00)]
 pub struct Response { // Status response
-    pub json: MCString,
+    pub json: String,
 }
 
 #[derive(Debug, Clone)]
@@ -67,13 +67,13 @@ pub struct TeleportConfirm { // Status response
 #[derive(Debug, Clone)]
 #[derive_packet(0x01)]
 pub struct Ping {
-    pub payload: Long,
+    pub payload: i64,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x01)]
 pub struct ClientPong {
-    pub payload: Long
+    pub payload: i64
 }
 
 // ************* LOGIN MODE **************
@@ -81,22 +81,22 @@ pub struct ClientPong {
 #[derive(Debug, Clone)]
 #[derive_packet(0x00)]
 pub struct LoginStart {
-    pub name: MCString
+    pub name: String
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x01)]
 pub struct EncryptionRequest {
-    pub server_id: MCString,
-    pub public_key: Array<Byte>,
-    pub verify_token: Array<Byte>,
+    pub server_id: String,
+    pub public_key: Vec<i8>,
+    pub verify_token: Vec<i8>,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x02)]
 pub struct LoginSuccess {
     pub uuid: UUID,
-    pub username: MCString,
+    pub username: String,
 }
 
 #[derive(Debug, Clone)]
@@ -110,7 +110,7 @@ pub struct SetCompression {
 pub struct LoginPluginRequest {
     pub message_id: VarInt,
     pub channel: Identifier,
-    pub data: Array<Byte>,
+    pub data: Vec<i8>,
 }
 
 // ****************** PLAY MODE ***********
@@ -121,25 +121,25 @@ pub struct SpawnEntity {
     pub entity_id: VarInt,   // Entity ID
     pub uuid: UUID,          // UUID
     pub entity_type: VarInt, // Entity Type
-    pub x: Double,           // X
-    pub y: Double,           // Y
-    pub z: Double,           // Z
+    pub x: f64,           // X
+    pub y: f64,           // Y
+    pub z: f64,           // Z
     pub pitch: Angle,        // Pitch
     pub yaw: Angle,          // Yaw
-    pub data: Int,           // Data
-    pub vx: Short,           // VX
-    pub vy: Short,           // VY
-    pub vz: Short,           // VZ
+    pub data:i32,           // Data
+    pub vx: i16,           // VX
+    pub vy: i16,           // VY
+    pub vz: i16,           // VZ
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x01)]
 pub struct SpawnExperienceOrb {
     pub entity_id: VarInt, // Entity ID
-    pub x: Double,         // X,
-    pub y: Double,         // Y
-    pub z: Double,         // Z
-    pub amount: Short,     // XP Amount
+    pub x: f64,         // X,
+    pub y: f64,         // Y
+    pub z: f64,         // Z
+    pub amount: i16,     // XP Amount
 }
 
 #[derive(Debug, Clone)]
@@ -148,15 +148,15 @@ pub struct SpawnLivingEntity {
     pub entity_id: VarInt,   // Entity ID
     pub uuid: UUID,          // UUID
     pub entity_type: VarInt, // Entity Type
-    pub x: Double,           // X
-    pub y: Double,           // Y
-    pub z: Double,           // Z
+    pub x: f64,           // X
+    pub y: f64,           // Y
+    pub z: f64,           // Z
     pub yaw: Angle,          // Yaw
     pub pitch: Angle,        // Pitch
     pub head_pitch: Angle,   // Head Pitch
-    pub vx: Short,           // Vel X
-    pub vy: Short,           // Vel Y
-    pub vz: Short,           // Vel Z
+    pub vx: i16,           // Vel X
+    pub vy: i16,           // Vel Y
+    pub vz: i16,           // Vel Z
 }
 
 #[derive(Debug, Clone)]
@@ -166,13 +166,13 @@ pub struct SpawnPainting {
     pub uuid: UUID,              // Entity UUID
     pub painting_id: VarInt,     // Motive, Painting's ID
     pub center_coords: Position, // Center Coordinates
-    pub direction: Byte, // Enum, Painting direction (North = 2, South = 0, West = 1, East = 3)
+    pub direction: i8, // Enum, Painting direction (North = 2, South = 0, West = 1, East = 3)
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x03)]
 pub struct ChatMessageServerbound {
-    pub message: MCString
+    pub message: String
 }
 
 #[derive(Debug, Clone)]
@@ -180,9 +180,9 @@ pub struct ChatMessageServerbound {
 pub struct SpawnPlayer {
     pub entity_id: VarInt, // Entity ID
     pub uuid: UUID,        // Player UUID
-    pub x: Double,         // X
-    pub y: Double,         // Y
-    pub z: Double,         // Z
+    pub x: f64,         // X
+    pub y: f64,         // Y
+    pub z: f64,         // Z
     pub yaw: Angle,        // Yaw
     pub pitch: Angle,      // Pitch
 }
@@ -202,25 +202,25 @@ pub struct SculkVibrationSignal {
 #[derive(Debug, Clone)]
 #[derive_packet(0x05)]
 pub struct ClientSettings {
-    pub locale: MCString,
-    pub view_distance: Byte,
+    pub locale: String,
+    pub view_distance: i8,
     pub chat_mode: VarInt,
-    pub chat_colors: Boolean,
-    pub display_skin_parts: UByte,
+    pub chat_colors: bool,
+    pub display_skin_parts: u8,
     pub main_hand: VarInt,
-    pub disable_text_filtering: Boolean,
+    pub disable_text_filtering: bool,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x06)]
 pub struct EntityAnimation {
     pub player_id: VarInt,   // Player ID
-    pub animation_id: UByte, // Animation ID (0 = Swing Main Arm, 1 = Take Damage, 2 = Leave Bed, 3 = Swing Offhand, 4 = Critical Effect, 5 = Magic Critical Effect)
+    pub animation_id: u8, // Animation ID (0 = Swing Main Arm, 1 = Take Damage, 2 = Leave Bed, 3 = Swing Offhand, 4 = Critical Effect, 5 = Magic Critical Effect)
 }
 
 #[derive(Debug, Clone)]
 pub struct Statistics {
-    pub stats_len: VarInt, // Count of next array
+    pub stats_len: VarInt, // Count of next Vec
     pub stats: Vec<(
         VarInt, // Enum, Category ID
         VarInt, // Enum, Statistic ID
@@ -246,7 +246,7 @@ pub struct AcknowledgePlayerDigging {
     pub location: Position,           // Location
     pub block_state_id: VarInt,       // Block state ID
     pub player_digging_state: VarInt, // Enum, Player Digging state
-    pub success: Boolean,             // Success
+    pub success: bool,             // Success
 }
 
 #[derive(Debug, Clone)]
@@ -254,14 +254,14 @@ pub struct AcknowledgePlayerDigging {
 pub struct BlockBreakAnimation {
     pub breaker_entity_id: VarInt, // Entity ID of Entity breaking the block
     pub block_pos: Position,       // Block Position
-    pub destroy_stage: Byte,       // Destroy Stage {0-9 to set, any other value removes)
+    pub destroy_stage: i8,       // Destroy Stage {0-9 to set, any other value removes)
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x0a)]
 pub struct BlockEntityData {
     pub block_pos: Position, //
-    pub update_type: UByte,  // Enum, Type of update
+    pub update_type: u8,  // Enum, Type of update
     pub data: NBTTag,        // Data to set {May be TAG_END{0) which means the block is removed)
 }
 
@@ -269,8 +269,8 @@ pub struct BlockEntityData {
 #[derive_packet(0x0b)]
 pub struct BlockAction {
     pub block_pos: Position,   // Block Coords
-    pub action_id: UByte,      // Action ID {Varies by block)
-    pub action_param: UByte,   // Action Param
+    pub action_id: u8,      // Action ID {Varies by block)
+    pub action_param: u8,   // Action Param
     pub block_type_id: VarInt, // Block type {Block type ID, not block state)
 }
 
@@ -292,37 +292,37 @@ pub struct BossBar {
 #[derive(Debug, Clone)]
 #[derive_packet(0x0e)]
 pub struct ServerDifficulty {
-    pub difficulty: UByte, // Difficulty, {0: PEaceful, 1: Easy, 2: Normal, 3: Hard)
-    pub locked: Boolean,   // Difficulty Locked?
+    pub difficulty: u8, // Difficulty, {0: PEaceful, 1: Easy, 2: Normal, 3: Hard)
+    pub locked: bool,   // Difficulty Locked?
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x0f)]
 pub struct ChatIncoming {
-    pub json: MCString, // JSON Data of chat message
-    pub position: Byte, // Position, {0: Chat, 1: System Message, 2: Game Info)
+    pub json: String, // JSON Data of chat message
+    pub position: i8, // Position, {0: Chat, 1: System Message, 2: Game Info)
     pub sender: UUID,   // Sender
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x0f)]
 pub struct KeepAliveServerbound {
-    pub keep_alive_id: Long
+    pub keep_alive_id: i64
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x10)]
 pub struct ClearTitles {
-    pub reset: Boolean, // Reset
+    pub reset: bool, // Reset
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x10)]
 pub struct PlayerPosition {
-    pub x: Double,
-    pub feet_t: Double, 
-    pub z: Double,
-    pub on_ground: Boolean
+    pub x: f64,
+    pub feet_t: f64, 
+    pub z: f64,
+    pub on_ground: bool
 }
 
 #[derive(Debug, Clone)]
@@ -330,10 +330,10 @@ pub struct TabComplete {
     pub transaction_id: VarInt, // Transaction ID
     pub start: VarInt,          // Start of text to replace
     pub len: VarInt,            // Length of text to replace
-    pub matches_len: VarInt,    // Count of next array
+    pub matches_len: VarInt,    // Count of next Vec
     pub matches: Vec<(
-        MCString,     // An elligible value to insert
-        Boolean,      // Has Tooltip
+        String,     // An elligible value to insert
+        bool,      // Has Tooltip
         Option<Chat>, // Tooltip
     )>,
 }
@@ -353,12 +353,12 @@ impl Packet for TabComplete {
 #[derive(Debug, Clone)]
 #[derive_packet(0x12)]
 pub struct PlayerPositionAndRotation {
-    pub x: Double,
-    pub feet_y: Double,
-    pub z: Double,
-    pub yaw: Float,
-    pub pitch: Float,
-    pub on_ground: Boolean
+    pub x: f64,
+    pub feet_y: f64,
+    pub z: f64,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub on_ground: bool
 }
 
 #[derive(Debug, Clone)]
@@ -370,32 +370,32 @@ pub struct DeclareCommands {
 #[derive(Debug, Clone)]
 #[derive_packet(0x13)]
 pub struct CloseWindowClientbound {
-    pub window_id: UByte, // ID of window to that was closed. 0 for inventory
+    pub window_id: u8, // ID of window to that was closed. 0 for inventory
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x14)]
 pub struct WindowItems {
-    pub window_id: UByte,  // Window ID
+    pub window_id: u8,  // Window ID
     pub state_id: VarInt,  // State ID
-    pub slots: Array<Slot>,  // List of slots
+    pub slots: Vec<Slot>,  // List of slots
     pub carried: Slot,     // Carried Item / Item held by player
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x15)]
 pub struct WindowProperty {
-    pub window_id: UByte, // Window ID
-    pub property: Short,  // Enum, property to be updated
-    pub value: Short,     // New value of property
+    pub window_id: u8, // Window ID
+    pub property: i16,  // Enum, property to be updated
+    pub value: i16,     // New value of property
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x16)]
 pub struct SetSlot {
-    pub window_id: Byte,  // Window ID
+    pub window_id: i8,  // Window ID
     pub state_id: VarInt, // State ID
-    pub slot_id: Short,   // Which slot to be updated
+    pub slot_id: i16,   // Which slot to be updated
     pub slot_data: Slot,  // Slot Data
 }
 
@@ -409,7 +409,7 @@ pub struct SetCooldown {
 #[derive(Debug, Clone)]
 pub struct PluginMessage {
     pub channel: Identifier, // Name of Plugin Channel used
-    pub data: Vec<Byte>,     // Data for that channel
+    pub data: Vec<i8>,     // Data for that channel
 }
 
 impl Packet for PluginMessage {
@@ -429,43 +429,43 @@ impl Packet for PluginMessage {
 pub struct NamedSoundEffect {
     pub sound_name: Identifier, // Sound Name
     pub category: VarInt,       // Enum, category to play sound from
-    pub x: Int,                 // Effect Pos X,
-    pub y: Int,                 // Effect Pos Y,
-    pub z: Int,                 // Effect Pos Z,
-    pub vol: Float,             // Volume, {1 = 100% but can be louder)
-    pub pitch: Float,           // Pitch
+    pub x:i32,                 // Effect Pos X,
+    pub y:i32,                 // Effect Pos Y,
+    pub z:i32,                 // Effect Pos Z,
+    pub vol: f32,             // Volume, {1 = 100% but can be louder)
+    pub pitch: f32,           // Pitch
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x1a)]
 pub struct Disconnect {
-    pub reason: MCString
+    pub reason: String
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x1b)]
 pub struct EntityStatus {
     // 0x1b
-    pub entity_id: Int, // Entity ID
-    pub status: Byte,   // Enum, Entity Status
+    pub entity_id:i32, // Entity ID
+    pub status: i8,   // Enum, Entity Status
 }
 
 #[derive(Debug, Clone)]
 pub struct Explosion {
-    pub x: Float,           // X
-    pub y: Float,           // Y
-    pub z: Float,           // Z
-    pub strength: Float,    // Strength
-    pub blocks_len: VarInt, // Count of next array
+    pub x: f32,           // X
+    pub y: f32,           // Y
+    pub z: f32,           // Z
+    pub strength: f32,    // Strength
+    pub blocks_len: VarInt, // Count of next Vec
     pub block_offsets: Vec<(
         // X/Y/Z offsets of affected blocks
-        Byte, // Blocks in this array are set to Air
-        Byte,
-        Byte,
+        i8, // Blocks in this Vec are set to Air
+        i8,
+        i8,
     )>,
-    pub vx: Float, // Vel X // Velocity of player being pushed by the explosion
-    pub vy: Float, // Vel Y
-    pub vz: Float, // Vel Z
+    pub vx: f32, // Vel X // Velocity of player being pushed by the explosion
+    pub vy: f32, // Vel Y
+    pub vz: f32, // Vel Z
 }
 
 impl Packet for Explosion {
@@ -483,32 +483,32 @@ impl Packet for Explosion {
 #[derive(Debug, Clone)]
 #[derive_packet(0x1d)]
 pub struct UnloadChunk {
-    pub x: Int, // Chunk X
-    pub z: Int, // Chunk Z
+    pub x:i32, // Chunk X
+    pub z:i32, // Chunk Z
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x1e)]
 pub struct ChangeGameState {
-    pub reason: UByte,
-    pub value: Float,
+    pub reason: u8,
+    pub value: f32,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x1f)]
 pub struct OpenHorseWindow {
-    pub window_id: Byte,
+    pub window_id: i8,
     pub num_slots: VarInt,
-    pub entity_id: Int,
+    pub entity_id:i32,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x20)]
 pub struct InitializeWorldBorder {
-    pub x: Double,
-    pub z: Double,
-    pub old_diameter: Double,
-    pub new_diameter: Double,
+    pub x: f64,
+    pub z: f64,
+    pub old_diameter: f64,
+    pub new_diameter: f64,
     pub speed: VarLong, // Number of millis until new diameter is reached
     pub portal_teleport_boundary: VarInt,
     pub warning_blocks: VarInt,
@@ -518,34 +518,34 @@ pub struct InitializeWorldBorder {
 #[derive(Debug, Clone)]
 #[derive_packet(0x21)]
 pub struct KeepAliveClientbound {
-    pub keep_alive_id: Long,
+    pub keep_alive_id: i64,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x22)]
 pub struct ChunkData {
-    pub x: Int,
-    pub z: Int,
-    pub bit_mask: Array<Long>,
+    pub x:i32,
+    pub z:i32,
+    pub bit_mask: Vec<i64>,
     pub heightmaps: NBTTag,
-    pub biomes: Array<VarInt>,
-    pub data: Array<UByte>,
-    pub block_entities: Array<NBTTag>,
+    pub biomes: Vec<VarInt>,
+    pub data: Vec<u8>,
+    pub block_entities: Vec<NBTTag>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UpdateLight {
     pub chunk_x: VarInt,
     pub chunk_z: VarInt,
-    pub trust_edges: Boolean,
-    pub sky_light_mask: Array<Long>,
-    pub block_light_mask: Array<Long>,
-    pub empty_sky_light_mask: Array<Long>,
-    pub empty_block_light_mask: Array<Long>,
+    pub trust_edges: bool,
+    pub sky_light_mask: Vec<i64>,
+    pub block_light_mask: Vec<i64>,
+    pub empty_sky_light_mask: Vec<i64>,
+    pub empty_block_light_mask: Vec<i64>,
     pub sky_lights_len: VarInt,
-    pub sky_lights: Vec<(VarInt, [Byte; 2048])>,
+    pub sky_lights: Vec<(VarInt, [i8; 2048])>,
     pub block_lights_len: VarInt,
-    pub block_lights: Vec<(VarInt, [Byte; 2048])>,
+    pub block_lights: Vec<(VarInt, [i8; 2048])>,
 }
 
 impl Packet for UpdateLight {
@@ -563,43 +563,43 @@ impl Packet for UpdateLight {
 #[derive(Debug, Clone)]
 #[derive_packet(0x26)]
 pub struct JoinGame {
-    pub player_id: Int,
-    pub is_hardcore: Boolean,
-    pub gamemode: UByte,
-    pub prev_gamemode: Byte,
-    pub world_names: Array<Identifier>,
+    pub player_id:i32,
+    pub is_hardcore: bool,
+    pub gamemode: u8,
+    pub prev_gamemode: i8,
+    pub world_names: Vec<Identifier>,
     pub dimension_codec: NBTTag,
     pub dimension: NBTTag,
     pub world_name: Identifier,
-    pub hashed_seed: Long,
+    pub hashed_seed: i64,
     pub max_players: VarInt,
     pub view_distance: VarInt,
-    pub reduced_debug_info: Boolean,
-    pub enable_respawn_screen: Boolean,
-    pub is_debug: Boolean,
-    pub is_flat: Boolean,
+    pub reduced_debug_info: bool,
+    pub enable_respawn_screen: bool,
+    pub is_debug: bool,
+    pub is_flat: bool,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x29)]
 pub struct EntityPosition {
     pub entity_id: VarInt,
-    pub dx: Short,
-    pub dy: Short,
-    pub dz: Short,
-    pub on_ground: Boolean,
+    pub dx: i16,
+    pub dy: i16,
+    pub dz: i16,
+    pub on_ground: bool,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x2a)]
 pub struct EntityPositionAndRotation {
     pub entity_id: VarInt,
-    pub dx: Short,
-    pub dy: Short,
-    pub dz: Short,
+    pub dx: i16,
+    pub dy: i16,
+    pub dz: i16,
     pub yaw: Angle,
     pub pitch: Angle,
-    pub on_ground: Boolean,
+    pub on_ground: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -608,26 +608,26 @@ pub struct EntityRotation {
     pub entity_id: VarInt,
     pub yaw: Angle,
     pub pitch: Angle,
-    pub on_ground: Boolean,
+    pub on_ground: bool,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x38)]
 pub struct PlayerPositionAndLook {
-    pub x: Double,
-    pub y: Double,
-    pub z: Double,
-    pub yaw: Float,
-    pub pitch: Float,
-    pub flags: Byte,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub flags: i8,
     pub teleport_id: VarInt,
-    pub dismount: Boolean,
+    pub dismount: bool,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x3a)]
 pub struct DestroyEntities {
-    pub entities: Array<VarInt>,
+    pub entities: Vec<VarInt>,
 }
 
 #[derive(Debug, Clone)]
@@ -648,36 +648,36 @@ pub struct EntityMetadata {
 #[derive_packet(0x4f)]
 pub struct EntityVelocity {
     pub entity_id: VarInt,
-    pub vx: Short,
-    pub vy: Short,
-    pub vz: Short,
+    pub vx: i16,
+    pub vy: i16,
+    pub vz: i16,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x52)]
 pub struct UpdateHealth {
-    pub health: Float,
+    pub health: f32,
     pub food: VarInt,
-    pub saturation: Float,
+    pub saturation: f32,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x58)]
 pub struct TimeUpdate {
-    pub world_age: Long,
-    pub day_time: Long,
+    pub world_age: i64,
+    pub day_time: i64,
 }
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x61)]
 pub struct EntityTeleport {
     pub entity_id: VarInt,
-    pub x: Double,
-    pub y: Double,
-    pub z: Double,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
     pub yaw: Angle,
     pub pitch: Angle,
-    pub on_ground: Boolean,
+    pub on_ground: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -687,13 +687,13 @@ pub struct EntityProperties {
     pub properties: Vec<(
         // List of properties
         Identifier, // Key
-        Double,     // Value
+        f64,     // Value
         VarInt,     // Num of Modifiers
         Vec<(
             // List of Modifier Data
             UUID,   // UUID
-            Double, // Amount
-            Byte,   // Operation
+            f64, // Amount
+            i8,   // Operation
         )>,
     )>,
 }

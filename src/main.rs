@@ -14,10 +14,10 @@ use crate::network::{types::*, *};
 
 mod network;
 
-use chrono::Duration;
 use egui::{FontDefinitions, FontData, FontFamily};
-use egui_winit::winit::window::Icon;
+use egui_winit::winit::{window::{Icon, WindowBuilder}, event::Event};
 use glam::Vec3;
+use glium::glutin;
 use log::{debug, error, info};
 
 use glium_app::context::Context;
@@ -50,11 +50,11 @@ fn main() {
         .with_title("Minceraft!")
         .with_resizable(true)
         .with_window_icon(Some(Icon::from_rgba(include_bytes!("../assets/img.bmp")[70..].to_vec(), 512, 512).unwrap()))
-        .with_inner_size(PhysicalSize::new(1200i32, 700i32));
+        .with_inner_size(glutin::dpi::PhysicalSize::new(1200i32, 700i32));
 
     let (ctx, el) = glium_app::create(wb);
 
-    let client = Box::new(Client::new(&ctx));
+    let client = Client::new(&ctx);
 
     glium_app::run_with_context(client, ctx, el);
 }

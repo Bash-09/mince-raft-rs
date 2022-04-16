@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Ident, Type, AngleBracketedGenericArguments};
+use syn::{DeriveInput, Ident, Type};
 use quote::quote;
 
 #[proc_macro_attribute]
@@ -35,9 +35,9 @@ pub fn derive_packet(args: TokenStream, tokens: TokenStream) -> TokenStream {
                 match &tp.segments.first().unwrap().arguments {
                     syn::PathArguments::AngleBracketed(ger) => {
                         match ger.args.first().unwrap() {
-                            syn::GenericArgument::Type(t) => {
+                            syn::GenericArgument::Type(_) => {
                                 read_fields.extend(quote!{
-                                    let #f = Array::read(r)?;
+                                    let #f = Vec::read(r)?;
                                 });
                             },
                             _ => {panic!("Invalid generic type provided")}

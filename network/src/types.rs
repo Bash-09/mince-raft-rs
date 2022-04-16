@@ -10,28 +10,8 @@ use quartz_nbt::NbtCompound;
 
 // Structs for each of the types used in the packets sent by an MC server
 
-#[derive(Debug, Clone)]
-pub struct Boolean(pub bool);
-#[derive(Debug, Clone)]
-pub struct Byte(pub i8);
-#[derive(Debug, Clone)]
-pub struct UByte(pub u8);
-#[derive(Debug, Clone)]
-pub struct Short(pub i16);
-#[derive(Debug, Clone)]
-pub struct UShort(pub u16);
-#[derive(Debug, Clone)]
-pub struct Int(pub i32);
-#[derive(Debug, Clone)]
-pub struct Long(pub i64);
-#[derive(Debug, Clone)]
-pub struct Float(pub f32);
-#[derive(Debug, Clone)]
-pub struct Double(pub f64);
-#[derive(Debug, Clone)]
-pub struct MCString(pub String);
-pub type Chat = MCString;
-pub type Identifier = MCString;
+pub type Chat = String;
+pub type Identifier = String;
 #[derive(Debug, Clone)]
 pub struct VarInt(pub i32);
 #[derive(Debug, Clone)]
@@ -39,16 +19,14 @@ pub struct VarLong(pub i64);
 #[derive(Debug, Clone)]
 pub struct Metadata(); // TODO
 #[derive(Debug, Clone)]
-pub struct Slot(Boolean, Option<VarInt>, Option<Byte>, Option<NBTTag>); // TODO
+pub struct Slot(bool, Option<VarInt>, Option<i8>, Option<NBTTag>); // TODO
 #[derive(Debug, Clone)]
 pub struct NBTTag(pub NbtCompound); // TODO
 #[derive(Debug, Clone)]
 pub struct Position(pub i32, pub i32, pub i32); // TODO
-pub type Angle = UByte;
+pub type Angle = u8;
 #[derive(Debug, Clone)]
 pub struct UUID(pub [u64; 2]);
-#[derive(Debug, Clone)]
-pub struct Array<T: PacketType>(pub Vec<T>);
 
 #[derive(Debug)]
 enum ParseErrorReason {
@@ -87,22 +65,30 @@ pub trait PacketType {
 }
 
 
-impl PacketType for Boolean {
-    fn read<R: Read>(r: &mut R) -> Result<Boolean, Box<dyn std::error::Error>> {
+
+// **********************************************************
+
+// *** Actual Packet Type Implementations *******************
+
+// **********************************************************
+
+
+impl PacketType for bool {
+    fn read<R: Read>(r: &mut R) -> Result<bool, Box<dyn std::error::Error>> {
         let mut byte = [0];
         r.read_exact(&mut byte)?;
         return match byte[0] {
-            0 => Ok(Boolean(true)),
-            _ => Ok(Boolean(true)),
+            0 => Ok(false),
+            _ => Ok(true),
         }
     }
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
         return match &self {
-            Boolean(true) => {
+            true => {
                 w.write(&[1])?;
                 Ok(())
             },
-            Boolean(false) => {
+            false => {
                 w.write(&[0])?;
                 Ok(())
             },
@@ -110,128 +96,121 @@ impl PacketType for Boolean {
     }
 }
 
-impl PacketType for Byte {
+impl PacketType for i8 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut byte = [0];
         r.read_exact(&mut byte)?;
-        Ok(Byte(byte[0] as i8))
+        Ok(byte[0] as i8)
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&[self.0 as u8])?;
+        w.write(&[*self as u8])?;
         Ok(())
     }
 }
 
-impl PacketType for UByte {
+impl PacketType for u8 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut byte = [0];
         r.read_exact(&mut byte)?;
-        Ok(UByte(byte[0]))
+        Ok(byte[0])
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&[self.0])?;
+        w.write(&[*self])?;
         Ok(())
     }
 }
 
-impl From<UByte> for u8 {
-    fn from(b: UByte) -> Self {
-        b.0
-    }
-}
-
-impl PacketType for Short {
+impl PacketType for i16 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut bytes = [0u8; 2];
         r.read_exact(&mut bytes)?;
-        Ok(Short(i16::from_be_bytes(bytes)))
+        Ok(i16::from_be_bytes(bytes))
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&self.0.to_be_bytes())?;
+        w.write(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
-impl PacketType for UShort {
+impl PacketType for u16 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut bytes = [0u8; 2];
         r.read_exact(&mut bytes)?;
-        Ok(UShort(u16::from_be_bytes(bytes)))
+        Ok(u16::from_be_bytes(bytes))
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&self.0.to_be_bytes())?;
+        w.write(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
 
-impl PacketType for Int {
+impl PacketType for i32 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut bytes = [0u8; 4];
         r.read_exact(&mut bytes)?;
-        Ok(Int(i32::from_be_bytes(bytes)))
+        Ok(i32::from_be_bytes(bytes))
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&self.0.to_be_bytes())?;
+        w.write(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
-impl PacketType for Long {
+impl PacketType for i64 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut bytes = [0u8; 8];
         r.read_exact(&mut bytes)?;
-        Ok(Long(i64::from_be_bytes(bytes)))
+        Ok(i64::from_be_bytes(bytes))
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&self.0.to_be_bytes())?;
+        w.write(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
-impl PacketType for Float {
+impl PacketType for f32 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut bytes = [0u8; 4];
         r.read_exact(&mut bytes)?;
-        Ok(Float(f32::from_be_bytes(bytes)))
+        Ok(f32::from_be_bytes(bytes))
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&self.0.to_be_bytes())?;
+        w.write(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
-impl PacketType for Double {
+impl PacketType for f64 {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let mut bytes = [0u8; 8];
         r.read_exact(&mut bytes)?;
-        Ok(Double(f64::from_be_bytes(bytes)))
+        Ok(f64::from_be_bytes(bytes))
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        w.write(&self.0.to_be_bytes())?;
+        w.write(&self.to_be_bytes())?;
         Ok(())
     }
 }
 
-impl PacketType for MCString {
+impl PacketType for String {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let VarInt(len) = VarInt::read(r)?;
         let mut bytes = vec![0u8; len as usize];
         r.read_exact(&mut bytes)?;
-        let str = String::from_utf8(bytes)?;
-        Ok(MCString(str))
+        Ok(String::from_utf8(bytes)?)
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        let bytes = self.0.as_bytes();
+        let bytes = self.as_bytes();
         VarInt(bytes.len() as i32).write(w)?;
         w.write(&bytes)?;
         Ok(())
@@ -399,7 +378,7 @@ impl PacketType for UUID {
     }
 }
 
-impl<T: PacketType> PacketType for Array<T> {
+impl<T: PacketType> PacketType for Vec<T> {
     fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
         let len = VarInt::read(r)?;
         let mut vec = Vec::new();
@@ -410,27 +389,15 @@ impl<T: PacketType> PacketType for Array<T> {
             vec.push(t);
         }
 
-        Ok(Array(vec))
+        Ok(vec)
     }
 
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        VarInt(self.0.len() as i32).write(w)?;
-        for t in &self.0 {
+        VarInt(self.len() as i32).write(w)?;
+        for t in self {
             t.write(w)?;
         }
 
         Ok(())
     }
 }
-
-impl Into<Vec<u8>> for &Array<UByte> {
-    fn into(self) -> Vec<u8> {
-        self.0.iter().map(|b| b.0).collect()
-    }
-}
-
-// impl<T: PacketType> Into<&Vec<T>> for &Array<T> {
-//     fn into(&self) -> &Vec<T> {
-//         self.0
-//     }
-// }
