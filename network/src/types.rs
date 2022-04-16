@@ -340,11 +340,13 @@ impl PacketType for Position {
 
         let big = u64::from_be_bytes(bytes);
 
-        let x = (big >> 38) as i32;
-        let y = (big & 0xfff) as i32;
-        let z = (big << 26 >> 38) as i32;
+        let mut x = ((big >> 38) & 0x3FFFFFF) as i32;
+        let mut y = (big & 0xfff) as i32;
+        let mut z = ((big >> 12) & 0x3FFFFFF) as i32;
 
-        // This may be a source of error
+        if x >= 2i32.pow(25) { x -= 2i32.pow(26); }
+        if y >= 2i32.pow(11) { y -= 2i32.pow(12); }
+        if z >= 2i32.pow(25) { z -= 2i32.pow(26); }
 
         Ok(Position(x, y, z))
     }

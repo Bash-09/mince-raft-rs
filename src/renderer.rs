@@ -146,7 +146,7 @@ impl Renderer {
                 continue;
             }
 
-            for (y, section) in chunk.get_sections().iter().enumerate() {
+            for (y, section) in chunk.sections.iter().enumerate() {
                 match section {
                     None => continue,
                     Some(cs) => {

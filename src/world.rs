@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
-use serde_json::Value;
 
 use crate::resources::BlockState;
 
@@ -35,7 +34,7 @@ impl World {
     pub fn get_highest_block(&self, coords: &IVec2) -> i32 {
         match self.chunks.get(&chunk_at_coords(coords)) {
             Some(chunk) => {
-                chunk.get_highest_block(chunk_coords(&IVec3::new(coords.x, 0, coords.y)).xz())
+                chunk.get_highest_block(local_chunk_coords(&IVec3::new(coords.x, 0, coords.y)).xz())
             }
             None => 0,
         }
@@ -44,19 +43,19 @@ impl World {
     pub fn get_block_at(&self, coords: &IVec3) -> Option<&BlockState> {
         let chunk = chunk_at_coords(&coords.xz());
         return match self.chunks.get(&chunk) {
-            Some(c) => Some(c.block_at(chunk_coords(&coords))),
+            Some(c) => Some(c.block_at(local_chunk_coords(&coords))),
             None => None,
         };
     }
 }
 
-/// Converts a given world x/z coordinate into the local chunk's x/y/z coordinate
-pub fn chunk_coords(coords: &IVec3) -> IVec3 {
+/// Converts a given world coordinate into coordinates within the chunk
+pub fn local_chunk_coords(coords: &IVec3) -> IVec3 {
     IVec3::new(coords.x.rem_euclid(16), coords.y, coords.z.rem_euclid(16))
 }
 
-/// Converts a given world x/z coordinate into the local chunk's x/y/z coordinate
-pub fn chunk_section_coords(coords: &IVec3) -> IVec3 {
+/// Converts a given world coordinate into coordinates within the chunk section
+pub fn local_chunk_section_coords(coords: &IVec3) -> IVec3 {
     IVec3::new(
         coords.x.rem_euclid(16),
         coords.y.rem_euclid(16),
@@ -64,7 +63,7 @@ pub fn chunk_section_coords(coords: &IVec3) -> IVec3 {
     )
 }
 
-/// Returns the coordinates used to identify the chunk at the given location
+/// Returns the coordinates of the chunk containing the given position
 pub fn chunk_at_coords(coords: &IVec2) -> IVec2 {
     IVec2::new(
         (coords.x as f32 / 16.0).floor() as i32,
@@ -72,7 +71,7 @@ pub fn chunk_at_coords(coords: &IVec2) -> IVec2 {
     )
 }
 
-/// Returns the coordinates used to identify the chunk at the given location
+/// Returns the coordinates of the chunk section containing the given position
 pub fn chunk_section_at_coords(coords: &IVec3) -> IVec3 {
     IVec3::new(
         (coords.x as f32 / 16.0).floor() as i32,
@@ -81,6 +80,7 @@ pub fn chunk_section_at_coords(coords: &IVec3) -> IVec3 {
     )
 }
 
+/// Returns the block containing the given positionb
 pub fn block_coords(pos: &Vec3) -> IVec3 {
     IVec3::new(
         pos.x.floor() as i32,

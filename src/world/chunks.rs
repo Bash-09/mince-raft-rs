@@ -25,6 +25,10 @@ impl ChunkSection {
     pub fn get_vbo(&self) -> &VertexBuffer<Vertex> {
         &self.vbo
     }
+
+    pub fn regenerate_mesh(&mut self, dis: &Display) {
+        self.vbo = generate_mesh(dis, &self.blocks);
+    }
 }
 
 pub struct Chunk {
@@ -32,7 +36,7 @@ pub struct Chunk {
 
     heightmap: [u16; 256],
 
-    sections: [Option<ChunkSection>; 16],
+    pub sections: [Option<ChunkSection>; 16],
 }
 
 // Base 2 Log of number of state ids in the game
@@ -75,9 +79,6 @@ impl Chunk {
         };
     }
 
-    pub fn get_sections(&self) -> &[Option<ChunkSection>; 16] {
-        &self.sections
-    }
 }
 
 /// Extracts the heightmap from chunk data
@@ -196,6 +197,20 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
         });
     }
     sections
+}
+
+/// Converts a block position to an index within a chunk section array
+pub fn vec_to_index(pos: &IVec3) -> usize {
+    ((pos.y % 16) * 16 * 16 + pos.z * 16 + pos.x) as usize
+}
+
+/// Converts an index within a chunk section array to a 3d block pos
+pub fn index_to_vec(i: usize) -> IVec3 {
+    let x = i % 16;
+    let y = i / (16 * 16);
+    let z = (i / 16) % 16;
+
+    IVec3::new(x as i32, y as i32, z as i32)
 }
 
 fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {

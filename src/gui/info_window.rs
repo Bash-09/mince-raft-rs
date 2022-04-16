@@ -113,7 +113,7 @@ pub fn render(gui_ctx: &Context, server: &Server) {
 
         let pos = block_coords(&server.get_player().get_position());
         let chunk = world::chunk_at_coords(&pos.xz());
-        let chunk_coords = world::chunk_coords(&pos);
+        let chunk_coords = world::local_chunk_coords(&pos);
 
         ui.horizontal(|ui| {
             ui.label("Chunk: ");

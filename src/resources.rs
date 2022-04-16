@@ -24,7 +24,6 @@ lazy_static! {
         let mut entities = HashMap::new();
 
         let json: HashMap<String, Value> = serde_json::from_slice(include_bytes!("../assets/entities.min.json")).expect("Failed to interpret entities.json");
-        // let json: HashMap<String, Value> = serde_json::from_slice(&std::fs::read("../assets/entities.min.json").expect("Couldn't read file entities.json")).expect("Failed to interpret entities.json");
         for(name, val) in json.iter() {
             if let Some(id) = val.get("id") {
                 entities.insert(id.as_u64().unwrap() as u32, Entity {
@@ -44,7 +43,6 @@ lazy_static! {
         let mut blocks = HashMap::new();
 
         let json: HashMap<String, Value> = serde_json::from_slice(include_bytes!("../assets/blocks.min.json")).expect("Failed to interpret blocks.json");
-        // let json: HashMap<String, Value> = serde_json::from_slice(&std::fs::read("../assets/blocks.min.json").expect("Couldn't read file blocks.json")).expect("Failed to interpret blocks.json");
         for(name, val) in json.iter() {
             let name = format_name(name);
             for (id, state) in val.get("states").unwrap().as_object().unwrap().iter() {
@@ -70,8 +68,6 @@ lazy_static! {
     };
 
     pub static ref MODELS: HashMap<String, Value> = serde_json::from_slice(include_bytes!("../assets/models.min.json")).expect("Failed to interpret models.json");
-    // pub static ref MODELS: HashMap<String, Value> = serde_json::from_slice(&std::fs::read("../assets/models.min.json").expect("Couldn't read file models.json")).expect("Failed to interpret models.json");
-
 
 }
 

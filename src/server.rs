@@ -1,9 +1,9 @@
 use std::{collections::HashMap, ops::AddAssign};
 
 use egui_winit::winit::event::VirtualKeyCode;
-use glam::Vec3;
+use glam::{Vec3, IVec3, Vec3Swizzles};
 use glium_app::context::Context;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use mcnetwork::{
     packets::{self, *},
     types::VarInt,
@@ -13,7 +13,7 @@ use crate::{
     network::{NetworkChannel, NetworkCommand},
     settings::Settings,
     state::State,
-    world::chunks::Chunk,
+    world::{chunks::{Chunk, self}, self},
 };
 
 use super::{chat::Chat, entities::Entity, player::Player, world::World};
@@ -465,10 +465,28 @@ impl Server {
                         self.world.insert_chunk(Chunk::new(&ctx.dis, &cd));
                     }
 
+                    BlockChange(pack) => {
+                        let coords = IVec3::new(pack.block_pos.0, pack.block_pos.1, pack.block_pos.2);
+                        let local_coords = world::local_chunk_section_coords(&coords);
+                        let chunk_coords = world::chunk_section_at_coords(&coords);
+
+                        if let Some(chunk) = self.world.get_chunks_mut().get_mut(&chunk_coords.xz()) {
+                            if let Some(chunk_section) = &mut chunk.sections[chunk_coords.y as usize] {
+                                chunk_section.blocks[chunks::vec_to_index(&local_coords)] = pack.block_state_id.0 as u16;
+                                chunk_section.regenerate_mesh(&ctx.dis);
+                            } else {
+                                warn!("Block update in empty chunk section");
+                            }
+                        } else {
+                            warn!("Block update in unloaded chunk");
+                        }
+
+                    }
+
                     // Currently ignoring these packets
                     EntityMetadata(_) | EntityProperties(_) | EntityStatus(_)
                     | EntityAnimation(_) => {
-                        
+
                     }
 
                     // Packets that have been forwarded but not handled properly
