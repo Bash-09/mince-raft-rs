@@ -4,8 +4,9 @@ use egui_winit::winit::event::VirtualKeyCode;
 use glam::Vec3;
 use glium_app::context::Context;
 use log::{error, info, debug};
+use mcnetwork::{packets::{*, self}, types::VarInt};
 
-use crate::{network::{NetworkChannel, packets::PacketData, NetworkCommand, types::*}, world::chunks::Chunk, settings::Settings, state::State};
+use crate::{network::{NetworkChannel, NetworkCommand}, world::chunks::Chunk, settings::Settings, state::State};
 
 use super::{
     chat::Chat,
@@ -13,12 +14,6 @@ use super::{
     player::Player,
     world::World,
 };
-
-pub enum ServerState {
-    Status,
-    Login,
-    Play,
-}
 
 pub struct Server {
     network_destination: String,
@@ -122,7 +117,7 @@ impl Server {
 
 
     /// Attempts to send a packet over the provided (possible) network channel
-    pub fn send_packet(&self, packet: PacketData) -> Option<()> {
+    pub fn send_packet(&self, packet: Vec<u8>) -> Option<()> {
         match self.network.send.send(NetworkCommand::SendPacket(packet)) {
             Ok(_) => Some(()),
             Err(e) => {
@@ -162,7 +157,7 @@ impl Server {
             let text = self.chat.get_message_and_clear();
             self.chat.send = false;
 
-            self.send_packet(PacketData::ChatOutgoing(MCString(text)));
+            self.send_packet(encode(ChatServerbound{message: text}));
         }
 
         // if !self.gui.show_gui {
@@ -271,29 +266,29 @@ impl Server {
                 use PacketData::*;
                 match &packet {
                     ServerDifficulty(pack) => {
-                        self.difficulty = match pack.difficulty.0 {
+                        self.difficulty = match pack.difficulty {
                             1 => Difficulty::Easy,
                             2 => Difficulty::Medium,
                             3 => Difficulty::Hard,
                             _ => Difficulty::Peaceful,
                         };
-                        self.difficulty_locked = pack.locked.0;
-                        info!("Changed difficulty: {}", pack.locked.0);
+                        self.difficulty_locked = pack.locked;
+                        info!("Changed difficulty: {}", pack.locked);
                     }
 
                     TimeUpdate(pack) => {
-                        self.world_time = pack.world_age.0;
-                        self.day_time = pack.day_time.0;
+                        self.world_time = pack.world_age;
+                        self.day_time = pack.day_time;
                     }
 
                     UpdateHealth(pack) => {
-                        self.player.health = pack.health.0;
+                        self.player.health = pack.health;
                         self.player.food = pack.food.0;
-                        self.player.saturation = pack.saturation.0;
+                        self.player.saturation = pack.saturation;
                     }
 
                     Disconnect(pack) => {
-                        info!("Disconnected from server: {}", pack.reason.0);
+                        info!("Disconnected from server: {}", pack.reason);
                         self.disconnect = true;
                     }
 
@@ -302,19 +297,21 @@ impl Server {
                     }
 
                     JoinGame(id) => {
-                        self.join_game(id.player_id.0);
+                        self.join_game(id.player_id);
                         self.send_packet(
-                            ClientSettings(
-                                MCString(self.player.locale.clone()),
-                                Byte(self.player.view_distance),
-                                VarInt(self.player.chat_mode),
-                                Boolean(false),
-                                UByte(self.player.displayed_skin_parts),
-                                VarInt(self.player.main_hand),
-                                Boolean(self.player.disable_text_filtering),
-                            ),
+                            encode(packets::ClientSettings{
+                                locale: self.player.locale.clone(),
+                                view_distance: (self.player.view_distance),
+                                chat_mode: VarInt(self.player.chat_mode),
+                                chat_colors: (false),
+                                display_skin_parts: (self.player.displayed_skin_parts),
+                                main_hand: VarInt(self.player.main_hand),
+                                disable_text_filtering: (self.player.disable_text_filtering),
+                            }),
                         );
-                        self.send_packet(ClientStatusRespawn);
+                        self.send_packet(encode(packets::ClientStatus{
+                            action: VarInt(0),
+                        }));
                     }
 
                     SpawnLivingEntity(pack) => {
@@ -325,15 +322,15 @@ impl Server {
                                 pack.uuid.clone(),
                                 pack.entity_type.0 as u32,
                                 0,
-                                pack.x.0 as f32,
-                                pack.y.0 as f32,
-                                pack.z.0 as f32,
-                                (pack.yaw.0 as f32) / 255.0,
-                                (pack.pitch.0 as f32) / 255.0,
-                                (pack.head_pitch.0 as f32) / 255.0,
-                                (pack.vx.0 as f32) / 400.0,
-                                (pack.vy.0 as f32) / 400.0,
-                                (pack.vz.0 as f32) / 400.0,
+                                pack.x as f32,
+                                pack.y as f32,
+                                pack.z as f32,
+                                (pack.yaw as f32) / 255.0,
+                                (pack.pitch as f32) / 255.0,
+                                (pack.head_pitch as f32) / 255.0,
+                                (pack.vx as f32) / 400.0,
+                                (pack.vy as f32) / 400.0,
+                                (pack.vz as f32) / 400.0,
                             ),
                         ) {
                             Some(_) => {}
@@ -348,16 +345,16 @@ impl Server {
                                 pack.entity_id.0,
                                 pack.uuid.clone(),
                                 pack.entity_type.0 as u32,
-                                pack.data.0,
-                                pack.x.0 as f32,
-                                pack.y.0 as f32,
-                                pack.z.0 as f32,
-                                (pack.yaw.0 as f32) / 255.0,
-                                (pack.pitch.0 as f32) / 255.0,
+                                pack.data,
+                                pack.x as f32,
+                                pack.y as f32,
+                                pack.z as f32,
+                                (pack.yaw as f32) / 255.0,
+                                (pack.pitch as f32) / 255.0,
                                 0.0,
-                                (pack.vx.0 as f32) / 400.0,
-                                (pack.vy.0 as f32) / 400.0,
-                                (pack.vz.0 as f32) / 400.0,
+                                (pack.vx as f32) / 400.0,
+                                (pack.vy as f32) / 400.0,
+                                (pack.vz as f32) / 400.0,
                             ),
                         );
                     }
@@ -371,9 +368,9 @@ impl Server {
                     EntityPosition(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             let new_pos = ent.last_pos + Vec3::new(
-                                (pack.dx.0 as f32) / 4096.0,
-                                (pack.dy.0 as f32) / 4096.0,
-                                (pack.dz.0 as f32) / 4096.0,
+                                (pack.dx as f32) / 4096.0,
+                                (pack.dy as f32) / 4096.0,
+                                (pack.dz as f32) / 4096.0,
                             );
                             ent.pos = new_pos;
                             ent.last_pos = new_pos;
@@ -385,15 +382,15 @@ impl Server {
                         match self.entities.get_mut(&pack.entity_id.0) {
                             Some(ent) => {
                                 let new_pos = ent.last_pos + Vec3::new(
-                                    (pack.dx.0 as f32) / 4096.0,
-                                    (pack.dy.0 as f32) / 4096.0,
-                                    (pack.dz.0 as f32) / 4096.0,
+                                    (pack.dx as f32) / 4096.0,
+                                    (pack.dy as f32) / 4096.0,
+                                    (pack.dz as f32) / 4096.0,
                                 );
                                 ent.pos = new_pos;
                                 ent.last_pos = new_pos;
                                 ent.ori
-                                    .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
-                                ent.on_ground = pack.on_ground.0;
+                                    .set(pack.yaw as f32 / 256.0, pack.pitch as f32 / 256.0);
+                                ent.on_ground = pack.on_ground;
                             }
                             None => {}
                         }
@@ -402,8 +399,8 @@ impl Server {
                     EntityRotation(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.ori
-                                .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
-                            ent.on_ground = pack.on_ground.0;
+                                .set(pack.yaw as f32 / 256.0, pack.pitch as f32 / 256.0);
+                            ent.on_ground = pack.on_ground;
                         }
                         None => {}
                     },
@@ -411,7 +408,7 @@ impl Server {
                     EntityHeadLook(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.ori_head.set(
-                                pack.head_yaw.0 as f32 / 256.0,
+                                pack.head_yaw as f32 / 256.0,
                                 ent.ori_head.get_head_pitch(),
                             );
                         }
@@ -421,9 +418,9 @@ impl Server {
                     EntityVelocity(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.vel = Vec3::new(
-                                pack.vx.0 as f32 / 400.0,
-                                pack.vy.0 as f32 / 400.0,
-                                pack.vz.0 as f32 / 400.0,
+                                pack.vx as f32 / 400.0,
+                                pack.vy as f32 / 400.0,
+                                pack.vz as f32 / 400.0,
                             );
                         }
                         None => {}
@@ -431,10 +428,10 @@ impl Server {
 
                     EntityTeleport(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.pos = Vec3::new(pack.x.0 as f32, pack.y.0 as f32, pack.z.0 as f32);
+                            ent.pos = Vec3::new(pack.x as f32, pack.y as f32, pack.z as f32);
                             ent.ori
-                                .set(pack.yaw.0 as f32 / 256.0, pack.pitch.0 as f32 / 256.0);
-                            ent.on_ground = pack.on_ground.0;
+                                .set(pack.yaw as f32 / 256.0, pack.pitch as f32 / 256.0);
+                            ent.on_ground = pack.on_ground;
                         }
                         None => {}
                     },
@@ -443,35 +440,35 @@ impl Server {
                         debug!("Player position updated!");
 
                         self.player.set_position(Vec3::new(
-                            pack.x.0 as f32,
-                            pack.y.0 as f32,
-                            pack.z.0 as f32,
+                            pack.x as f32,
+                            pack.y as f32,
+                            pack.z as f32,
                         ));
                         self
                             .player
                             .get_orientation_mut()
-                            .set(pack.yaw.0 as f32, pack.pitch.0 as f32);
+                            .set(pack.yaw as f32, pack.pitch as f32);
 
-                        self.send_packet(TeleportConfirm(pack.teleport_id.clone()));
+                        self.send_packet(encode(packets::TeleportConfirm{teleport_id: pack.teleport_id.clone()}));
 
                         let px = self.player.get_position().x;
                         let py = self.player.get_position().y;
                         let pz = self.player.get_position().z;
 
                         self.send_packet(
-                            PlayerPositionAndRotation(
-                                Double(px as f64),
-                                Double(py as f64),
-                                Double(pz as f64),
-                                Float(pack.yaw.0),
-                                Float(pack.pitch.0),
-                                Boolean(true),
-                            ),
+                            encode(packets::PlayerPositionAndRotation{
+                                x: (px as f64),
+                                feet_y: (py as f64),
+                                z: (pz as f64),
+                                yaw: (pack.yaw),
+                                pitch: (pack.pitch),
+                                on_ground: (true),
+                            }),
                         );
                     }
 
                     ChatIncoming(chat) => {
-                        self.chat.add_message(&chat);
+                        self.chat.add_message(chat);
                     }
 
                     ChunkData(cd) => {
@@ -479,8 +476,8 @@ impl Server {
                     }
 
                     // Currently ignoring these packets
-                    SoundEffect(_) | EntityMetadata(_) | EntityProperties(_) | EntityStatus(_)
-                    | Effect(_) | EntityAnimation(_) => {
+                    EntityMetadata(_) | EntityProperties(_) | EntityStatus(_)
+                    | EntityAnimation(_) => {
                         // self.log.log_incoming_packet(packet);
                     }
 

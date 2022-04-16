@@ -76,19 +76,16 @@ pub fn derive_packet(args: TokenStream, tokens: TokenStream) -> TokenStream {
     for (f, _) in fields {
         let f = f.as_ref().unwrap();
         write_fields.extend(quote!(
-            self.#f.write(&mut out)?;
+            self.#f.write(w)?;
         ));
     }
 
     let write_tokens = quote!{
         fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-            let mut out: Vec<u8> = Vec::new();
-            Self::ID.write(&mut out)?;
+            Self::ID.write(w)?;
 
             #write_fields
             
-            VarInt(out.len() as i32).write(w)?;
-            w.write(&out)?;
             Ok(())
         }
     };

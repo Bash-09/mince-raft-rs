@@ -1,9 +1,11 @@
-use glam::{IVec2, IVec3, Vec2};
+use std::io::Cursor;
+
+use glam::{IVec2, IVec3};
 use glium::{Display, VertexBuffer};
 use log::debug;
+use mcnetwork::{packets::ChunkData, types::{PacketType, VarInt}};
 
 use crate::{
-    network::packets::{ChunkData, PacketDecoder},
     renderer::Vertex, resources::{BlockState, BLOCKS},
 };
 
@@ -37,7 +39,7 @@ impl Chunk {
         debug!("Processing chunk data");
 
         Chunk {
-            pos: IVec2::new(data.x.0, data.z.0),
+            pos: IVec2::new(data.x, data.z),
 
             heightmap: process_heightmap(data),
             sections: process_sections(dis, data),
@@ -100,7 +102,7 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
     // Check bit mask for which chunk sections are present
     let mut chunk_sections_present = [false; 16];
     for i in 0..16 as usize {
-        if data.bit_mask[0].0 & 0b1 << i != 0 {
+        if data.bit_mask[0] & 0b1 << i != 0 {
             chunk_sections_present[i] = true;
         }
     }
@@ -109,15 +111,15 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
     // let mut sections: [Option<ChunkSection>; 16] = Default::default();
 
     // Decode data array
-    let mut pd = PacketDecoder::new(&data.data, 0);
+    let mut cur = Cursor::new(&data.data);
     for i in 0..16 as usize {
         if !chunk_sections_present[i] {
             continue;
         }
 
-        let block_count = pd.next_short().0;
+        let block_count = i16::read(&mut cur).unwrap();
 
-        let mut bits_per_block = pd.next_ubyte().0 as u64;
+        let mut bits_per_block = u8::read(&mut cur).unwrap() as u64;
 
         if bits_per_block <= 4 {
             bits_per_block = 4;
@@ -130,11 +132,11 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
 
         // Construct palette or no palette
         if bits_per_block < 9 {
-            let palette_len = pd.next_varint();
+            let palette_len = VarInt::read(&mut cur).unwrap();
             let mut palette_vec: Vec<i32> = Vec::new();
 
             for p in 0..palette_len.0 as usize {
-                palette_vec.push(pd.next_varint().0);
+                palette_vec.push(VarInt::read(&mut cur).unwrap().0);
             }
             palette = Some(palette_vec);
         } else {
@@ -142,11 +144,11 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
         }
 
         // Get long array of blocks
-        let array_len = pd.next_varint();
+        let array_len = VarInt::read(&mut cur).unwrap();
         let mut array = Vec::new();
 
         for _ in 0..array_len.0 as usize {
-            array.push(pd.next_long().0 as u64);
+            array.push(i64::read(&mut cur).unwrap());
         }
 
         // Bit mask depending on bits per block

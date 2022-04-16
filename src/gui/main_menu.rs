@@ -1,7 +1,7 @@
 use egui::Context;
 use log::{debug, error};
 
-use crate::{server::Server, settings::Settings, network::{NetworkManager, NetworkCommand, PROTOCOL_1_17_1, types::*}};
+use crate::{server::Server, settings::Settings, network::{NetworkManager, NetworkCommand, PROTOCOL_1_17_1}};
 
 pub fn render(gui_ctx: &Context, settings: &mut Settings) -> Option<Server> {
 
@@ -21,8 +21,8 @@ pub fn render(gui_ctx: &Context, settings: &mut Settings) -> Option<Server> {
                     server.send_command(
                             NetworkCommand::Login(
                             PROTOCOL_1_17_1,
-                            Short(25565),
-                            MCString("Harry".to_string()),
+                            25565,
+                            "Harry".to_string(),
                         ))
                         .expect("Failed to login");
 

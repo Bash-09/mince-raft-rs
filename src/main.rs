@@ -10,7 +10,7 @@ extern crate mcnetwork;
 
 use std::time::Instant;
 
-use crate::network::{types::*, *};
+use crate::network::*;
 
 mod network;
 
@@ -22,6 +22,7 @@ use log::{debug, error, info};
 
 use glium_app::context::Context;
 use glium_app::*;
+use mcnetwork::packets::{PacketData, PlayerPositionAndRotation, encode};
 use settings::Settings;
 use state::State;
 
@@ -37,7 +38,6 @@ pub mod state;
 pub mod resources;
 
 use self::{
-    network::{packets::PacketData},
     renderer::Renderer,
     server::Server,
 };
@@ -116,14 +116,14 @@ impl Application for Client {
                     // Send player position update packets
                     if serv.get_player().id != 0 {
                         serv.send_packet(
-                            PacketData::PlayerPositionAndRotation(
-                                Double(serv.get_player().get_position().x as f64),
-                                Double(serv.get_player().get_position().y as f64),
-                                Double(serv.get_player().get_position().z as f64),
-                                Float(serv.get_player().get_orientation().get_yaw() as f32),
-                                Float(serv.get_player().get_orientation().get_head_pitch() as f32),
-                                Boolean(true),
-                            ),
+                            encode(PlayerPositionAndRotation{
+                                x: (serv.get_player().get_position().x as f64),
+                                feet_y: (serv.get_player().get_position().y as f64),
+                                z: (serv.get_player().get_position().z as f64),
+                                yaw: (serv.get_player().get_orientation().get_yaw() as f32),
+                                pitch: (serv.get_player().get_orientation().get_head_pitch() as f32),
+                                on_ground: (true),
+                            }),
                         );
                     }
                 }

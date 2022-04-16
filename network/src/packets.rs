@@ -171,7 +171,7 @@ pub struct SpawnPainting {
 
 #[derive(Debug, Clone)]
 #[derive_packet(0x03)]
-pub struct ChatMessageServerbound {
+pub struct ChatServerbound {
     pub message: String
 }
 
@@ -731,7 +731,7 @@ pub enum PacketData {
 
     KeepAliveServerbound(KeepAliveServerbound),
 
-    ChatMessageServerbound(ChatMessageServerbound),
+    ChatServerbound(ChatServerbound),
 
     TeleportConfirm(TeleportConfirm), // Teleport ID as given by PlayerPositionAndLook
 

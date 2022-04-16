@@ -1,4 +1,4 @@
-use crate::{network::types::UUID, renderer::Vertex, resources::{ENTITIES, self}};
+use crate::{mcnetwork::types::UUID, renderer::Vertex, resources::{ENTITIES, self}};
 
 pub mod components;
 use components::*;
