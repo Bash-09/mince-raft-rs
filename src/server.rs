@@ -3,17 +3,20 @@ use std::{collections::HashMap, ops::AddAssign};
 use egui_winit::winit::event::VirtualKeyCode;
 use glam::Vec3;
 use glium_app::context::Context;
-use log::{error, info, debug};
-use mcnetwork::{packets::{*, self}, types::VarInt};
-
-use crate::{network::{NetworkChannel, NetworkCommand}, world::chunks::Chunk, settings::Settings, state::State};
-
-use super::{
-    chat::Chat,
-    entities::Entity,
-    player::Player,
-    world::World,
+use log::{debug, error, info};
+use mcnetwork::{
+    packets::{self, *},
+    types::VarInt,
 };
+
+use crate::{
+    network::{NetworkChannel, NetworkCommand},
+    settings::Settings,
+    state::State,
+    world::chunks::Chunk,
+};
+
+use super::{chat::Chat, entities::Entity, player::Player, world::World};
 
 pub struct Server {
     network_destination: String,
@@ -110,11 +113,9 @@ impl Server {
         }
     }
 
-
     pub fn join_game(&mut self, player_id: i32) {
         self.player.id = player_id;
     }
-
 
     /// Attempts to send a packet over the provided (possible) network channel
     pub fn send_packet(&self, packet: Vec<u8>) -> Option<()> {
@@ -141,15 +142,12 @@ impl Server {
     }
 
     pub fn update(&mut self, ctx: &Context, state: &mut State, settings: &Settings, delta: f32) {
-
         for ent in self.entities.values_mut() {
             ent.update(delta);
         }
 
         if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
-
             self.set_paused(!self.paused, state);
-
         }
 
         // Send chat message
@@ -157,14 +155,13 @@ impl Server {
             let text = self.chat.get_message_and_clear();
             self.chat.send = false;
 
-            self.send_packet(encode(ChatServerbound{message: text}));
+            self.send_packet(encode(ChatServerbound { message: text }));
         }
 
         // if !self.gui.show_gui {
         let vel = 8.0 * delta;
 
         if !self.paused {
-
             if ctx.keyboard.is_pressed(&VirtualKeyCode::W) {
                 let mut dir = self.player.get_orientation().get_look_vector();
                 dir.y = 0.0;
@@ -217,21 +214,18 @@ impl Server {
                     .add_assign(Vec3::new(0.0, -vel, 0.0));
             }
 
-            if ctx.mouse.pressed_this_frame(0) {
-                
-            }
+            if ctx.mouse.pressed_this_frame(0) {}
 
             let off = ctx.mouse.get_delta();
-            self.player
-                .get_orientation_mut()
-                .rotate(off.0 as f32 * 0.05 * settings.mouse_sensitivity, off.1 as f32 * 0.05 * settings.mouse_sensitivity);
+            self.player.get_orientation_mut().rotate(
+                off.0 as f32 * 0.05 * settings.mouse_sensitivity,
+                off.1 as f32 * 0.05 * settings.mouse_sensitivity,
+            );
         }
-
-
 
         // }
 
-                // Collect messages from the NetworkManager
+        // Collect messages from the NetworkManager
         let mut command_queue: Vec<NetworkCommand> = Vec::new();
         loop {
             match self.network.recv.try_recv() {
@@ -247,14 +241,15 @@ impl Server {
         for comm in command_queue {
             self.handle_message(comm, ctx);
         }
-
     }
 
     pub fn disconnect(&mut self) {
         info!("Disconnecting from server.");
-        self.network.send.send(NetworkCommand::Disconnect).expect("Failed to send message to network thread.");
+        self.network
+            .send
+            .send(NetworkCommand::Disconnect)
+            .expect("Failed to send message to network thread.");
     }
-
 
     /// Handles a message from the NetworkManager
     fn handle_message(&mut self, comm: NetworkCommand, ctx: &Context) {
@@ -298,20 +293,16 @@ impl Server {
 
                     JoinGame(id) => {
                         self.join_game(id.player_id);
-                        self.send_packet(
-                            encode(packets::ClientSettings{
-                                locale: self.player.locale.clone(),
-                                view_distance: (self.player.view_distance),
-                                chat_mode: VarInt(self.player.chat_mode),
-                                chat_colors: (false),
-                                display_skin_parts: (self.player.displayed_skin_parts),
-                                main_hand: VarInt(self.player.main_hand),
-                                disable_text_filtering: (self.player.disable_text_filtering),
-                            }),
-                        );
-                        self.send_packet(encode(packets::ClientStatus{
-                            action: VarInt(0),
+                        self.send_packet(encode(packets::ClientSettings {
+                            locale: self.player.locale.clone(),
+                            view_distance: (self.player.view_distance),
+                            chat_mode: VarInt(self.player.chat_mode),
+                            chat_colors: (false),
+                            display_skin_parts: (self.player.displayed_skin_parts),
+                            main_hand: VarInt(self.player.main_hand),
+                            disable_text_filtering: (self.player.disable_text_filtering),
                         }));
+                        self.send_packet(encode(packets::ClientStatus { action: VarInt(0) }));
                     }
 
                     SpawnLivingEntity(pack) => {
@@ -367,11 +358,12 @@ impl Server {
 
                     EntityPosition(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            let new_pos = ent.last_pos + Vec3::new(
-                                (pack.dx as f32) / 4096.0,
-                                (pack.dy as f32) / 4096.0,
-                                (pack.dz as f32) / 4096.0,
-                            );
+                            let new_pos = ent.last_pos
+                                + Vec3::new(
+                                    (pack.dx as f32) / 4096.0,
+                                    (pack.dy as f32) / 4096.0,
+                                    (pack.dz as f32) / 4096.0,
+                                );
                             ent.pos = new_pos;
                             ent.last_pos = new_pos;
                         }
@@ -381,11 +373,12 @@ impl Server {
                     EntityPositionAndRotation(pack) => {
                         match self.entities.get_mut(&pack.entity_id.0) {
                             Some(ent) => {
-                                let new_pos = ent.last_pos + Vec3::new(
-                                    (pack.dx as f32) / 4096.0,
-                                    (pack.dy as f32) / 4096.0,
-                                    (pack.dz as f32) / 4096.0,
-                                );
+                                let new_pos = ent.last_pos
+                                    + Vec3::new(
+                                        (pack.dx as f32) / 4096.0,
+                                        (pack.dy as f32) / 4096.0,
+                                        (pack.dz as f32) / 4096.0,
+                                    );
                                 ent.pos = new_pos;
                                 ent.last_pos = new_pos;
                                 ent.ori
@@ -407,10 +400,8 @@ impl Server {
 
                     EntityHeadLook(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.ori_head.set(
-                                pack.head_yaw as f32 / 256.0,
-                                ent.ori_head.get_head_pitch(),
-                            );
+                            ent.ori_head
+                                .set(pack.head_yaw as f32 / 256.0, ent.ori_head.get_head_pitch());
                         }
                         None => {}
                     },
@@ -444,27 +435,26 @@ impl Server {
                             pack.y as f32,
                             pack.z as f32,
                         ));
-                        self
-                            .player
+                        self.player
                             .get_orientation_mut()
                             .set(pack.yaw as f32, pack.pitch as f32);
 
-                        self.send_packet(encode(packets::TeleportConfirm{teleport_id: pack.teleport_id.clone()}));
+                        self.send_packet(encode(packets::TeleportConfirm {
+                            teleport_id: pack.teleport_id.clone(),
+                        }));
 
                         let px = self.player.get_position().x;
                         let py = self.player.get_position().y;
                         let pz = self.player.get_position().z;
 
-                        self.send_packet(
-                            encode(packets::PlayerPositionAndRotation{
-                                x: (px as f64),
-                                feet_y: (py as f64),
-                                z: (pz as f64),
-                                yaw: (pack.yaw),
-                                pitch: (pack.pitch),
-                                on_ground: (true),
-                            }),
-                        );
+                        self.send_packet(encode(packets::PlayerPositionAndRotation {
+                            x: (px as f64),
+                            feet_y: (py as f64),
+                            z: (pz as f64),
+                            yaw: (pack.yaw),
+                            pitch: (pack.pitch),
+                            on_ground: (true),
+                        }));
                     }
 
                     ChatIncoming(chat) => {
@@ -478,7 +468,7 @@ impl Server {
                     // Currently ignoring these packets
                     EntityMetadata(_) | EntityProperties(_) | EntityStatus(_)
                     | EntityAnimation(_) => {
-                        // self.log.log_incoming_packet(packet);
+                        
                     }
 
                     // Packets that have been forwarded but not handled properly
@@ -494,7 +484,6 @@ impl Server {
             }
         }
     }
-
 }
 
 #[derive(Debug, Copy, Clone)]

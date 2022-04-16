@@ -1,4 +1,8 @@
-use crate::{mcnetwork::types::UUID, renderer::Vertex, resources::{ENTITIES, self}};
+use crate::{
+    mcnetwork::types::UUID,
+    renderer::Vertex,
+    resources::{self, ENTITIES},
+};
 
 pub mod components;
 use components::*;
@@ -28,7 +32,9 @@ impl Entity {
             id: 0,
             uuid: UUID([0, 0]),
 
-            entity_type: ENTITIES.get(&entity_type).expect(&format!("No entity with id {}", &entity_type)),
+            entity_type: ENTITIES
+                .get(&entity_type)
+                .expect(&format!("No entity with id {}", &entity_type)),
             data: 0,
 
             pos: Vec3::new(0.0, 0.0, 0.0),
@@ -84,8 +90,6 @@ impl Entity {
         self.entity_type
     }
 
-
-
     pub fn update(&mut self, delta: f32) {
         let mut vel = self.vel;
         if self.on_ground {
@@ -94,47 +98,81 @@ impl Entity {
 
         self.pos += vel * delta;
     }
-
 }
 
 pub fn hitbox_model() -> Vec<Vertex> {
     vec![
-        Vertex{position: [-0.5, 0.0, -0.5]},
-        Vertex{position: [-0.5, 0.0, 0.5]},
-
-        Vertex{position: [-0.5, 0.0, 0.5]},
-        Vertex{position: [0.5, 0.0, 0.5]},
-
-        Vertex{position: [0.5, 0.0, 0.5]},
-        Vertex{position: [0.5, 0.0, -0.5]},
-
-        Vertex{position: [0.5, 0.0, -0.5]},
-        Vertex{position: [-0.5, 0.0, -0.5]},
-
-
-        Vertex{position: [-0.5, 1.0, -0.5]},
-        Vertex{position: [-0.5, 1.0, 0.5]},
-
-        Vertex{position: [-0.5, 1.0, 0.5]},
-        Vertex{position: [0.5, 1.0, 0.5]},
-
-        Vertex{position: [0.5, 1.0, 0.5]},
-        Vertex{position: [0.5, 1.0, -0.5]},
-
-        Vertex{position: [0.5, 1.0, -0.5]},
-        Vertex{position: [-0.5, 1.0, -0.5]},
-
-
-        Vertex{position: [-0.5, 0.0, -0.5]},
-        Vertex{position: [-0.5, 1.0, -0.5]},
-
-        Vertex{position: [0.5, 0.0, -0.5]},
-        Vertex{position: [0.5, 1.0, -0.5]},
-
-        Vertex{position: [0.5, 0.0, 0.5]},
-        Vertex{position: [0.5, 1.0, 0.5]},
-
-        Vertex{position: [-0.5, 0.0, 0.5]},
-        Vertex{position: [-0.5, 1.0, 0.5]},
-        ]
+        Vertex {
+            position: [-0.5, 0.0, -0.5],
+        },
+        Vertex {
+            position: [-0.5, 0.0, 0.5],
+        },
+        Vertex {
+            position: [-0.5, 0.0, 0.5],
+        },
+        Vertex {
+            position: [0.5, 0.0, 0.5],
+        },
+        Vertex {
+            position: [0.5, 0.0, 0.5],
+        },
+        Vertex {
+            position: [0.5, 0.0, -0.5],
+        },
+        Vertex {
+            position: [0.5, 0.0, -0.5],
+        },
+        Vertex {
+            position: [-0.5, 0.0, -0.5],
+        },
+        Vertex {
+            position: [-0.5, 1.0, -0.5],
+        },
+        Vertex {
+            position: [-0.5, 1.0, 0.5],
+        },
+        Vertex {
+            position: [-0.5, 1.0, 0.5],
+        },
+        Vertex {
+            position: [0.5, 1.0, 0.5],
+        },
+        Vertex {
+            position: [0.5, 1.0, 0.5],
+        },
+        Vertex {
+            position: [0.5, 1.0, -0.5],
+        },
+        Vertex {
+            position: [0.5, 1.0, -0.5],
+        },
+        Vertex {
+            position: [-0.5, 1.0, -0.5],
+        },
+        Vertex {
+            position: [-0.5, 0.0, -0.5],
+        },
+        Vertex {
+            position: [-0.5, 1.0, -0.5],
+        },
+        Vertex {
+            position: [0.5, 0.0, -0.5],
+        },
+        Vertex {
+            position: [0.5, 1.0, -0.5],
+        },
+        Vertex {
+            position: [0.5, 0.0, 0.5],
+        },
+        Vertex {
+            position: [0.5, 1.0, 0.5],
+        },
+        Vertex {
+            position: [-0.5, 0.0, 0.5],
+        },
+        Vertex {
+            position: [-0.5, 1.0, 0.5],
+        },
+    ]
 }

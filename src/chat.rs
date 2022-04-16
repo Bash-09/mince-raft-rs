@@ -1,4 +1,4 @@
-use mcnetwork::{types::UUID, packets::ChatIncoming};
+use mcnetwork::{packets::ChatIncoming, types::UUID};
 use serde_json::Value;
 
 pub struct Chat {

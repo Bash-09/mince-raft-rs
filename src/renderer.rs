@@ -1,14 +1,20 @@
 use std::collections::HashMap;
 
 use glam::{Mat4, Vec3};
-use glium::index::{NoIndices, PrimitiveType::{LineStrip, TrianglesList}};
+use glium::index::{
+    NoIndices,
+    PrimitiveType::{LineStrip, TrianglesList},
+};
 use glium::*;
 use glium::{Display, Surface};
 use log::info;
 
-use crate::{renderer::camera::Camera, entities::{self, Entity}};
+use crate::{
+    entities::{self, Entity},
+    renderer::camera::Camera,
+};
 
-use super::{server::Server};
+use super::server::Server;
 
 mod camera;
 mod shader;
@@ -25,22 +31,27 @@ pub struct Renderer {
 
     chunk_prog: Program,
 
-
     hitbox_prog: Program,
     hitbox_model: VertexBuffer<Vertex>,
-
 }
 
 impl Renderer {
     pub fn new(dis: &Display) -> Renderer {
-
         let hitbox_model = glium::VertexBuffer::new(dis, &entities::hitbox_model()).unwrap();
 
-        let prog = shader::compile_shaders(dis, include_bytes!("../shaders/test/v.glsl"), include_bytes!("../shaders/test/f.glsl"))
-            .expect("Failed to compile shaders");
+        let prog = shader::compile_shaders(
+            dis,
+            include_bytes!("../shaders/test/v.glsl"),
+            include_bytes!("../shaders/test/f.glsl"),
+        )
+        .expect("Failed to compile shaders");
 
-        let hitbox_prog = shader::compile_shaders(dis, include_bytes!("../shaders/hitboxes/v.glsl"), include_bytes!("../shaders/hitboxes/f.glsl"))
-            .expect("Failed to compile shaders");
+        let hitbox_prog = shader::compile_shaders(
+            dis,
+            include_bytes!("../shaders/hitboxes/v.glsl"),
+            include_bytes!("../shaders/hitboxes/f.glsl"),
+        )
+        .expect("Failed to compile shaders");
 
         log::debug!("Setup renderer!");
 
@@ -59,7 +70,6 @@ impl Renderer {
     }
 
     pub fn render_hitboxes(&mut self, target: &mut Frame, ents: &HashMap<i32, Entity>) {
-
         let params = DrawParameters {
             depth: Depth {
                 test: draw_parameters::DepthTest::IfLess,
@@ -81,17 +91,22 @@ impl Renderer {
             let mut tmat = Mat4::IDENTITY;
             tmat *= Mat4::from_translation(ent.pos);
             tmat *= Mat4::from_scale(Vec3::new(e.width, e.height, e.width));
-    
+
             let uniforms = uniform! {
                 pvmat: pvmat,
                 tmat: tmat.to_cols_array_2d(),
             };
 
-            target.draw(&self.hitbox_model, inds, &self.hitbox_prog, &uniforms, &params)
+            target
+                .draw(
+                    &self.hitbox_model,
+                    inds,
+                    &self.hitbox_prog,
+                    &uniforms,
+                    &params,
+                )
                 .expect("Error rendering hitbox");
-
         }
-
     }
 
     pub fn render_server(&mut self, target: &mut Frame, serv: &Server) {
@@ -114,7 +129,6 @@ impl Renderer {
         let mut points = vec![Vec3::new(0.0, 0.0, 0.0); 8];
 
         for (pos, chunk) in serv.get_world().get_chunks() {
-
             // Try to frustum cull this whole chunk column
             let cx = (pos.x * 16) as f32;
             let cz = (pos.y * 16) as f32;
@@ -185,6 +199,5 @@ impl Renderer {
         }
 
         self.render_hitboxes(target, serv.get_entities());
-
     }
 }

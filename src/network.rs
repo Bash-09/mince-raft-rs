@@ -1,15 +1,6 @@
-use log::debug;
 use log::{error, info, warn};
 use mcnetwork::packets;
-use miniz_oxide::{
-    deflate::compress_to_vec_zlib,
-    inflate::decompress_to_vec_zlib,
-};
-
-// pub mod packets;
-// use packets::*;
-// pub mod types;
-// use types::*;
+use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib};
 
 use mcnetwork::packets::*;
 use mcnetwork::types::*;
@@ -20,11 +11,9 @@ use std::{
     net::TcpStream,
     sync::mpsc::{self, Receiver, Sender},
     thread,
-    time::Duration,
 };
 
 use crate::server::*;
-
 
 pub const PROTOCOL_1_17_1: VarInt = VarInt(756);
 
@@ -81,7 +70,9 @@ impl NetworkManager {
                         //     .set_read_timeout(Some(Duration::from_millis(10)))
                         //     .expect("Failed to set timeout duration for socket");
 
-                        nm.stream.set_nonblocking(true).expect("Failed to set TcpStream nonblocking");
+                        nm.stream
+                            .set_nonblocking(true)
+                            .expect("Failed to set TcpStream nonblocking");
 
                         // Loop until stopped
                         while !nm.close {
@@ -110,9 +101,10 @@ impl NetworkManager {
             _ => {}
         }
 
-        Ok(
-            Server::new(destination.to_string(), NetworkChannel { send: tx, recv: rx }),
-        )
+        Ok(Server::new(
+            destination.to_string(),
+            NetworkChannel { send: tx, recv: rx },
+        ))
     }
 
     /// Manages any incoming packets or messages from other threads
@@ -129,7 +121,7 @@ impl NetworkManager {
             match self.next_packet() {
                 Ok(PacketData::Empty) => {
                     break;
-                },
+                }
                 Ok(packet) => {
                     self.handle_packet(packet);
                 }
@@ -144,10 +136,9 @@ impl NetworkManager {
     /// Panics if the TcpStream could not read the next data to prevent correupted packets and unexpected behaviour
     /// # Returns
     ///
-    /// Returns a Decoded Packet ready for processing, or None if there was no packet to receive.
+    /// Returns a Decoded Packet ready for processing, or Error if it failed.
     ///
     fn next_packet(&mut self) -> Result<PacketData, Box<dyn std::error::Error>> {
-
         let mut check = [0u8];
         match self.stream.peek(&mut check) {
             Ok(0) => {
@@ -155,33 +146,39 @@ impl NetworkManager {
             }
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::WouldBlock {
-                    return Ok(PacketData::Empty)
+                    return Ok(PacketData::Empty);
                 }
-                return Err(Box::new(e))
-            },
+                return Err(Box::new(e));
+            }
             _ => {}
         }
 
-        self.stream.set_nonblocking(false).expect("Failed to set TcpStream to blocking mode");
+        self.stream
+            .set_nonblocking(false)
+            .expect("Failed to set TcpStream to blocking mode");
         let VarInt(len) = VarInt::read(&mut self.stream)?;
 
         let mut buf = vec![0u8; len as usize];
         self.stream.read_exact(&mut buf)?;
-        self.stream.set_nonblocking(true).expect("Failed to set TcpStream to nonblocking mode");
-
+        self.stream
+            .set_nonblocking(true)
+            .expect("Failed to set TcpStream to nonblocking mode");
 
         if self.compress {
             let mut cur = Cursor::new(&buf);
             let VarInt(data_len) = VarInt::read(&mut cur)?;
 
             if data_len == 0 {
-                return Ok(decode_packet_clientbound(&buf[cur.position() as usize..], &self.state)?)
+                return Ok(decode_packet_clientbound(
+                    &buf[cur.position() as usize..],
+                    &self.state,
+                )?);
             }
 
             match decompress_to_vec_zlib(&buf[cur.position() as usize..]) {
                 Ok(uncompressed) => {
                     return Ok(decode_packet_clientbound(&uncompressed, &self.state)?)
-                },
+                }
                 Err(e) => {
                     todo!("Properly decompression error handling");
                 }
@@ -211,15 +208,14 @@ impl NetworkManager {
         };
 
         // Construct and send handshake and login packets
-        let handshake =
-            Handshake{
-                protocol_version: protocol, 
-                address: local_addr, 
-                port, 
-                next: VarInt(2)
-            };
+        let handshake = Handshake {
+            protocol_version: protocol,
+            address: local_addr,
+            port,
+            next: VarInt(2),
+        };
 
-        let login = LoginStart{name};
+        let login = LoginStart { name };
 
         self.send_packet(&encode(handshake))
             .expect("Failed to send handshake");
@@ -276,16 +272,19 @@ impl NetworkManager {
     }
 
     /// Sends a packet to the server
+    /// This should just be the packet contents signed with it's ID, not the packet length.
+    /// Sent packets will have their length signed inside this function to handle compression
     ///
     /// # Returns
     ///
-    /// * `Some(())` if the packet is successfully sent
-    /// * `None` if it is not
+    /// * `Ok(())` if the packet is successfully sent
+    /// * `Err` if it is not
     fn send_packet(&mut self, packet: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-
         let s = &mut self.stream;
-        s.set_nonblocking(false).expect("Failed to set Stream to blocking mode");
+        s.set_nonblocking(false)
+            .expect("Failed to set Stream to blocking mode");
 
+        // Handle zlib compression
         if self.compress {
             if packet.len() >= self.threshold {
                 let mut data_length = Vec::new();
@@ -302,11 +301,13 @@ impl NetworkManager {
                 s.write(&[0u8])?;
                 s.write(packet)?;
             }
-            return Ok(())
+            return Ok(());
         }
 
         VarInt(packet.len() as i32).write(s)?;
         s.write(packet)?;
+        s.set_nonblocking(true)
+            .expect("Failed to set TcpStream nonblocking");
         Ok(())
     }
 
@@ -318,11 +319,14 @@ impl NetworkManager {
                 self.login(protocol, port, name);
             }
             NetworkCommand::Disconnect => {
-                self.send_packet(&encode(Disconnect { reason: String::from("Player Disconnected") }));
+                self.send_packet(&encode(Disconnect {
+                    reason: String::from("Player Disconnected"),
+                }))
+                .expect("Failed to send packet");
                 self.close = true;
             }
             NetworkCommand::SendPacket(dp) => {
-                self.send_packet(&dp);
+                self.send_packet(&dp).expect("Failed to send packet");
             }
             _ => {}
         }
@@ -337,9 +341,10 @@ impl NetworkManager {
                 // println!("Got unknown packet: {:02x}", buf[0]);
             }
             KeepAliveClientbound(pack) => {
-                self.send_packet(&encode(packets::KeepAliveServerbound{
+                self.send_packet(&encode(packets::KeepAliveServerbound {
                     keep_alive_id: pack.keep_alive_id.clone(),
-                })).expect("Failed to send heartbeat");
+                }))
+                .expect("Failed to send heartbeat");
             }
 
             SetCompression(pack) => {
@@ -364,7 +369,9 @@ impl NetworkManager {
         if let Err(_) = self.channel.send.send(comm) {
             error!("Couldn't communicated with main thread, assuming connection was closed and disconnecting from server.");
             self.close = true;
-            self.send_packet(&encode(Disconnect { reason: String::from("Player Disconnected") }));
+            self.send_packet(&encode(Disconnect {
+                reason: String::from("Player Disconnected"),
+            })).expect("Failed to send Disconnect packet");
         }
     }
 }

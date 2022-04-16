@@ -3,10 +3,14 @@ use std::io::Cursor;
 use glam::{IVec2, IVec3};
 use glium::{Display, VertexBuffer};
 use log::debug;
-use mcnetwork::{packets::ChunkData, types::{PacketType, VarInt}};
+use mcnetwork::{
+    packets::ChunkData,
+    types::{PacketType, VarInt},
+};
 
 use crate::{
-    renderer::Vertex, resources::{BlockState, BLOCKS},
+    renderer::Vertex,
+    resources::{BlockState, BLOCKS},
 };
 
 #[derive(Debug)]
@@ -64,7 +68,9 @@ impl Chunk {
             return &BLOCKS.get(&0).unwrap();
         }
         return match &self.sections[y / 16] {
-            Some(cs) => &BLOCKS.get(&(cs.blocks[((y % 16) * 16 * 16 + z * 16 + x) as usize] as u32)).unwrap(),
+            Some(cs) => &BLOCKS
+                .get(&(cs.blocks[((y % 16) * 16 * 16 + z * 16 + x) as usize] as u32))
+                .unwrap(),
             None => &BLOCKS.get(&0).unwrap(),
         };
     }

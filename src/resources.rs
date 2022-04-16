@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use inflector::Inflector;
 use lazy_static::lazy_static;
-use serde_json::{self, Value, map::Values, to_string};
-
+use serde_json::{self, map::Values, to_string, Value};
 
 pub struct Entity {
     pub name: String,
@@ -50,7 +49,7 @@ lazy_static! {
             let name = format_name(name);
             for (id, state) in val.get("states").unwrap().as_object().unwrap().iter() {
                 let id = id.parse().unwrap();
-                blocks.insert(id, BlockState { 
+                blocks.insert(id, BlockState {
                     name: name.clone(),
                     id: id,
                     model: {
@@ -72,10 +71,12 @@ lazy_static! {
 
     pub static ref MODELS: HashMap<String, Value> = serde_json::from_slice(include_bytes!("../assets/models.min.json")).expect("Failed to interpret models.json");
     // pub static ref MODELS: HashMap<String, Value> = serde_json::from_slice(&std::fs::read("../assets/models.min.json").expect("Couldn't read file models.json")).expect("Failed to interpret models.json");
-    
+
 
 }
 
 pub fn format_name(name: &str) -> String {
-    name.replace("minecraft:", "").replace("_", " ").to_title_case()
+    name.replace("minecraft:", "")
+        .replace("_", " ")
+        .to_title_case()
 }

@@ -1,13 +1,9 @@
-
-
-
 pub struct State {
     pub mouse_grabbed: bool,
     pub mouse_visible: bool,
 
     pub options_visible: bool,
 }
-
 
 impl State {
     pub fn new() -> State {
