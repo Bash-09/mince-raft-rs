@@ -219,6 +219,7 @@ pub struct EntityAnimation {
 }
 
 #[derive(Debug, Clone)]
+#[derive_packet(0x07)]
 pub struct Statistics {
     pub stats_len: VarInt, // Count of next Vec
     pub stats: Vec<(
@@ -226,18 +227,6 @@ pub struct Statistics {
         VarInt, // Enum, Statistic ID
         VarInt, // Amount to set it to
     )>,
-}
-
-impl Packet for Statistics {
-    const ID: VarInt = VarInt(0x07);
-
-    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
-        todo!()
-    }
-
-    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        todo!()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -326,6 +315,7 @@ pub struct PlayerPosition {
 }
 
 #[derive(Debug, Clone)]
+#[derive_packet(0x11)]
 pub struct TabComplete {
     pub transaction_id: VarInt, // Transaction ID
     pub start: VarInt,          // Start of text to replace
@@ -333,21 +323,8 @@ pub struct TabComplete {
     pub matches_len: VarInt,    // Count of next Vec
     pub matches: Vec<(
         String,     // An elligible value to insert
-        bool,      // Has Tooltip
         Option<Chat>, // Tooltip
     )>,
-}
-
-impl Packet for TabComplete {
-    const ID: VarInt = VarInt(0x11);
-
-    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
-        todo!()
-    }
-
-    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        todo!()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -407,21 +384,10 @@ pub struct SetCooldown {
 }
 
 #[derive(Debug, Clone)]
+#[derive_packet(0x18)]
 pub struct PluginMessage {
     pub channel: Identifier, // Name of Plugin Channel used
     pub data: Vec<i8>,     // Data for that channel
-}
-
-impl Packet for PluginMessage {
-    const ID: VarInt = VarInt(0x18);
-
-    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
-        todo!()
-    }
-
-    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        todo!()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -451,6 +417,7 @@ pub struct EntityStatus {
 }
 
 #[derive(Debug, Clone)]
+#[derive_packet(0x1c)]
 pub struct Explosion {
     pub x: f32,           // X
     pub y: f32,           // Y
@@ -466,18 +433,6 @@ pub struct Explosion {
     pub vx: f32, // Vel X // Velocity of player being pushed by the explosion
     pub vy: f32, // Vel Y
     pub vz: f32, // Vel Z
-}
-
-impl Packet for Explosion {
-    const ID: VarInt = VarInt(0x1c);
-
-    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
-        todo!()
-    }
-
-    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        todo!()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -534,6 +489,7 @@ pub struct ChunkData {
 }
 
 #[derive(Debug, Clone)]
+#[derive_packet(0x25)]
 pub struct UpdateLight {
     pub chunk_x: VarInt,
     pub chunk_z: VarInt,
@@ -542,22 +498,8 @@ pub struct UpdateLight {
     pub block_light_mask: Vec<i64>,
     pub empty_sky_light_mask: Vec<i64>,
     pub empty_block_light_mask: Vec<i64>,
-    pub sky_lights_len: VarInt,
-    pub sky_lights: Vec<(VarInt, [i8; 2048])>,
-    pub block_lights_len: VarInt,
-    pub block_lights: Vec<(VarInt, [i8; 2048])>,
-}
-
-impl Packet for UpdateLight {
-    const ID: VarInt = VarInt(25);
-
-    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
-        todo!()
-    }
-
-    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        todo!()
-    }
+    pub sky_lights: Vec<Vec<i8>>,
+    pub block_lights: Vec<Vec<i8>>,
 }
 
 #[derive(Debug, Clone)]
@@ -681,6 +623,7 @@ pub struct EntityTeleport {
 }
 
 #[derive(Debug, Clone)]
+#[derive_packet(0x63)]
 pub struct EntityProperties {
     pub entity_id: VarInt,
     pub num_properties: VarInt,
@@ -688,7 +631,6 @@ pub struct EntityProperties {
         // List of properties
         Identifier, // Key
         f64,     // Value
-        VarInt,     // Num of Modifiers
         Vec<(
             // List of Modifier Data
             UUID,   // UUID
@@ -696,18 +638,6 @@ pub struct EntityProperties {
             i8,   // Operation
         )>,
     )>,
-}
-
-impl Packet for EntityProperties {
-    const ID: VarInt = VarInt(0x63);
-
-    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
-        todo!()
-    }
-
-    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
-        todo!()
-    }
 }
 
 #[derive(Debug, Clone)]

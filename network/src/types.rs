@@ -2,7 +2,7 @@
 
 use std::error::Error;
 use std::fmt::Display;
-use std::io::{Read, Write, Cursor};
+use std::io::{Read, Write};
 
 use quartz_nbt;
 
@@ -328,6 +328,7 @@ impl PacketType for NBTTag {
     fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
         let mut buf: Vec<u8> = Vec::new();
         quartz_nbt::io::write_nbt(&mut buf, None, &self.0, quartz_nbt::io::Flavor::Uncompressed)?;
+        w.write(&buf)?;
         Ok(())
     }
 }
@@ -401,5 +402,106 @@ impl<T: PacketType> PacketType for Vec<T> {
         }
 
         Ok(())
+    }
+}
+
+impl PacketType for (VarInt, VarInt, VarInt) {
+    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
+        Ok((
+            VarInt::read(r)?,
+            VarInt::read(r)?,
+            VarInt::read(r)?
+        ))
+    }
+
+    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+        self.0.write(w)?;
+        self.1.write(w)?;
+        self.2.write(w)?;
+
+        Ok(())
+    }
+}
+
+impl<T: PacketType> PacketType for Option<T> {
+    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
+        if bool::read(r)? {
+            Ok(Some(T::read(r)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+        match self {
+            Some(e) => {
+                true.write(w)?;
+                e.write(w)?;
+            },
+            None => {
+                false.write(w)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl PacketType for (String, Option<Chat>) {
+    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
+        Ok((
+            String::read(r)?,
+            Option::<Chat>::read(r)?,
+        ))
+    }
+
+    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+        self.0.write(w)?;
+        self.1.write(w)?;
+        Ok(())
+    }
+}
+
+impl PacketType for (i8, i8, i8) {
+    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
+        Ok((
+            i8::read(r)?,
+            i8::read(r)?,
+            i8::read(r)?,
+        ))
+    }
+
+    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+        self.0.write(w)?;
+        self.1.write(w)?;
+        self.2.write(w)?;
+        Ok(())
+    }
+}
+
+impl PacketType for (UUID, f64, i8) {
+    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
+        Ok((
+            UUID::read(r)?,
+            f64::read(r)?,
+            i8::read(r)?,
+        ))
+    }
+
+    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+        todo!()
+    }
+}
+
+impl PacketType for (Identifier, f64, Vec<(UUID, f64, i8)>) {
+    fn read<R: Read>(r: &mut R) -> Result<Self, Box<dyn std::error::Error>> where Self: Sized {
+        Ok((
+            Identifier::read(r)?,
+            f64::read(r)?,
+            Vec::<(UUID, f64, i8)>::read(r)?,
+        ))
+    }
+
+    fn write<W: Write>(&self, w: &mut W) -> Result<(), Box<dyn std::error::Error>> {
+        todo!()
     }
 }
