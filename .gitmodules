@@ -2,3 +2,6 @@
 	path = glium-app
 	url = git@github.com:Googe14/glium-app.git
 	branch = master
+[submodule "mcnetwork-rs"]
+	path = mcnetwork-rs
+	url = git@github.com:Googe14/mcnetwork-rs.git

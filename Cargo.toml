@@ -34,4 +34,4 @@ env_logger = "0.9.0"
 
 lazy_static = "*"
 
-mcnetwork = { path = "./network" }
+mcnetwork = { path = "./mcnetwork-rs" }

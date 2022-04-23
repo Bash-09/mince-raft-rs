@@ -6,6 +6,3 @@
 
 /assets/textures
 /assets/*.json
-
-/network/target
-/network/derive_packet/target
