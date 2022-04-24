@@ -6,3 +6,5 @@
 
 /assets/textures
 /assets/*.json
+
+/settings.json

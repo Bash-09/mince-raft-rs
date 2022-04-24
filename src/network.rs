@@ -1,3 +1,4 @@
+use log::debug;
 use log::{error, info, warn};
 use mcnetwork::packets;
 use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib};
@@ -45,7 +46,13 @@ impl NetworkManager {
         let (tx, ri) = mpsc::channel::<NetworkCommand>();
         let (ti, rx) = mpsc::channel::<NetworkCommand>();
 
-        let dest: String = destination.to_string();
+        let mut dest: String = destination.to_string();
+
+        // Check for port included in address
+        if !dest.contains(":") {
+            debug!("Server address didn't contain port, appending :25565");
+            dest.push_str(":25565");
+        }
 
         //Start new thread to be the network manager
         thread::Builder::new()

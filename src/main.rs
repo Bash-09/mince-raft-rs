@@ -8,7 +8,7 @@ extern crate quartz_nbt;
 
 extern crate mcnetwork;
 
-use std::time::Instant;
+use std::{time::Instant, collections::HashMap};
 
 use crate::network::*;
 
@@ -21,11 +21,12 @@ use egui_winit::winit::{
 };
 use glam::Vec3;
 use glium::glutin;
-use log::{debug, error, info};
+use gui::main_menu::{SavedServer, ServerStatus};
+use log::{debug, error, info, warn};
 
 use glium_app::context::Context;
 use glium_app::*;
-use mcnetwork::packets::{encode, PacketData, PlayerPositionAndRotation};
+use mcnetwork::packets::{encode, PlayerPositionAndRotation};
 use settings::Settings;
 use state::State;
 
@@ -67,6 +68,7 @@ pub struct Client {
     pub server: Option<Server>,
 
     pub settings: Settings,
+    pub server_pings: HashMap<SavedServer, ServerStatus>,
     pub state: State,
 
     period: f32,
@@ -99,6 +101,17 @@ impl Application for Client {
         let dims = ctx.dis.get_framebuffer_dimensions();
         let aspect = dims.0 as f32 / dims.1 as f32;
         self.rend.cam.set_aspect_ratio(aspect);
+
+
+        match Settings::read("settings.json") {
+            Ok(s) => {
+                self.settings = s;
+                info!("Successfully loaded settings.");
+            },
+            Err(e) => {
+                warn!("Could not read settings: {:?}", e);
+            }
+        }
 
         std::thread::spawn(|| {
             let start = Instant::now();
@@ -186,6 +199,24 @@ impl Application for Client {
     }
 
     fn close(&mut self) {
+
+        match self.settings.save("settings.json") {
+            Ok(_) => {
+                info!("Saved settings!");
+            },
+            Err(e) => {
+                error!("Failed to save settings: {:?}", e);
+            }
+        }
+
+        match &self.server {
+            Some(serv) => {
+                serv.send_command(NetworkCommand::Disconnect)
+                    .expect("Failed to send disconnect command to network commander.");
+            }
+            None => {}
+        }
+
         debug!("Closing App");
     }
 
@@ -224,20 +255,10 @@ impl Client {
 
             settings: Settings::default(),
             state: State::new(),
+            server_pings: HashMap::new(),
 
             period: 0.05,
             last_mod: 0.0,
-        }
-    }
-
-    pub fn close(&mut self) {
-        debug!("Closing client.");
-        match &self.server {
-            Some(serv) => {
-                serv.send_command(NetworkCommand::Disconnect)
-                    .expect("Failed to send disconnect command to network commander.");
-            }
-            None => {}
         }
     }
 }

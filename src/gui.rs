@@ -37,7 +37,7 @@ pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
                 }
             }
         }
-        None => match main_menu::render(gui_ctx, &mut cli.settings) {
+        None => match main_menu::render(gui_ctx, cli) {
             Some(mut s) => {
                 s.set_paused(false, &mut cli.state);
                 cli.state.options_visible = false;
