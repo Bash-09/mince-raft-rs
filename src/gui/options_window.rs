@@ -2,9 +2,11 @@ use std::ops::RangeInclusive;
 
 use egui::{Context, ScrollArea};
 
-use crate::{renderer::Renderer, settings::Settings, state::State};
+use crate::{renderer::Renderer, settings::{Settings, SETTINGS}, state::State};
 
-pub fn render(gui_ctx: &Context, state: &mut State, settings: &mut Settings, rend: &mut Renderer) {
+pub fn render(gui_ctx: &Context, state: &mut State, rend: &mut Renderer) {
+    let mut settings = SETTINGS.write().expect("Couldn't acquire settings");
+
     egui::Window::new("Settings")
         .open(&mut state.options_visible)
         .show(gui_ctx, |ui| {

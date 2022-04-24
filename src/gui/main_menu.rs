@@ -5,27 +5,20 @@ use serde::{Deserialize, Serialize};
 use crate::{
     network::{NetworkCommand, NetworkManager, PROTOCOL_1_17_1},
     server::Server,
-    settings::Settings, Client,
+    settings::{Settings, SETTINGS}, Client,
 };
 
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SavedServer {
     pub ip: String,
     pub name: String,
 }
 
-pub struct ServerStatus {
-    pub version: String, 
-    pub num_players: u32,
-    pub max_players: u32,
-    pub online_players: Vec<String>,
-}
-
-
 pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
     let mut serv = None;
 
+    let mut settings = SETTINGS.write().expect("Couldn't acquire settings");
 
     egui::SidePanel::left("Server manager")
     .resizable(true)
@@ -33,12 +26,12 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
 
         ui.heading("Account Settings");
 
-        ui.radio_value(&mut cli.settings.online_play, true, "Online mode");
-        ui.radio_value(&mut cli.settings.online_play, false, "Offline mode");
+        ui.radio_value(&mut settings.online_play, true, "Online mode");
+        ui.radio_value(&mut settings.online_play, false, "Offline mode");
 
         ui.separator();
 
-        if cli.settings.online_play {
+        if settings.online_play {
 
             ui.label("Online play is not yet implemented");
 
@@ -46,7 +39,7 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
 
             ui.horizontal(|ui| {
                 ui.label("Player Name: ");
-                ui.text_edit_singleline(&mut cli.settings.name);
+                ui.text_edit_singleline(&mut settings.name);
             });
 
         }
@@ -60,21 +53,20 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
         ui.add_space(15.0);
 
         ui.label("IP Address: ");
-        ui.text_edit_singleline(&mut cli.settings.direct_connection);
+        ui.text_edit_singleline(&mut settings.direct_connection);
 
         ui.horizontal(|ui| {
             if ui.button("Direct Connect").clicked() {
-                match connect(&cli.settings.direct_connection, cli.settings.name.clone()) {
+                match connect(&settings.direct_connection, settings.name.clone()) {
                     Ok(s) => serv = Some(s),
                     Err(e) => error!("Failed to connect to server: {:?}", e),
                 }
             }
 
             if ui.button("Save Server").clicked() {
-                cli.settings.saved_servers.push(SavedServer { 
-                    ip: cli.settings.direct_connection.clone(), 
-                    name: format!("Saved Server {}", cli.settings.saved_servers.len() + 1),
-                })
+                let ip = settings.direct_connection.clone();
+                let name = format!("Saved Server {}", settings.saved_servers.len() + 1);
+                settings.saved_servers.push(SavedServer { ip, name });
             }
         });
         ui.separator();
@@ -84,26 +76,62 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
             ui.add_space(15.0);
 
             let mut remove: Option<usize> = None;
-            for (i, s) in &mut cli.settings.saved_servers.iter().enumerate() {
+            for (i, s) in settings.saved_servers.iter().enumerate() {
                 ui.vertical(|ui| {
+                    ui.set_max_width(200.0);
                     ui.label(&s.name);
                     ui.label(&s.ip);
 
+
+
                     ui.horizontal(|ui| {
                         if ui.button("Connect").clicked() {
-                            match connect(&s.ip, cli.settings.name.clone()) {
+                            match connect(&s.ip, settings.name.clone()) {
                                 Ok(s) => serv = Some(s),
                                 Err(e) => error!("Failed to connect to server: {:?}", e),
                             }
+                        }
+                        if ui.button("Refresh").clicked() {
+                            match NetworkManager::connect(&s.ip) {
+                                Ok(server) => {
+                                    server.send_command(NetworkCommand::RequestStatus).unwrap();
+                                    cli.outstanding_server_pings.insert(s.clone(), server);
+                                },
+                                Err(e) => {
+                                    error!("Couldn't get status from server: {:?}", e);
+                                }
+                            };
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        if ui.button("Edit").clicked() {
+                            todo!();
                         }
                         if ui.button("Delete").clicked() {
                             remove = Some(i);
                         }
                     });
+
+                    ui.separator();
+
+                    match cli.server_pings.get(s) {
+                        Some(status) => {
+                            ui.label(&status.motd);
+                            ui.label(format!("Ping: {}ms", status.ping));
+                            ui.label(format!("{} / {} Players online.", status.num_players, status.max_players));
+
+                            if status.num_players > 0 {
+                                for p in &status.online_players {
+                                    ui.label(p);
+                                }
+                            }
+                        },
+                        None => {},
+                    }
                 });
             }
             if let Some(i) = remove {
-                cli.settings.saved_servers.remove(i);
+                settings.saved_servers.remove(i);
             }
         });
     });

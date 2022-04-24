@@ -3,7 +3,7 @@
 use egui::Context;
 use glium_app::Timer;
 
-use crate::Client;
+use crate::{Client, settings::SETTINGS};
 
 use self::pause_menu::PauseAction;
 
@@ -17,7 +17,7 @@ pub mod pause_menu;
 pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
     match &mut cli.server {
         Some(s) => {
-            if cli.settings.show_fps {
+            if SETTINGS.read().expect("Couldn't acquire settings").show_fps {
                 fps_counter::render(gui_ctx, t.fps(), t.delta());
             }
 
@@ -48,6 +48,6 @@ pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
     }
 
     if cli.state.options_visible {
-        options_window::render(gui_ctx, &mut cli.state, &mut cli.settings, &mut cli.rend);
+        options_window::render(gui_ctx, &mut cli.state, &mut cli.rend);
     }
 }

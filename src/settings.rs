@@ -1,7 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::{path::{Path, PathBuf}, sync::RwLock};
 
-use log::info;
+use log::{info, error};
 use serde::{Deserialize, Serialize};
+use lazy_static::lazy_static;
 
 use crate::gui::main_menu::SavedServer;
 
@@ -15,6 +16,16 @@ pub struct Settings {
     pub online_play: bool,
     pub name: String,
     pub saved_servers: Vec<SavedServer>,
+}
+
+lazy_static! {
+    pub static ref SETTINGS: RwLock<Settings> = RwLock::new(match Settings::read("settings.json") {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Couldn't load settings: {:?}", e);
+            Settings::default()
+        },
+    });
 }
 
 impl Settings {

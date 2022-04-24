@@ -11,7 +11,7 @@ use mcnetwork::{
 
 use crate::{
     network::{NetworkChannel, NetworkCommand},
-    settings::Settings,
+    settings::{Settings, SETTINGS},
     state::State,
     world::{chunks::{Chunk, self}, self},
 };
@@ -20,7 +20,7 @@ use super::{chat::Chat, entities::Entity, player::Player, world::World};
 
 pub struct Server {
     network_destination: String,
-    network: NetworkChannel,
+    pub network: NetworkChannel,
 
     world_time: i64,
     day_time: i64,
@@ -141,7 +141,9 @@ impl Server {
         }
     }
 
-    pub fn update(&mut self, ctx: &Context, state: &mut State, settings: &Settings, delta: f32) {
+    pub fn update(&mut self, ctx: &Context, state: &mut State, delta: f32) {
+        let settings = SETTINGS.read().expect("Couldn't acquire settings");
+
         for ent in self.entities.values_mut() {
             ent.update(delta);
         }

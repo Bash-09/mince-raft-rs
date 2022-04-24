@@ -5,8 +5,10 @@ use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib
 
 use mcnetwork::packets::*;
 use mcnetwork::types::*;
+use serde_json::Value;
 
 use std::io::Cursor;
+use std::time::{Instant, UNIX_EPOCH, SystemTime, Duration};
 use std::{
     io::{Error, Read, Write},
     net::TcpStream,
@@ -14,7 +16,6 @@ use std::{
     thread,
 };
 
-use crate::gui::main_menu::ServerStatus;
 use crate::server::*;
 
 pub const PROTOCOL_1_17_1: VarInt = VarInt(756);
@@ -31,38 +32,18 @@ pub struct NetworkManager {
     pub count: u32,
 }
 
+#[derive(Debug)]
+pub struct ServerStatus {
+    pub icon: Option<Vec<u8>>,
+    pub motd: String,
+    pub version: String, 
+    pub num_players: u32,
+    pub max_players: u32,
+    pub online_players: Vec<String>,
+    pub ping: u32,
+}
+
 impl NetworkManager {
-
-    pub fn status(destination: &str) -> Receiver<Result<ServerStatus, std::io::Error>> {
-
-        let (send, recv) = mpsc::channel::<Result<ServerStatus, std::io::Error>>();
-
-        let mut dest: String = destination.to_string();
-
-        // Check for port included in address
-        if !dest.contains(":") {
-            debug!("Server address didn't contain port, appending :25565");
-            dest.push_str(":25565");
-        }
-
-        thread::Builder::new()
-        .name("ServerPinger".to_string())
-        .spawn(move || {
-            match TcpStream::connect(dest) {
-                Ok(stream) => {
-                    
-                    
-
-                },
-                Err(e) => {
-                    send.send(Err(e)).expect("Failed to send error to main thread.");
-                }
-            }
-        }).expect("Failed to spawn Server Ping thread");
-
-        recv
-    }
-
 
     /// Attempts to connect to a server, returning a NetworkChannel to communicate with the NetworkManager and receive packets from
     ///
@@ -125,6 +106,7 @@ impl NetworkManager {
                             .expect("Couldn't shutdown TCPStream");
                     }
                     Err(e) => {
+                        error!("Cum");
                         ti.send(NetworkCommand::Error(e))
                             .expect("NetworkChannel Receiver cannot be reached");
                     }
@@ -311,6 +293,129 @@ impl NetworkManager {
         }
     }
 
+    fn status(&mut self) -> Option<ServerStatus> {
+        use std::net::SocketAddr;
+
+        // Extracts local address from TcpStream
+        let local_addr = match self.stream.local_addr() {
+            Err(e) => {
+                panic!("Failed to get local adress from TcpStream: {}", e);
+            }
+            Ok(addr) => match addr {
+                SocketAddr::V4(local) => local.ip().to_string(),
+                SocketAddr::V6(local) => local.ip().to_string(),
+            },
+        };
+
+        // Construct and send handshake and login packets
+        let handshake = Handshake {
+            protocol_version: VarInt(0),
+            address: local_addr,
+            port: 0,
+            next: VarInt(1),
+        };
+
+        let request = Request {};
+        
+        let now = Instant::now();
+        self.send_packet(&encode(handshake)).expect("Failed to send handshake");
+        self.send_packet(&encode(request)).expect("Failed to send status request");
+        self.send_packet(&encode(StatusPing {payload: 0})).expect("Failed to send Status Ping");
+
+        let ping;
+        let json_data;
+
+        loop {
+            match self.next_packet() {
+                Ok(PacketData::Empty) => {}
+                Ok(pack) => {
+                    match pack {
+                        PacketData::Response(Response { json }) => {
+                            ping = (Instant::now() - now).as_millis() as u32;
+                            json_data = json;
+                            break;
+                        },
+                        _ => {
+                            warn!("Got unexpected packet waiting for status response: {:?}", pack);
+                        }
+                    }
+                },
+                Err(e) => {
+                    error!("Couldn't get response from server status request: {:?}", e);
+                    return None;
+                }
+            }
+        }
+
+        let mut status = ServerStatus {
+            icon: None,
+            motd: String::new(),
+            version: String::new(),
+            num_players: 0,
+            max_players: 0,
+            online_players: Vec::new(),
+            ping,
+        };
+
+        let val: Value = serde_json::from_str(&json_data).expect("Couldn't read JSON data");
+        
+        if let Value::Object(map) = val {
+
+            // MOTD
+            if let Some(Value::Object(motd)) = map.get("description") {
+                if let Some(Value::String(motd)) = motd.get("text") {
+                    status.motd = motd.clone();
+                }
+            }
+
+            // Version
+            if let Some(Value::Object(version)) = map.get("version") {
+                if let Some(Value::String(version)) = version.get("name") {
+                    status.version = version.clone();
+                }
+            }
+
+            // Players
+            if let Some(Value::Object(players)) = map.get("players") {
+                // Max
+                if let Some(Value::Number(max)) = players.get("max") {
+                    status.max_players = max.as_u64().unwrap() as u32;
+                }
+                // Num online
+                if let Some(Value::Number(online)) = players.get("online") {
+                    status.num_players = online.as_u64().unwrap() as u32;
+                }
+                // Players online
+                if let Some(Value::Array(sample)) = players.get("sample") {
+                    for p in sample {
+
+                        if let Value::Object(pp) = p {
+                            if let Some(Value::String(name)) = pp.get("name") {
+                                status.online_players.push(name.to_string());
+                            }
+                        }
+
+                    }
+                }
+            }
+
+            // Favicon
+            if let Some(Value::String(favicon)) = map.get("favicon") {
+                match base64::decode(&(favicon.replace("\n", ""))[22..]) {
+                    Ok(bytes) => {
+                        status.icon = Some(bytes);
+                    },
+                    Err(e) => {
+                        error!("Couldn't interpret bytes from server favicon");
+                    }
+                }
+            }
+
+        }
+
+        Some(status)
+    }
+
     /// Sends a packet to the server
     /// This should just be the packet contents signed with it's ID, not the packet length.
     /// Sent packets will have their length signed inside this function to handle compression
@@ -367,6 +472,15 @@ impl NetworkManager {
             }
             NetworkCommand::SendPacket(dp) => {
                 self.send_packet(&dp).expect("Failed to send packet");
+            }
+            NetworkCommand::RequestStatus => {
+                match self.status() {
+                    Some(status) => {
+                        self.send_message(NetworkCommand::ReceiveStatus(status));
+                    },
+                    None => {},
+                }
+                self.close = true;
             }
             _ => {}
         }
@@ -435,7 +549,7 @@ pub enum NetworkCommand {
     ReceivePacket(PacketData),
 
     RequestStatus,
-    ReceiveStatus(),
+    ReceiveStatus(ServerStatus),
 
     Spawn,
 }

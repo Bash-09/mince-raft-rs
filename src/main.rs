@@ -8,7 +8,7 @@ extern crate quartz_nbt;
 
 extern crate mcnetwork;
 
-use std::{time::Instant, collections::HashMap};
+use std::{time::Instant, collections::HashMap, sync::mpsc::TryRecvError};
 
 use crate::network::*;
 
@@ -21,13 +21,13 @@ use egui_winit::winit::{
 };
 use glam::Vec3;
 use glium::glutin;
-use gui::main_menu::{SavedServer, ServerStatus};
+use gui::main_menu::{SavedServer};
 use log::{debug, error, info, warn};
 
 use glium_app::context::Context;
 use glium_app::*;
 use mcnetwork::packets::{encode, PlayerPositionAndRotation};
-use settings::Settings;
+use settings::{Settings, SETTINGS};
 use state::State;
 
 pub mod chat;
@@ -67,7 +67,7 @@ pub struct Client {
 
     pub server: Option<Server>,
 
-    pub settings: Settings,
+    pub outstanding_server_pings: HashMap<SavedServer, Server>,
     pub server_pings: HashMap<SavedServer, ServerStatus>,
     pub state: State,
 
@@ -103,15 +103,8 @@ impl Application for Client {
         self.rend.cam.set_aspect_ratio(aspect);
 
 
-        match Settings::read("settings.json") {
-            Ok(s) => {
-                self.settings = s;
-                info!("Successfully loaded settings.");
-            },
-            Err(e) => {
-                warn!("Could not read settings: {:?}", e);
-            }
-        }
+        let s = SETTINGS.read().expect("Failed to initialize settings.");
+        info!("Saved servers: {}", s.saved_servers.len());
 
         std::thread::spawn(|| {
             let start = Instant::now();
@@ -162,13 +155,30 @@ impl Application for Client {
                     .cam
                     .set_rot(serv.get_player().get_orientation().get_rotations() * -1.0);
 
-                serv.update(ctx, &mut self.state, &self.settings, delta);
+                serv.update(ctx, &mut self.state, delta);
 
                 if serv.disconnect {
                     self.server = None;
                 }
             }
-            None => {}
+            None => {
+                let Client { outstanding_server_pings, server_pings, .. } = self;
+                outstanding_server_pings.retain(|k, v| {
+
+                    match v.network.recv.try_recv() {
+                        Ok(NetworkCommand::ReceiveStatus(status)) => {
+                            server_pings.insert(k.clone(), status);
+                            return false;
+                        },
+                        Err(TryRecvError::Disconnected) => {
+                            return false;
+                        },
+                        _ => {}
+                    }
+
+                    true
+                });
+            }
         }
 
         // *********************** RENDER ***************************8
@@ -200,7 +210,7 @@ impl Application for Client {
 
     fn close(&mut self) {
 
-        match self.settings.save("settings.json") {
+        match SETTINGS.read().expect("Failed to get settings to save").save("settings.json") {
             Ok(_) => {
                 info!("Saved settings!");
             },
@@ -253,9 +263,9 @@ impl Client {
 
             server: None,
 
-            settings: Settings::default(),
             state: State::new(),
             server_pings: HashMap::new(),
+            outstanding_server_pings: HashMap::new(),
 
             period: 0.05,
             last_mod: 0.0,
