@@ -14,6 +14,7 @@ use std::{
     thread,
 };
 
+use crate::gui::main_menu::ServerStatus;
 use crate::server::*;
 
 pub const PROTOCOL_1_17_1: VarInt = VarInt(756);
@@ -31,6 +32,38 @@ pub struct NetworkManager {
 }
 
 impl NetworkManager {
+
+    pub fn status(destination: &str) -> Receiver<Result<ServerStatus, std::io::Error>> {
+
+        let (send, recv) = mpsc::channel::<Result<ServerStatus, std::io::Error>>();
+
+        let mut dest: String = destination.to_string();
+
+        // Check for port included in address
+        if !dest.contains(":") {
+            debug!("Server address didn't contain port, appending :25565");
+            dest.push_str(":25565");
+        }
+
+        thread::Builder::new()
+        .name("ServerPinger".to_string())
+        .spawn(move || {
+            match TcpStream::connect(dest) {
+                Ok(stream) => {
+                    
+                    
+
+                },
+                Err(e) => {
+                    send.send(Err(e)).expect("Failed to send error to main thread.");
+                }
+            }
+        }).expect("Failed to spawn Server Ping thread");
+
+        recv
+    }
+
+
     /// Attempts to connect to a server, returning a NetworkChannel to communicate with the NetworkManager and receive packets from
     ///
     /// # Arguments
@@ -39,7 +72,7 @@ impl NetworkManager {
     ///
     /// # Returns
     ///
-    /// * `Result<(NetworkChannel, Server), Error>` - Ok holding a channel to communicate with the new network thread, and a `Server` struct
+    /// * `Result<Server, Error>` - Ok holding a Server which can communicate with the new network thread
     ///     Or errors if the TcpStream could not be established.
     ///
     pub fn connect(destination: &str) -> Result<Server, Error> {
@@ -400,6 +433,9 @@ pub enum NetworkCommand {
 
     SendPacket(Vec<u8>),
     ReceivePacket(PacketData),
+
+    RequestStatus,
+    ReceiveStatus(),
 
     Spawn,
 }

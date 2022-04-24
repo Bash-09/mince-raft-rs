@@ -13,7 +13,6 @@ Settings / Options
         
         Online/Offline mode:
             Login/Logout
-            Offline Username
 
 Models/Rendering
     Refactor mesh construction to take a bundle of chunk sections
