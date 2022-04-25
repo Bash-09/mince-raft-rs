@@ -14,7 +14,8 @@ use crate::network::*;
 
 mod network;
 
-use egui::{FontData, FontDefinitions, FontFamily};
+use egui::{FontData, FontDefinitions, FontFamily, TextureHandle};
+use egui_extras::RetainedImage;
 use egui_winit::winit::{
     event::Event,
     window::{Icon, WindowBuilder},
@@ -67,8 +68,10 @@ pub struct Client {
 
     pub server: Option<Server>,
 
-    pub outstanding_server_pings: HashMap<SavedServer, Server>,
-    pub server_pings: HashMap<SavedServer, ServerStatus>,
+    pub outstanding_server_pings: HashMap<String, Server>,
+    pub server_pings: HashMap<String, ServerStatus>,
+    pub icon_handles: HashMap<String, RetainedImage>,
+
     pub state: State,
 
     period: f32,
@@ -264,8 +267,10 @@ impl Client {
             server: None,
 
             state: State::new(),
+
             server_pings: HashMap::new(),
             outstanding_server_pings: HashMap::new(),
+            icon_handles: HashMap::new(),
 
             period: 0.05,
             last_mod: 0.0,

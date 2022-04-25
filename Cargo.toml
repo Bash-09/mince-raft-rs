@@ -14,6 +14,7 @@ glium = "0.31"
 egui = "0.17.0"
 egui-winit = { version = "0.17.0", default-features = false }
 egui_glium = { version = "0.17.0", default-features = false, features = ["clipboard", "epi", "links"]}
+egui_extras = { version = "0.17.0", features = ["image"] }
 
 glium_app = { path = "glium-app" }
 
@@ -25,6 +26,7 @@ chrono = "0.4.19"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.73"
 base64 = "0.13.0"
+image = { version = "0.24", features = ["jpeg", "png"] }
 
 miniz_oxide = "0.5.0"   # ZLib compression library
 quartz_nbt = "0.2.4"    # NBT library
