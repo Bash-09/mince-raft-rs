@@ -13,21 +13,27 @@ use crate::{
     resources::{BlockState, BLOCKS},
 };
 
+pub type ChunkBlocks = [u16; 4096];
+
 #[derive(Debug)]
 pub struct ChunkSection {
     pub y: i32,
-    pub blocks: [u16; 4096],
+    pub blocks: ChunkBlocks,
 
-    vbo: VertexBuffer<Vertex>,
+    vbo: Option<VertexBuffer<Vertex>>,
 }
 
 impl ChunkSection {
-    pub fn get_vbo(&self) -> &VertexBuffer<Vertex> {
+    pub fn new(y: i32, blocks: ChunkBlocks) -> ChunkSection {
+        ChunkSection { y: y, blocks, vbo: None }
+    }
+
+    pub fn get_vbo(&self) -> &Option<VertexBuffer<Vertex>> {
         &self.vbo
     }
 
-    pub fn regenerate_mesh(&mut self, dis: &Display) {
-        self.vbo = generate_mesh(dis, &self.blocks);
+    pub fn load_mesh(&mut self, dis: &Display, verts: Vec<Vertex>) {
+        self.vbo = Some(glium::VertexBuffer::new(dis, &verts).unwrap());
     }
 }
 
@@ -188,12 +194,10 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
             }
         }
 
-        let vbo = generate_mesh(dis, &blocks);
-
         sections[i] = Some(ChunkSection {
             y: i as i32,
             blocks,
-            vbo,
+            vbo: None,
         });
     }
     sections
@@ -211,200 +215,4 @@ pub fn index_to_vec(i: usize) -> IVec3 {
     let z = (i / 16) % 16;
 
     IVec3::new(x as i32, y as i32, z as i32)
-}
-
-fn generate_mesh(dis: &Display, blocks: &[u16; 4096]) -> VertexBuffer<Vertex> {
-    let mut shapes: Vec<Vertex> = Vec::new();
-
-    for (i, b) in blocks.iter().enumerate() {
-        if *b == 0 {
-            continue;
-        }
-
-        let y = (i / (16 * 16)) as f32;
-        let z = ((i / 16) % 16) as f32;
-        let x = (i % 16) as f32;
-
-        // Top Face
-        let nx = x as i32;
-        let ny = y as i32 + 1;
-        let nz = z as i32;
-        let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
-        let mut extra = false;
-        if ni >= 0 && ni < 4096 {
-            extra = blocks[ni as usize] == 0;
-        }
-        if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z + 1.0],
-            });
-        }
-
-        // Bottom Face
-        let nx = x as i32;
-        let ny = y as i32 - 1;
-        let nz = z as i32;
-        let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
-        let mut extra = false;
-        if ni >= 0 && ni < 4096 {
-            extra = blocks[ni as usize] == 0;
-        }
-        if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z],
-            });
-        }
-
-        // North Face
-        let nx = x as i32;
-        let ny = y as i32;
-        let nz = z as i32 - 1;
-        let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
-        let mut extra = false;
-        if ni >= 0 && ni < 4096 {
-            extra = blocks[ni as usize] == 0;
-        }
-        if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z],
-            });
-        }
-
-        // South Face
-        let nx = x as i32;
-        let ny = y as i32;
-        let nz = z as i32 + 1;
-        let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
-        let mut extra = false;
-        if ni >= 0 && ni < 4096 {
-            extra = blocks[ni as usize] == 0;
-        }
-        if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z + 1.0],
-            });
-        }
-
-        // East Face
-        let nx = x as i32 + 1;
-        let ny = y as i32;
-        let nz = z as i32;
-        let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
-        let mut extra = false;
-        if ni >= 0 && ni < 4096 {
-            extra = blocks[ni as usize] == 0;
-        }
-        if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x + 1.0, y, z],
-            });
-        }
-
-        // West Face
-        let nx = x as i32 - 1;
-        let ny = y as i32;
-        let nz = z as i32;
-        let ni = ((ny % 16) * 16 * 16 + nz as i32 * 16 + nx as i32) as i32;
-        let mut extra = false;
-        if ni >= 0 && ni < 4096 {
-            extra = blocks[ni as usize] == 0;
-        }
-        if nx < 0 || nx > 15 || ny < 0 || ny > 15 || nz < 0 || nz > 15 || extra {
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y + 1.0, z + 1.0],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z],
-            });
-            shapes.push(Vertex {
-                position: [x, y, z + 1.0],
-            });
-        }
-    }
-
-    glium::VertexBuffer::new(dis, &shapes).unwrap()
 }

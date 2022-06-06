@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
 use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
+use glium::Display;
 
 use crate::resources::BlockState;
 
-use self::chunks::Chunk;
+use self::{chunks::Chunk, chunk_builder::ChunkBuilder};
 
 pub mod chunks;
+pub mod chunk_builder;
 
 pub struct World {
     chunks: HashMap<IVec2, Chunk>,
@@ -19,8 +21,15 @@ impl World {
         }
     }
 
-    pub fn insert_chunk(&mut self, chunk: Chunk) {
+    pub fn insert_chunk(&mut self, dis: &Display, chunk: Chunk) {
+        let chunk_coords = chunk.get_coords().clone();
         self.chunks.insert(*chunk.get_coords(), chunk);
+
+        self.regenerate_chunk(dis, IVec2::new(chunk_coords.x, chunk_coords.y));
+        self.regenerate_chunk(dis, IVec2::new(chunk_coords.x+1, chunk_coords.y+1));
+        self.regenerate_chunk(dis, IVec2::new(chunk_coords.x+1, chunk_coords.y-1));
+        self.regenerate_chunk(dis, IVec2::new(chunk_coords.x-1, chunk_coords.y+1));
+        self.regenerate_chunk(dis, IVec2::new(chunk_coords.x-1, chunk_coords.y-1));
     }
 
     pub fn get_chunks(&self) -> &HashMap<IVec2, Chunk> {
@@ -46,6 +55,41 @@ impl World {
             Some(c) => Some(c.block_at(local_chunk_coords(&coords))),
             None => None,
         };
+    }
+
+    pub fn regenerate_chunk_section(&mut self, dis: &Display, cs: IVec3) {
+        if let Some(chunk) = self.chunks.get(&cs.xz()) {
+            if chunk.sections[cs.y as usize].is_none() {return}
+
+            let north = self.chunks.get(&IVec2::new(cs.x, cs.z-1));
+            let east = self.chunks.get(&IVec2::new(cs.x+1, cs.z));
+            let south = self.chunks.get(&IVec2::new(cs.x, cs.z+1));
+            let west = self.chunks.get(&IVec2::new(cs.x-1, cs.z));
+
+            if north.is_none() || east.is_none() || south.is_none() || west.is_none() {
+                return;
+            }
+
+            let mesh = ChunkBuilder::generate_mesh(
+                &chunk.sections[cs.y as usize].as_ref().unwrap(),
+                if cs.y == 15 {&None} else {&chunk.sections[cs.y as usize + 1]},
+                if cs.y == 0 {&None} else {&chunk.sections[cs.y as usize - 1]},
+                &north.unwrap().sections[cs.y as usize], 
+                &east.unwrap().sections[cs.y as usize], 
+                &south.unwrap().sections[cs.y as usize], 
+                &west.unwrap().sections[cs.y as usize]
+            );
+
+            self.chunks.get_mut(&cs.xz()).unwrap()
+                .sections[cs.y as usize].as_mut().unwrap()
+                .load_mesh(dis, mesh);
+        }   
+    }
+
+    pub fn regenerate_chunk(&mut self, dis: &Display, cs: IVec2) {
+        for y in 0..16 {
+            self.regenerate_chunk_section(dis, IVec3::new(cs.x, y, cs.y));
+        }
     }
 }
 
@@ -80,7 +124,7 @@ pub fn chunk_section_at_coords(coords: &IVec3) -> IVec3 {
     )
 }
 
-/// Returns the block containing the given positionb
+/// Returns the block containing the given position
 pub fn block_coords(pos: &Vec3) -> IVec3 {
     IVec3::new(
         pos.x.floor() as i32,

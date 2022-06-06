@@ -14,7 +14,7 @@ use crate::network::*;
 
 mod network;
 
-use egui::{FontData, FontDefinitions, FontFamily, TextureHandle};
+use egui::{FontData, FontDefinitions, FontFamily};
 use egui_extras::RetainedImage;
 use egui_winit::winit::{
     event::Event,
@@ -22,13 +22,12 @@ use egui_winit::winit::{
 };
 use glam::Vec3;
 use glium::glutin;
-use gui::main_menu::{SavedServer};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 
 use glium_app::context::Context;
 use glium_app::*;
 use mcnetwork::packets::{encode, PlayerPositionAndRotation};
-use settings::{Settings, SETTINGS};
+use settings::SETTINGS;
 use state::State;
 
 pub mod chat;

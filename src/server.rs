@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::AddAssign};
 
 use egui_winit::winit::event::VirtualKeyCode;
-use glam::{Vec3, IVec3, Vec3Swizzles};
+use glam::{Vec3, IVec3, Vec3Swizzles, IVec2};
 use glium_app::context::Context;
 use log::{debug, error, info, warn};
 use mcnetwork::{
@@ -13,7 +13,7 @@ use crate::{
     network::{NetworkChannel, NetworkCommand},
     settings::{Settings, SETTINGS},
     state::State,
-    world::{chunks::{Chunk, self}, self},
+    world::{chunks::{Chunk, self, ChunkSection}, self, chunk_builder::ChunkBuilder},
 };
 
 use super::{chat::Chat, entities::Entity, player::Player, world::World};
@@ -161,7 +161,7 @@ impl Server {
         }
 
         // if !self.gui.show_gui {
-        let vel = 8.0 * delta;
+        let vel = 14.0 * delta;
 
         if !self.paused {
             if ctx.keyboard.is_pressed(&VirtualKeyCode::W) {
@@ -464,7 +464,11 @@ impl Server {
                     }
 
                     ChunkData(cd) => {
-                        self.world.insert_chunk(Chunk::new(&ctx.dis, &cd));
+                        self.world.insert_chunk(&ctx.dis, Chunk::new(&ctx.dis, &cd));
+                    }
+
+                    UnloadChunk(pack) => {
+                        self.world.get_chunks_mut().remove(&IVec2::new(pack.x, pack.z));
                     }
 
                     BlockChange(pack) => {
@@ -473,11 +477,34 @@ impl Server {
                         let chunk_coords = world::chunk_section_at_coords(&coords);
 
                         if let Some(chunk) = self.world.get_chunks_mut().get_mut(&chunk_coords.xz()) {
+                            if chunk.sections[chunk_coords.y as usize].is_none() {
+                                chunk.sections[chunk_coords.y as usize] = Some(ChunkSection::new(chunk_coords.y, [0; 4096]));
+                            }
+
                             if let Some(chunk_section) = &mut chunk.sections[chunk_coords.y as usize] {
                                 chunk_section.blocks[chunks::vec_to_index(&local_coords)] = pack.block_state_id.0 as u16;
-                                chunk_section.regenerate_mesh(&ctx.dis);
+                                self.world.regenerate_chunk_section(&ctx.dis,chunk_coords);
+
+                                if local_coords.x == 0 {
+                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x-1, chunk_coords.y, chunk_coords.z));
+                                }
+                                if local_coords.x == 15 {
+                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x+1, chunk_coords.y, chunk_coords.z));
+                                }
+                                if local_coords.y == 0 {
+                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y-1, chunk_coords.z));
+                                }
+                                if local_coords.y == 15 {
+                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y+1, chunk_coords.z));
+                                }
+                                if local_coords.z == 0 {
+                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z-1));
+                                }
+                                if local_coords.z == 15 {
+                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z+1));
+                                }
                             } else {
-                                warn!("Block update in empty chunk section");
+                                error!("Block update in empty chunk section");
                             }
                         } else {
                             warn!("Block update in unloaded chunk");
