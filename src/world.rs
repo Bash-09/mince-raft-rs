@@ -9,6 +9,7 @@ use self::{chunks::Chunk, chunk_builder::ChunkBuilder};
 
 pub mod chunks;
 pub mod chunk_builder;
+pub mod models;
 
 pub struct World {
     chunks: HashMap<IVec2, Chunk>,

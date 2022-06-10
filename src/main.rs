@@ -117,6 +117,11 @@ impl Application for Client {
 
             info!("Loading assets took {}ms", dur.as_millis());
         });
+
+        // Load textures
+
+        
+
     }
 
     fn update(&mut self, t: &glium_app::timer::Timer, ctx: &mut glium_app::context::Context) {
