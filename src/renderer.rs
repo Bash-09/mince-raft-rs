@@ -150,7 +150,9 @@ impl Renderer {
                 match section {
                     None => continue,
                     Some(cs) => {
-                        if cs.get_vbo().is_none() {continue}
+                        if cs.get_vbo().is_none() {
+                            continue;
+                        }
                         let vbo = cs.get_vbo().as_ref().unwrap();
 
                         let cy = (y * 16) as f32;

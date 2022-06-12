@@ -8,14 +8,13 @@ extern crate quartz_nbt;
 
 extern crate mcnetwork;
 
-use std::{time::Instant, collections::HashMap, sync::mpsc::TryRecvError};
+use std::{sync::mpsc::TryRecvError, time::Instant};
 
 use crate::network::*;
 
 mod network;
 
-use egui::{FontData, FontDefinitions, FontFamily};
-use egui_extras::RetainedImage;
+use egui::{Align2, FontData, FontDefinitions, FontFamily, Id, Vec2};
 use egui_winit::winit::{
     event::Event,
     window::{Icon, WindowBuilder},
@@ -24,10 +23,12 @@ use glam::Vec3;
 use glium::glutin;
 use log::{debug, error, info};
 
-use glium_app::context::Context;
 use glium_app::*;
+use glium_app::{
+    context::Context,
+    utils::persistent_window::{PersistentWindow, PersistentWindowManager},
+};
 use mcnetwork::packets::{encode, PlayerPositionAndRotation};
-use settings::SETTINGS;
 use state::State;
 
 pub mod chat;
@@ -40,8 +41,6 @@ pub mod server;
 pub mod settings;
 pub mod state;
 pub mod world;
-
-use self::{renderer::Renderer, server::Server};
 
 fn main() {
     env_logger::init();
@@ -62,16 +61,12 @@ fn main() {
     glium_app::run_with_context(client, ctx, el);
 }
 
+pub type WindowManagerType = State;
+pub type WindowManager = PersistentWindowManager<WindowManagerType>;
+
 pub struct Client {
-    pub rend: Renderer,
-
-    pub server: Option<Server>,
-
-    pub outstanding_server_pings: HashMap<String, Server>,
-    pub server_pings: HashMap<String, ServerStatus>,
-    pub icon_handles: HashMap<String, RetainedImage>,
-
     pub state: State,
+    pub window_manager: WindowManager,
 
     period: f32,
     last_mod: f32,
@@ -102,11 +97,7 @@ impl Application for Client {
 
         let dims = ctx.dis.get_framebuffer_dimensions();
         let aspect = dims.0 as f32 / dims.1 as f32;
-        self.rend.cam.set_aspect_ratio(aspect);
-
-
-        let s = SETTINGS.read().expect("Failed to initialize settings.");
-        info!("Saved servers: {}", s.saved_servers.len());
+        self.state.rend.cam.set_aspect_ratio(aspect);
 
         std::thread::spawn(|| {
             let start = Instant::now();
@@ -126,7 +117,7 @@ impl Application for Client {
         // Runs some code only once every self.period seconds
         let modulus = time % self.period;
         if modulus < self.last_mod {
-            match &self.server {
+            match &self.state.server {
                 Some(serv) => {
                     // Send player position update packets
                     if serv.get_player().id != 0 {
@@ -146,35 +137,74 @@ impl Application for Client {
         self.last_mod = modulus;
 
         // Runs some code while the server is valid
-        match &mut self.server {
+        match &mut self.state.server {
             Some(serv) => {
                 // Update camera
-                self.rend
+                self.state
+                    .rend
                     .cam
                     .set_pos(serv.get_player().get_position().clone());
-                self.rend.cam.translate(Vec3::new(0.0, 1.7, 0.0));
-                self.rend
+                self.state.rend.cam.translate(Vec3::new(0.0, 1.7, 0.0));
+                self.state
+                    .rend
                     .cam
                     .set_rot(serv.get_player().get_orientation().get_rotations() * -1.0);
 
-                serv.update(ctx, &mut self.state, delta);
+                serv.update(ctx, delta, &mut self.state.settings);
 
                 if serv.disconnect {
-                    self.server = None;
+                    // Disconnect dialog
+                    let reason = serv.disconnect_reason.clone();
+                    self.window_manager.push(PersistentWindow::new(Box::new(
+                        move |id, gui_ctx, state| {
+                            let mut open = true;
+
+                            egui::Window::new("Disconnected")
+                                .id(Id::new(id))
+                                .resizable(false)
+                                .collapsible(false)
+                                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+                                .show(gui_ctx, |ui| {
+                                    let mut label = None;
+
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(15.0);
+                                        label = Some(ui.label(match &reason {
+                                            Some(r) => r,
+                                            None => "No reason Specified.",
+                                        }));
+                                    });
+
+                                    ui.horizontal(|ui| {
+                                        let size = label.unwrap().rect.width() / 2.0;
+                                        ui.add_space(size);
+                                        open = !ui.button("Ok").clicked();
+                                        ui.add_space(size);
+                                    });
+                                });
+
+                            open
+                        },
+                    )));
+
+                    self.state.server = None;
                 }
             }
             None => {
-                let Client { outstanding_server_pings, server_pings, .. } = self;
+                let State {
+                    outstanding_server_pings,
+                    server_pings,
+                    ..
+                } = &mut self.state;
                 outstanding_server_pings.retain(|k, v| {
-
                     match v.network.recv.try_recv() {
                         Ok(NetworkCommand::ReceiveStatus(status)) => {
                             server_pings.insert(k.clone(), status);
                             return false;
-                        },
+                        }
                         Err(TryRecvError::Disconnected) => {
                             return false;
-                        },
+                        }
                         _ => {}
                     }
 
@@ -194,34 +224,45 @@ impl Application for Client {
         let mut target = dis.draw();
 
         // Render world if it exists
-        if let Some(s) = &self.server {
-            self.rend.render_server(&mut target, s);
+        if let Some(s) = &self.state.server {
+            self.state.rend.render_server(&mut target, s);
         }
 
         // GUI
         let _repaint = gui.run(&dis, |gui_ctx| {
             gui::render(gui_ctx, self, t);
+
+            let render_windows = match &self.state.server {
+                Some(s) => s.is_paused(),
+                None => true,
+            };
+            if render_windows {
+                self.window_manager.render(&mut self.state, gui_ctx);
+            }
         });
         gui.paint(dis, &mut target);
 
-        ctx.set_mouse_grabbed(self.state.mouse_grabbed).ok();
-        ctx.set_mouse_visible(self.state.mouse_visible);
+        let grab_mouse = match &self.state.server {
+            Some(s) => !s.is_paused(),
+            None => false,
+        };
+        ctx.set_mouse_grabbed(grab_mouse).ok();
+        ctx.set_mouse_visible(!grab_mouse);
 
         target.finish().unwrap();
     }
 
     fn close(&mut self) {
-
-        match SETTINGS.read().expect("Failed to get settings to save").save("settings.json") {
+        match self.state.settings.save("settings.json") {
             Ok(_) => {
                 info!("Saved settings!");
-            },
+            }
             Err(e) => {
                 error!("Failed to save settings: {:?}", e);
             }
         }
 
-        match &self.server {
+        match &self.state.server {
             Some(serv) => {
                 serv.send_command(NetworkCommand::Disconnect)
                     .expect("Failed to send disconnect command to network commander.");
@@ -238,11 +279,9 @@ impl Application for Client {
                 window_id: _,
                 event: glutin::event::WindowEvent::Focused(focused),
             } => {
-                if let Some(server) = &mut self.server {
+                if let Some(server) = &mut self.state.server {
                     if !focused {
-                        self.state.mouse_grabbed = false;
-                        self.state.mouse_visible = true;
-                        server.set_paused(true, &mut self.state);
+                        server.set_paused(true);
                     }
                 }
             }
@@ -251,7 +290,7 @@ impl Application for Client {
                 event: glutin::event::WindowEvent::Resized(new),
             } => {
                 let aspect = new.width as f32 / new.height as f32;
-                self.rend.cam.set_aspect_ratio(aspect);
+                self.state.rend.cam.set_aspect_ratio(aspect);
             }
             _ => {}
         }
@@ -261,15 +300,9 @@ impl Application for Client {
 impl Client {
     pub fn new(ctx: &Context) -> Client {
         Client {
-            rend: Renderer::new(&ctx.dis),
+            state: State::new(&ctx.dis),
 
-            server: None,
-
-            state: State::new(),
-
-            server_pings: HashMap::new(),
-            outstanding_server_pings: HashMap::new(),
-            icon_handles: HashMap::new(),
+            window_manager: PersistentWindowManager::new(),
 
             period: 0.05,
             last_mod: 0.0,

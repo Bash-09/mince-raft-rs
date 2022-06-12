@@ -3,7 +3,7 @@
 use egui::Context;
 use glium_app::Timer;
 
-use crate::{Client, settings::SETTINGS};
+use crate::Client;
 
 use self::pause_menu::PauseAction;
 
@@ -15,9 +15,9 @@ pub mod options_window;
 pub mod pause_menu;
 
 pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
-    match &mut cli.server {
+    match &mut cli.state.server {
         Some(s) => {
-            if SETTINGS.read().expect("Couldn't acquire settings").show_fps {
+            if cli.state.settings.show_fps {
                 fps_counter::render(gui_ctx, t.fps(), t.delta());
             }
 
@@ -25,13 +25,13 @@ pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
                 entities_window::render(gui_ctx, &s);
                 info_window::render(gui_ctx, &s);
 
-                match pause_menu::render(gui_ctx, &mut cli.state) {
+                match pause_menu::render(gui_ctx, &mut cli.window_manager) {
                     PauseAction::Unpause => {
-                        s.set_paused(false, &mut cli.state);
+                        s.set_paused(false);
                     }
                     PauseAction::Disconnect => {
                         s.disconnect();
-                        cli.server = None;
+                        cli.state.server = None;
                     }
                     _ => {}
                 }
@@ -39,15 +39,10 @@ pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
         }
         None => match main_menu::render(gui_ctx, cli) {
             Some(mut s) => {
-                s.set_paused(false, &mut cli.state);
-                cli.state.options_visible = false;
-                cli.server = Some(s);
+                s.set_paused(false);
+                cli.state.server = Some(s);
             }
             None => {}
         },
-    }
-
-    if cli.state.options_visible {
-        options_window::render(gui_ctx, &mut cli.state, &mut cli.rend);
     }
 }

@@ -9,7 +9,7 @@ use mcnetwork::types::*;
 use serde_json::Value;
 
 use std::io::Cursor;
-use std::time::{Instant, UNIX_EPOCH, SystemTime, Duration};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use std::{
     io::{Error, Read, Write},
     net::TcpStream,
@@ -37,7 +37,7 @@ pub struct NetworkManager {
 pub struct ServerStatus {
     pub icon: Option<Vec<u8>>,
     pub motd: String,
-    pub version: String, 
+    pub version: String,
     pub num_players: u32,
     pub max_players: u32,
     pub online_players: Vec<String>,
@@ -45,7 +45,6 @@ pub struct ServerStatus {
 }
 
 impl NetworkManager {
-
     /// Attempts to connect to a server, returning a NetworkChannel to communicate with the NetworkManager and receive packets from
     ///
     /// # Arguments
@@ -85,13 +84,6 @@ impl NetworkManager {
                             count: 0,
                         });
 
-                        // Send all clear to other thread
-                        nm.send_message(NetworkCommand::Ok);
-
-                        // nm.stream
-                        //     .set_read_timeout(Some(Duration::from_millis(10)))
-                        //     .expect("Failed to set timeout duration for socket");
-
                         nm.stream
                             .set_nonblocking(true)
                             .expect("Failed to set TcpStream nonblocking");
@@ -112,17 +104,7 @@ impl NetworkManager {
                             .expect("NetworkChannel Receiver cannot be reached");
                     }
                 }
-            })
-            .expect("Failed to start NetworkManager thread");
-
-        // Ensure the thread is running properly
-        match rx
-            .recv()
-            .expect("Somehow the channel to the network manager is already lost?")
-        {
-            NetworkCommand::Error(e) => return Err(e),
-            _ => {}
-        }
+            })?;
 
         Ok(Server::new(
             destination.to_string(),
@@ -317,11 +299,14 @@ impl NetworkManager {
         };
 
         let request = Request {};
-        
+
         let now = Instant::now();
-        self.send_packet(&encode(handshake)).expect("Failed to send handshake");
-        self.send_packet(&encode(request)).expect("Failed to send status request");
-        self.send_packet(&encode(StatusPing {payload: 0})).expect("Failed to send Status Ping");
+        self.send_packet(&encode(handshake))
+            .expect("Failed to send handshake");
+        self.send_packet(&encode(request))
+            .expect("Failed to send status request");
+        self.send_packet(&encode(StatusPing { payload: 0 }))
+            .expect("Failed to send Status Ping");
 
         let ping;
         let json_data;
@@ -329,16 +314,17 @@ impl NetworkManager {
         loop {
             match self.next_packet() {
                 Ok(PacketData::Empty) => {}
-                Ok(pack) => {
-                    match pack {
-                        PacketData::Response(Response { json }) => {
-                            ping = (Instant::now() - now).as_millis() as u32;
-                            json_data = json;
-                            break;
-                        },
-                        _ => {
-                            warn!("Got unexpected packet waiting for status response: {:?}", pack);
-                        }
+                Ok(pack) => match pack {
+                    PacketData::Response(Response { json }) => {
+                        ping = (Instant::now() - now).as_millis() as u32;
+                        json_data = json;
+                        break;
+                    }
+                    _ => {
+                        warn!(
+                            "Got unexpected packet waiting for status response: {:?}",
+                            pack
+                        );
                     }
                 },
                 Err(e) => {
@@ -359,9 +345,8 @@ impl NetworkManager {
         };
 
         let val: Value = serde_json::from_str(&json_data).expect("Couldn't read JSON data");
-        
-        if let Value::Object(map) = val {
 
+        if let Value::Object(map) = val {
             // MOTD
             if let Some(Value::Object(motd)) = map.get("description") {
                 if let Some(Value::String(motd)) = motd.get("text") {
@@ -389,13 +374,11 @@ impl NetworkManager {
                 // Players online
                 if let Some(Value::Array(sample)) = players.get("sample") {
                     for p in sample {
-
                         if let Value::Object(pp) = p {
                             if let Some(Value::String(name)) = pp.get("name") {
                                 status.online_players.push(name.to_string());
                             }
                         }
-
                     }
                 }
             }
@@ -405,13 +388,12 @@ impl NetworkManager {
                 match base64::decode(&(favicon.replace("\n", ""))[22..]) {
                     Ok(bytes) => {
                         status.icon = Some(bytes);
-                    },
+                    }
                     Err(e) => {
                         error!("Couldn't interpret bytes from server favicon");
                     }
                 }
             }
-
         }
 
         Some(status)
@@ -478,8 +460,8 @@ impl NetworkManager {
                 match self.status() {
                     Some(status) => {
                         self.send_message(NetworkCommand::ReceiveStatus(status));
-                    },
-                    None => {},
+                    }
+                    None => {}
                 }
                 self.close = true;
             }
@@ -526,7 +508,8 @@ impl NetworkManager {
             self.close = true;
             self.send_packet(&encode(Disconnect {
                 reason: String::from("Player Disconnected"),
-            })).expect("Failed to send Disconnect packet");
+            }))
+            .expect("Failed to send Disconnect packet");
         }
     }
 }

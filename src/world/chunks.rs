@@ -25,7 +25,11 @@ pub struct ChunkSection {
 
 impl ChunkSection {
     pub fn new(y: i32, blocks: ChunkBlocks) -> ChunkSection {
-        ChunkSection { y: y, blocks, vbo: None }
+        ChunkSection {
+            y: y,
+            blocks,
+            vbo: None,
+        }
     }
 
     pub fn get_vbo(&self) -> &Option<VertexBuffer<Vertex>> {
@@ -84,7 +88,6 @@ impl Chunk {
             None => &BLOCKS.get(&0).unwrap(),
         };
     }
-
 }
 
 /// Extracts the heightmap from chunk data

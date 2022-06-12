@@ -19,56 +19,65 @@ pub struct BlockState {
 }
 
 lazy_static! {
-
     pub static ref ENTITIES: HashMap<u32, Entity> = {
         let mut entities = HashMap::new();
 
-        let json: HashMap<String, Value> = serde_json::from_slice(include_bytes!("../assets/entities.min.json")).expect("Failed to interpret entities.json");
-        for(name, val) in json.iter() {
+        let json: HashMap<String, Value> =
+            serde_json::from_slice(include_bytes!("../assets/entities.min.json"))
+                .expect("Failed to interpret entities.json");
+        for (name, val) in json.iter() {
             if let Some(id) = val.get("id") {
-                entities.insert(id.as_u64().unwrap() as u32, Entity {
-                    name: format_name(name),
-                    id: id.as_u64().unwrap() as u32,
-                    translation_key: val.get("translation_key").unwrap().as_str().unwrap().to_string(),
-                    width: val.get("width").unwrap().as_f64().unwrap() as f32,
-                    height: val.get("height").unwrap().as_f64().unwrap() as f32,
-                });
+                entities.insert(
+                    id.as_u64().unwrap() as u32,
+                    Entity {
+                        name: format_name(name),
+                        id: id.as_u64().unwrap() as u32,
+                        translation_key: val
+                            .get("translation_key")
+                            .unwrap()
+                            .as_str()
+                            .unwrap()
+                            .to_string(),
+                        width: val.get("width").unwrap().as_f64().unwrap() as f32,
+                        height: val.get("height").unwrap().as_f64().unwrap() as f32,
+                    },
+                );
             }
         }
 
         entities
     };
-
     pub static ref BLOCKS: HashMap<u32, BlockState> = {
         let mut blocks = HashMap::new();
 
-        let json: HashMap<String, Value> = serde_json::from_slice(include_bytes!("../assets/blocks.min.json")).expect("Failed to interpret blocks.json");
-        for(name, val) in json.iter() {
+        let json: HashMap<String, Value> =
+            serde_json::from_slice(include_bytes!("../assets/blocks.min.json"))
+                .expect("Failed to interpret blocks.json");
+        for (name, val) in json.iter() {
             let name = format_name(name);
             for (id, state) in val.get("states").unwrap().as_object().unwrap().iter() {
                 let id = id.parse().unwrap();
-                blocks.insert(id, BlockState {
-                    name: name.clone(),
-                    id: id,
-                    model: {
-                        match state.get("model") {
-                            Some(model) => {
-                                Some(model.as_str().unwrap().to_string())
-                            },
-                            None => {
-                                None
+                blocks.insert(
+                    id,
+                    BlockState {
+                        name: name.clone(),
+                        id: id,
+                        model: {
+                            match state.get("model") {
+                                Some(model) => Some(model.as_str().unwrap().to_string()),
+                                None => None,
                             }
-                        }
+                        },
                     },
-                });
+                );
             }
         }
 
         blocks
     };
-
-    pub static ref MODELS: HashMap<String, Value> = serde_json::from_slice(include_bytes!("../assets/models.min.json")).expect("Failed to interpret models.json");
-
+    pub static ref MODELS: HashMap<String, Value> =
+        serde_json::from_slice(include_bytes!("../assets/models.min.json"))
+            .expect("Failed to interpret models.json");
 }
 
 pub fn format_name(name: &str) -> String {

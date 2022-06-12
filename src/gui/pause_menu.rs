@@ -1,6 +1,7 @@
-use egui::{Align2, Context, Rect, Vec2};
+use egui::{Align2, Context, Vec2};
+use glium_app::utils::persistent_window::PersistentWindowManager;
 
-use crate::{settings::Settings, state::State};
+use crate::{gui::options_window, WindowManagerType};
 
 pub enum PauseAction {
     Nothing,
@@ -9,7 +10,10 @@ pub enum PauseAction {
 }
 
 /// Returns if the player has chosen to disconnect from the server
-pub fn render(gui_ctx: &Context, state: &mut State) -> PauseAction {
+pub fn render(
+    gui_ctx: &Context,
+    wm: &mut PersistentWindowManager<WindowManagerType>,
+) -> PauseAction {
     let mut paused = true;
 
     let mut out = PauseAction::Nothing;
@@ -21,7 +25,7 @@ pub fn render(gui_ctx: &Context, state: &mut State) -> PauseAction {
         .open(&mut paused)
         .show(gui_ctx, |ui| {
             if ui.button("Settings").clicked() {
-                state.options_visible = true;
+                wm.push(options_window::new_options_window());
             }
 
             if ui.button("Disconnect").clicked() {

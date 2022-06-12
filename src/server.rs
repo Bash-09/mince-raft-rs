@@ -1,8 +1,8 @@
 use std::{collections::HashMap, ops::AddAssign};
 
 use egui_winit::winit::event::VirtualKeyCode;
-use glam::{Vec3, IVec3, Vec3Swizzles, IVec2};
-use glium_app::context::Context;
+use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
+use glium_app::{context::Context, utils::persistent_window::PersistentWindowManager};
 use log::{debug, error, info, warn};
 use mcnetwork::{
     packets::{self, *},
@@ -11,9 +11,12 @@ use mcnetwork::{
 
 use crate::{
     network::{NetworkChannel, NetworkCommand},
-    settings::{Settings, SETTINGS},
-    state::State,
-    world::{chunks::{Chunk, self, ChunkSection}, self, chunk_builder::ChunkBuilder},
+    settings::Settings,
+    world::{
+        self,
+        chunk_builder::ChunkBuilder,
+        chunks::{self, Chunk, ChunkSection},
+    },
 };
 
 use super::{chat::Chat, entities::Entity, player::Player, world::World};
@@ -37,6 +40,7 @@ pub struct Server {
 
     paused: bool,
     pub disconnect: bool,
+    pub disconnect_reason: Option<String>,
 }
 
 impl Server {
@@ -60,6 +64,7 @@ impl Server {
 
             paused: false,
             disconnect: false,
+            disconnect_reason: None,
         }
     }
 
@@ -103,14 +108,8 @@ impl Server {
         self.paused
     }
 
-    pub fn set_paused(&mut self, paused: bool, state: &mut State) {
+    pub fn set_paused(&mut self, paused: bool) {
         self.paused = paused;
-        state.mouse_visible = self.paused;
-        state.mouse_grabbed = !self.paused;
-
-        if !paused {
-            state.options_visible = false;
-        }
     }
 
     pub fn join_game(&mut self, player_id: i32) {
@@ -141,15 +140,13 @@ impl Server {
         }
     }
 
-    pub fn update(&mut self, ctx: &Context, state: &mut State, delta: f32) {
-        let settings = SETTINGS.read().expect("Couldn't acquire settings");
-
+    pub fn update(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
         for ent in self.entities.values_mut() {
             ent.update(delta);
         }
 
         if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
-            self.set_paused(!self.paused, state);
+            self.set_paused(!self.paused);
         }
 
         // Send chat message
@@ -285,6 +282,7 @@ impl Server {
                     }
 
                     Disconnect(pack) => {
+                        self.disconnect_reason = Some(pack.reason.clone());
                         info!("Disconnected from server: {}", pack.reason);
                         self.disconnect = true;
                     }
@@ -468,40 +466,90 @@ impl Server {
                     }
 
                     UnloadChunk(pack) => {
-                        self.world.get_chunks_mut().remove(&IVec2::new(pack.x, pack.z));
+                        self.world
+                            .get_chunks_mut()
+                            .remove(&IVec2::new(pack.x, pack.z));
                     }
 
                     BlockChange(pack) => {
-                        let coords = IVec3::new(pack.block_pos.0, pack.block_pos.1, pack.block_pos.2);
+                        let coords =
+                            IVec3::new(pack.block_pos.0, pack.block_pos.1, pack.block_pos.2);
                         let local_coords = world::local_chunk_section_coords(&coords);
                         let chunk_coords = world::chunk_section_at_coords(&coords);
 
-                        if let Some(chunk) = self.world.get_chunks_mut().get_mut(&chunk_coords.xz()) {
+                        if let Some(chunk) = self.world.get_chunks_mut().get_mut(&chunk_coords.xz())
+                        {
                             if chunk.sections[chunk_coords.y as usize].is_none() {
-                                chunk.sections[chunk_coords.y as usize] = Some(ChunkSection::new(chunk_coords.y, [0; 4096]));
+                                chunk.sections[chunk_coords.y as usize] =
+                                    Some(ChunkSection::new(chunk_coords.y, [0; 4096]));
                             }
 
-                            if let Some(chunk_section) = &mut chunk.sections[chunk_coords.y as usize] {
-                                chunk_section.blocks[chunks::vec_to_index(&local_coords)] = pack.block_state_id.0 as u16;
-                                self.world.regenerate_chunk_section(&ctx.dis,chunk_coords);
+                            if let Some(chunk_section) =
+                                &mut chunk.sections[chunk_coords.y as usize]
+                            {
+                                chunk_section.blocks[chunks::vec_to_index(&local_coords)] =
+                                    pack.block_state_id.0 as u16;
+                                self.world.regenerate_chunk_section(&ctx.dis, chunk_coords);
 
                                 if local_coords.x == 0 {
-                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x-1, chunk_coords.y, chunk_coords.z));
+                                    self.world.regenerate_chunk_section(
+                                        &ctx.dis,
+                                        IVec3::new(
+                                            chunk_coords.x - 1,
+                                            chunk_coords.y,
+                                            chunk_coords.z,
+                                        ),
+                                    );
                                 }
                                 if local_coords.x == 15 {
-                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x+1, chunk_coords.y, chunk_coords.z));
+                                    self.world.regenerate_chunk_section(
+                                        &ctx.dis,
+                                        IVec3::new(
+                                            chunk_coords.x + 1,
+                                            chunk_coords.y,
+                                            chunk_coords.z,
+                                        ),
+                                    );
                                 }
                                 if local_coords.y == 0 {
-                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y-1, chunk_coords.z));
+                                    self.world.regenerate_chunk_section(
+                                        &ctx.dis,
+                                        IVec3::new(
+                                            chunk_coords.x,
+                                            chunk_coords.y - 1,
+                                            chunk_coords.z,
+                                        ),
+                                    );
                                 }
                                 if local_coords.y == 15 {
-                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y+1, chunk_coords.z));
+                                    self.world.regenerate_chunk_section(
+                                        &ctx.dis,
+                                        IVec3::new(
+                                            chunk_coords.x,
+                                            chunk_coords.y + 1,
+                                            chunk_coords.z,
+                                        ),
+                                    );
                                 }
                                 if local_coords.z == 0 {
-                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z-1));
+                                    self.world.regenerate_chunk_section(
+                                        &ctx.dis,
+                                        IVec3::new(
+                                            chunk_coords.x,
+                                            chunk_coords.y,
+                                            chunk_coords.z - 1,
+                                        ),
+                                    );
                                 }
                                 if local_coords.z == 15 {
-                                    self.world.regenerate_chunk_section(&ctx.dis,IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z+1));
+                                    self.world.regenerate_chunk_section(
+                                        &ctx.dis,
+                                        IVec3::new(
+                                            chunk_coords.x,
+                                            chunk_coords.y,
+                                            chunk_coords.z + 1,
+                                        ),
+                                    );
                                 }
                             } else {
                                 error!("Block update in empty chunk section");
@@ -509,14 +557,11 @@ impl Server {
                         } else {
                             warn!("Block update in unloaded chunk");
                         }
-
                     }
 
                     // Currently ignoring these packets
                     EntityMetadata(_) | EntityProperties(_) | EntityStatus(_)
-                    | EntityAnimation(_) => {
-
-                    }
+                    | EntityAnimation(_) => {}
 
                     // Packets that have been forwarded but not handled properly
                     _ => {

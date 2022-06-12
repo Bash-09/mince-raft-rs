@@ -6,17 +6,18 @@ use crate::renderer::Vertex;
 
 use super::chunks::{ChunkBlocks, ChunkSection};
 
-
-
-
-pub struct ChunkBuilder {
-
-}
-
+pub struct ChunkBuilder {}
 
 impl ChunkBuilder {
-
-    pub fn generate_mesh(section: &ChunkSection, above: &Option<ChunkSection>, below: &Option<ChunkSection>, north: &Option<ChunkSection>, east: &Option<ChunkSection>, south: &Option<ChunkSection>, west: &Option<ChunkSection>) -> Vec<Vertex> {
+    pub fn generate_mesh(
+        section: &ChunkSection,
+        above: &Option<ChunkSection>,
+        below: &Option<ChunkSection>,
+        north: &Option<ChunkSection>,
+        east: &Option<ChunkSection>,
+        south: &Option<ChunkSection>,
+        west: &Option<ChunkSection>,
+    ) -> Vec<Vertex> {
         let mut verts: Vec<Vertex> = Vec::new();
 
         for (i, b) in section.blocks.iter().enumerate() {
@@ -61,7 +62,7 @@ impl ChunkBuilder {
             // North Face
             let nx = x;
             let ny = y;
-            let nz = (z-1).rem_euclid(16);
+            let nz = (z - 1).rem_euclid(16);
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_north = if z == 0 {
                 if let Some(north) = north {
@@ -76,7 +77,7 @@ impl ChunkBuilder {
             // South Face
             let nx = x;
             let ny = y;
-            let nz = (z+1).rem_euclid(16);
+            let nz = (z + 1).rem_euclid(16);
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_south = if z == 15 {
                 if let Some(south) = south {
@@ -89,7 +90,7 @@ impl ChunkBuilder {
             };
 
             // East Face
-            let nx = (x+1).rem_euclid(16);
+            let nx = (x + 1).rem_euclid(16);
             let ny = y;
             let nz = z;
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
@@ -104,7 +105,7 @@ impl ChunkBuilder {
             };
 
             // West Face
-            let nx = (x-1).rem_euclid(16);
+            let nx = (x - 1).rem_euclid(16);
             let ny = y;
             let nz = z;
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
@@ -119,17 +120,34 @@ impl ChunkBuilder {
             };
 
             verts.append(&mut ChunkBuilder::generate_block_mesh(
-                IVec3::new(x.try_into().unwrap(), y.try_into().unwrap(), z.try_into().unwrap()), 
-                *b, b_above, b_below, b_north, b_east, b_south, b_west));
-
+                IVec3::new(
+                    x.try_into().unwrap(),
+                    y.try_into().unwrap(),
+                    z.try_into().unwrap(),
+                ),
+                *b,
+                b_above,
+                b_below,
+                b_north,
+                b_east,
+                b_south,
+                b_west,
+            ));
         }
 
         verts
     }
 
-
-    fn generate_block_mesh(pos: IVec3, block: u16, above: u16, below: u16, north: u16, east: u16, south: u16, west: u16) -> Vec<Vertex> {
-
+    fn generate_block_mesh(
+        pos: IVec3,
+        block: u16,
+        above: u16,
+        below: u16,
+        north: u16,
+        east: u16,
+        south: u16,
+        west: u16,
+    ) -> Vec<Vertex> {
         let mut verts: Vec<Vertex> = Vec::new();
         let pos = pos.as_vec3();
 
@@ -142,7 +160,7 @@ impl ChunkBuilder {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z],
             });
             verts.push(Vertex {
-                position: [pos.x, pos.y + 1.0,pos.z],
+                position: [pos.x, pos.y + 1.0, pos.z],
             });
             verts.push(Vertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
@@ -262,5 +280,4 @@ impl ChunkBuilder {
 
         verts
     }
-
 }
