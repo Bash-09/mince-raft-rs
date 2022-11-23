@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use inflector::Inflector;
 use lazy_static::lazy_static;
-use serde_json::{self, map::Values, to_string, Value};
+use serde_json::{self, Value};
 
 pub struct Entity {
     pub name: String,
@@ -61,7 +61,7 @@ lazy_static! {
                     id,
                     BlockState {
                         name: name.clone(),
-                        id: id,
+                        id,
                         model: {
                             match state.get("model") {
                                 Some(model) => Some(model.as_str().unwrap().to_string()),

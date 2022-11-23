@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use egui_extras::RetainedImage;
 use glium::Display;
-use glium_app::context::Context;
 
-use crate::{network::ServerStatus, renderer::Renderer, server::Server, settings::Settings};
+use mcproto_rs::status;
+
+use crate::{renderer::Renderer, server::Server, settings::Settings};
 
 pub struct State {
     pub rend: Renderer,
@@ -13,7 +14,7 @@ pub struct State {
     pub server: Option<Server>,
 
     pub outstanding_server_pings: HashMap<String, Server>,
-    pub server_pings: HashMap<String, ServerStatus>,
+    pub server_pings: HashMap<String, status::StatusSpec>,
     pub icon_handles: HashMap<String, RetainedImage>,
 }
 

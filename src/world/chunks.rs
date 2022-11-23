@@ -3,10 +3,7 @@ use std::io::Cursor;
 use glam::{IVec2, IVec3};
 use glium::{Display, VertexBuffer};
 use log::debug;
-use mcnetwork::{
-    packets::ChunkData,
-    types::{PacketType, VarInt},
-};
+use mcproto_rs::v1_16_3::ChunkData;
 
 use crate::{
     renderer::Vertex,
@@ -26,7 +23,7 @@ pub struct ChunkSection {
 impl ChunkSection {
     pub fn new(y: i32, blocks: ChunkBlocks) -> ChunkSection {
         ChunkSection {
-            y: y,
+            y,
             blocks,
             vbo: None,
         }
@@ -57,7 +54,7 @@ impl Chunk {
         debug!("Processing chunk data");
 
         Chunk {
-            pos: IVec2::new(data.x, data.z),
+            pos: IVec2::new(data.position.x, data.position.z),
 
             heightmap: process_heightmap(data),
             sections: process_sections(dis, data),
@@ -94,7 +91,7 @@ impl Chunk {
 fn process_heightmap(data: &ChunkData) -> [u16; 256] {
     let mut map = [0u16; 256];
 
-    match &data.heightmaps.0.get::<_, &Vec<i64>>("MOTION_BLOCKING") {
+    match &data.heightmaps.root.get::<_, &Vec<i64>>("MOTION_BLOCKING") {
         Ok(list) => {
             let vals_per_long: usize = 7;
             for i in 0..256 as usize {

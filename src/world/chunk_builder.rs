@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 
-use glam::{IVec3, Vec3};
+use glam::IVec3;
 
 use crate::renderer::Vertex;
 
-use super::chunks::{ChunkBlocks, ChunkSection};
+use super::chunks::ChunkSection;
 
 pub struct ChunkBuilder {}
 

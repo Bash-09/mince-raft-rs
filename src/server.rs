@@ -2,19 +2,16 @@ use std::{collections::HashMap, ops::AddAssign};
 
 use egui_winit::winit::event::VirtualKeyCode;
 use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
-use glium_app::{context::Context, utils::persistent_window::PersistentWindowManager};
+use glium_app::context::Context;
+use lazy_static::__Deref;
 use log::{debug, error, info, warn};
-use mcnetwork::{
-    packets::{self, *},
-    types::VarInt,
-};
+use mcproto_rs::{v1_16_3::{Difficulty, PlayClientSettingsSpec, PlayClientStatusSpec, PlayClientChatMessageSpec, ClientStatusAction, PlayTeleportConfirmSpec, PlayClientPlayerPositionAndRotationSpec}, types::{self, EntityLocation}};
 
 use crate::{
-    network::{NetworkChannel, NetworkCommand},
+    network::{NetworkChannel, NetworkCommand, encode, PacketType},
     settings::Settings,
     world::{
         self,
-        chunk_builder::ChunkBuilder,
         chunks::{self, Chunk, ChunkSection},
     },
 };
@@ -123,7 +120,6 @@ impl Server {
             Err(e) => {
                 error!("Failed to communicate with network commander: {:?}", e);
                 panic!("Disconnected");
-                None
             }
         }
     }
@@ -135,7 +131,6 @@ impl Server {
             Err(e) => {
                 error!("Failed to communicate with network commander: {:?}", e);
                 panic!("Disconnected");
-                None
             }
         }
     }
@@ -154,7 +149,7 @@ impl Server {
             let text = self.chat.get_message_and_clear();
             self.chat.send = false;
 
-            self.send_packet(encode(ChatServerbound { message: text }));
+            self.send_packet(encode(PlayClientChatMessageSpec{ message: text }));
         }
 
         // if !self.gui.show_gui {
@@ -257,71 +252,64 @@ impl Server {
         match comm {
             // Handles any incoming packets
             ReceivePacket(packet) => {
-                use PacketData::*;
                 match &packet {
-                    ServerDifficulty(pack) => {
-                        self.difficulty = match pack.difficulty {
-                            1 => Difficulty::Easy,
-                            2 => Difficulty::Medium,
-                            3 => Difficulty::Hard,
-                            _ => Difficulty::Peaceful,
-                        };
+                    PacketType::PlayServerDifficulty(pack) => {
+                        self.difficulty = pack.difficulty;
                         self.difficulty_locked = pack.locked;
                         info!("Changed difficulty: {}", pack.locked);
                     }
 
-                    TimeUpdate(pack) => {
+                    PacketType::PlayTimeUpdate(pack) => {
                         self.world_time = pack.world_age;
-                        self.day_time = pack.day_time;
+                        self.day_time = pack.time_of_day;
                     }
 
-                    UpdateHealth(pack) => {
+                    PacketType::PlayUpdatehealth(pack) => {
                         self.player.health = pack.health;
                         self.player.food = pack.food.0;
                         self.player.saturation = pack.saturation;
                     }
 
-                    Disconnect(pack) => {
-                        self.disconnect_reason = Some(pack.reason.clone());
-                        info!("Disconnected from server: {}", pack.reason);
+                    PacketType::PlayDisconnect(pack) => {
+                        self.disconnect_reason = pack.reason.to_traditional();
+                        info!("Disconnected from server: {:?}", self.disconnect_reason);
                         self.disconnect = true;
                     }
 
-                    LoginSuccess(pack) => {
+                    PacketType::LoginSuccess(pack) => {
                         info!("Successfully Logged in!");
                     }
 
-                    JoinGame(id) => {
-                        self.join_game(id.player_id);
-                        self.send_packet(encode(packets::ClientSettings {
+                    PacketType::PlayJoinGame(id) => {
+                        self.join_game(id.entity_id);
+                        self.send_packet(encode(PlayClientSettingsSpec {
                             locale: self.player.locale.clone(),
                             view_distance: (self.player.view_distance),
-                            chat_mode: VarInt(self.player.chat_mode),
+                            chat_mode: self.player.chat_mode,
                             chat_colors: (false),
-                            display_skin_parts: (self.player.displayed_skin_parts),
-                            main_hand: VarInt(self.player.main_hand),
-                            disable_text_filtering: (self.player.disable_text_filtering),
+                            displayed_skin_parts: self.player.displayed_skin_parts,
+                            main_hand: self.player.main_hand,
                         }));
-                        self.send_packet(encode(packets::ClientStatus { action: VarInt(0) }));
+                        self.send_packet(encode(PlayClientStatusSpec { action: ClientStatusAction::PerformRespawn }));
                     }
 
-                    SpawnLivingEntity(pack) => {
+                    PacketType::PlaySpawnLivingEntity(pack) => {
                         match self.entities.insert(
                             pack.entity_id.0,
                             Entity::new_with_values(
                                 pack.entity_id.0,
-                                pack.uuid.clone(),
+                                pack.entity_uuid.clone(),
                                 pack.entity_type.0 as u32,
                                 0,
-                                pack.x as f32,
-                                pack.y as f32,
-                                pack.z as f32,
-                                (pack.yaw as f32) / 255.0,
-                                (pack.pitch as f32) / 255.0,
-                                (pack.head_pitch as f32) / 255.0,
-                                (pack.vx as f32) / 400.0,
-                                (pack.vy as f32) / 400.0,
-                                (pack.vz as f32) / 400.0,
+                                pack.location.position.x as f32,
+                                pack.location.position.y as f32,
+                                pack.location.position.z as f32,
+                                pack.location.rotation.yaw.value as f32 / 255.0,
+                                pack.location.rotation.pitch.value as f32 / 255.0,
+                                pack.head_pitch.value as f32 / 255.0,
+                                pack.velocity.x as f32 / 400.0,
+                                pack.velocity.y as f32 / 400.0,
+                                pack.velocity.z as f32 / 400.0,
                             ),
                         ) {
                             Some(_) => {}
@@ -329,40 +317,40 @@ impl Server {
                         }
                     }
 
-                    SpawnEntity(pack) => {
+                    PacketType::PlaySpawnEntity(pack) => {
                         self.entities.insert(
                             pack.entity_id.0,
                             Entity::new_with_values(
                                 pack.entity_id.0,
-                                pack.uuid.clone(),
+                                pack.object_uuid.clone(),
                                 pack.entity_type.0 as u32,
                                 pack.data,
-                                pack.x as f32,
-                                pack.y as f32,
-                                pack.z as f32,
-                                (pack.yaw as f32) / 255.0,
-                                (pack.pitch as f32) / 255.0,
+                                pack.position.x as f32,
+                                pack.position.y as f32,
+                                pack.position.z as f32,
+                                pack.yaw.value as f32 / 255.0,
+                                pack.pitch.value as f32 / 255.0,
                                 0.0,
-                                (pack.vx as f32) / 400.0,
-                                (pack.vy as f32) / 400.0,
-                                (pack.vz as f32) / 400.0,
+                                pack.velocity.x as f32 / 400.0,
+                                pack.velocity.y as f32 / 400.0,
+                                pack.velocity.z as f32 / 400.0,
                             ),
                         );
                     }
 
-                    DestroyEntities(pack) => {
-                        for eid in &pack.entities {
+                    PacketType::PlayDestroyEntities(pack) => {
+                        for eid in pack.entity_ids.deref() {
                             self.entities.remove(&eid.0);
                         }
                     }
 
-                    EntityPosition(pack) => match self.entities.get_mut(&pack.entity_id.0) {
+                    PacketType::PlayEntityPosition(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             let new_pos = ent.last_pos
                                 + Vec3::new(
-                                    (pack.dx as f32) / 4096.0,
-                                    (pack.dy as f32) / 4096.0,
-                                    (pack.dz as f32) / 4096.0,
+                                    (pack.delta.x as f32) / 4096.0,
+                                    (pack.delta.y as f32) / 4096.0,
+                                    (pack.delta.z as f32) / 4096.0,
                                 );
                             ent.pos = new_pos;
                             ent.last_pos = new_pos;
@@ -370,76 +358,76 @@ impl Server {
                         None => {}
                     },
 
-                    EntityPositionAndRotation(pack) => {
+                    PacketType::PlayEntityPositionAndRotation(pack) => {
                         match self.entities.get_mut(&pack.entity_id.0) {
                             Some(ent) => {
                                 let new_pos = ent.last_pos
                                     + Vec3::new(
-                                        (pack.dx as f32) / 4096.0,
-                                        (pack.dy as f32) / 4096.0,
-                                        (pack.dz as f32) / 4096.0,
+                                        (pack.delta.position.x as f32) / 4096.0,
+                                        (pack.delta.position.y as f32) / 4096.0,
+                                        (pack.delta.position.z as f32) / 4096.0,
                                     );
                                 ent.pos = new_pos;
                                 ent.last_pos = new_pos;
                                 ent.ori
-                                    .set(pack.yaw as f32 / 256.0, pack.pitch as f32 / 256.0);
+                                    .set(pack.delta.rotation.yaw.value as f32 / 256.0, pack.delta.rotation.pitch.value as f32 / 256.0);
                                 ent.on_ground = pack.on_ground;
                             }
                             None => {}
                         }
                     }
 
-                    EntityRotation(pack) => match self.entities.get_mut(&pack.entity_id.0) {
+                    PacketType::PlayEntityRotation(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.ori
-                                .set(pack.yaw as f32 / 256.0, pack.pitch as f32 / 256.0);
+                                .set(pack.rotation.yaw.value as f32 / 256.0, pack.rotation.pitch.value as f32 / 256.0);
                             ent.on_ground = pack.on_ground;
                         }
                         None => {}
                     },
 
-                    EntityHeadLook(pack) => match self.entities.get_mut(&pack.entity_id.0) {
+                    PacketType::PlayEntityHeadLook(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.ori_head
-                                .set(pack.head_yaw as f32 / 256.0, ent.ori_head.get_head_pitch());
+                                .set(pack.head_yaw.value as f32 / 256.0, ent.ori_head.get_head_pitch());
                         }
                         None => {}
                     },
 
-                    EntityVelocity(pack) => match self.entities.get_mut(&pack.entity_id.0) {
+                    PacketType::PlayEntityVelocity(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
                             ent.vel = Vec3::new(
-                                pack.vx as f32 / 400.0,
-                                pack.vy as f32 / 400.0,
-                                pack.vz as f32 / 400.0,
+                                pack.velocity.x as f32 / 400.0,
+                                pack.velocity.y as f32 / 400.0,
+                                pack.velocity.z as f32 / 400.0,
                             );
                         }
                         None => {}
                     },
 
-                    EntityTeleport(pack) => match self.entities.get_mut(&pack.entity_id.0) {
+                    PacketType::PlayEntityTeleport(pack) => match self.entities.get_mut(&pack.entity_id.0) {
                         Some(ent) => {
-                            ent.pos = Vec3::new(pack.x as f32, pack.y as f32, pack.z as f32);
+                            ent.pos = Vec3::new(pack.location.position.x as f32, pack.location.position.y as f32, pack.location.position.z as f32);
                             ent.ori
-                                .set(pack.yaw as f32 / 256.0, pack.pitch as f32 / 256.0);
+                                .set(pack.location.rotation.yaw.value as f32 / 256.0, pack.location.rotation.pitch.value as f32 / 256.0);
                             ent.on_ground = pack.on_ground;
                         }
                         None => {}
                     },
 
-                    PlayerPositionAndLook(pack) => {
+                    PacketType::PlayServerPlayerPositionAndLook(pack) => {
                         debug!("Player position updated!");
 
                         self.player.set_position(Vec3::new(
-                            pack.x as f32,
-                            pack.y as f32,
-                            pack.z as f32,
+                            pack.location.position.x as f32,
+                            pack.location.position.y as f32,
+                            pack.location.position.z as f32,
                         ));
                         self.player
                             .get_orientation_mut()
-                            .set(pack.yaw as f32, pack.pitch as f32);
+                            .set(pack.location.rotation.yaw, pack.location.rotation.pitch);
 
-                        self.send_packet(encode(packets::TeleportConfirm {
+                        self.send_packet(encode(PlayTeleportConfirmSpec {
                             teleport_id: pack.teleport_id.clone(),
                         }));
 
@@ -447,33 +435,32 @@ impl Server {
                         let py = self.player.get_position().y;
                         let pz = self.player.get_position().z;
 
-                        self.send_packet(encode(packets::PlayerPositionAndRotation {
-                            x: (px as f64),
-                            feet_y: (py as f64),
-                            z: (pz as f64),
-                            yaw: (pack.yaw),
-                            pitch: (pack.pitch),
+                        self.send_packet(encode(PlayClientPlayerPositionAndRotationSpec {
                             on_ground: (true),
+                            feet_location: EntityLocation {
+                                position: types::Vec3{x: px as f64, y: py as f64, z: pz as f64},
+                                rotation: pack.location.rotation,
+                            },
                         }));
                     }
 
-                    ChatIncoming(chat) => {
+                    PacketType::PlayServerChatMessage(chat) => {
                         self.chat.add_message(chat);
                     }
 
-                    ChunkData(cd) => {
-                        self.world.insert_chunk(&ctx.dis, Chunk::new(&ctx.dis, &cd));
+                    PacketType::PlayChunkData(cd) => {
+                        self.world.insert_chunk(&ctx.dis, Chunk::new(&ctx.dis, &cd.data));
                     }
 
-                    UnloadChunk(pack) => {
+                    PacketType::PlayUnloadChunk(pack) => {
                         self.world
                             .get_chunks_mut()
-                            .remove(&IVec2::new(pack.x, pack.z));
+                            .remove(&IVec2::new(pack.position.x, pack.position.z));
                     }
 
-                    BlockChange(pack) => {
+                    PacketType::PlayBlockChange(pack) => {
                         let coords =
-                            IVec3::new(pack.block_pos.0, pack.block_pos.1, pack.block_pos.2);
+                            IVec3::new(pack.location.x, pack.location.y as i32, pack.location.z);
                         let local_coords = world::local_chunk_section_coords(&coords);
                         let chunk_coords = world::chunk_section_at_coords(&coords);
 
@@ -488,7 +475,7 @@ impl Server {
                                 &mut chunk.sections[chunk_coords.y as usize]
                             {
                                 chunk_section.blocks[chunks::vec_to_index(&local_coords)] =
-                                    pack.block_state_id.0 as u16;
+                                    pack.block_id.0 as u16;
                                 self.world.regenerate_chunk_section(&ctx.dis, chunk_coords);
 
                                 if local_coords.x == 0 {
@@ -560,8 +547,8 @@ impl Server {
                     }
 
                     // Currently ignoring these packets
-                    EntityMetadata(_) | EntityProperties(_) | EntityStatus(_)
-                    | EntityAnimation(_) => {}
+                    PacketType::PlayEntityMetadata(_) | PacketType::PlayEntityProperties(_) | PacketType::PlayEntityStatus(_)
+                    | PacketType::PlayEntityAnimation(_) => {}
 
                     // Packets that have been forwarded but not handled properly
                     _ => {
@@ -576,12 +563,4 @@ impl Server {
             }
         }
     }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum Difficulty {
-    Peaceful,
-    Easy,
-    Medium,
-    Hard,
 }

@@ -563,7 +563,7 @@ fn write_varint<W: Write>(w: &mut W, val: i32) -> io::Result<()> {
     Ok(())
 }
 
-fn encode<S: Serialize>(packet: S) -> Vec<u8> {
+pub fn encode<S: Serialize>(packet: S) -> Vec<u8> {
     let mut serializer = BytesSerializer {
         data: Vec::new(),
     };

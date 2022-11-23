@@ -5,7 +5,7 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    network::{NetworkCommand, NetworkManager, PROTOCOL_1_17_1},
+    network::{NetworkCommand, NetworkManager},
     server::Server,
     state::State,
     Client,

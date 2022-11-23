@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use glam::{Mat4, Vec3};
 use glium::index::{
     NoIndices,
-    PrimitiveType::{LineStrip, TrianglesList},
+    PrimitiveType::TrianglesList,
 };
 use glium::*;
 use glium::{Display, Surface};
-use log::info;
+
 
 use crate::{
     entities::{self, Entity},

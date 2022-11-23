@@ -1,8 +1,8 @@
-use mcnetwork::{packets::ChatIncoming, types::UUID};
+use mcproto_rs::{types, v1_16_3::PlayServerChatMessageSpec};
 use serde_json::Value;
 
 pub struct Chat {
-    history: Vec<ChatMessage>,
+    history: Vec<types::Chat>,
 
     input: String,
     pub send: bool,
@@ -21,7 +21,7 @@ impl Chat {
         &self.history
     }
 
-    pub fn add_message(&mut self, chat: &ChatIncoming) {
+    pub fn add_message(&mut self, chat: &PlayServerChatMessageSpec) {
         let value: Value =
             serde_json::from_str(&chat.json).expect("Failed to unwrap JSON from chat message");
 

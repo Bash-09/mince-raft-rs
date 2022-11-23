@@ -6,8 +6,6 @@ extern crate lazy_static;
 extern crate log;
 extern crate quartz_nbt;
 
-extern crate mcnetwork;
-
 use std::{sync::mpsc::TryRecvError, time::Instant};
 
 use crate::network::*;
@@ -28,7 +26,7 @@ use glium_app::{
     context::Context,
     utils::persistent_window::{PersistentWindow, PersistentWindowManager},
 };
-use mcnetwork::packets::{encode, PlayerPositionAndRotation};
+use mcproto_rs::{v1_16_3::PlayClientPlayerPositionAndRotationSpec, types::{EntityLocation, self}};
 use state::State;
 
 pub mod chat;
@@ -121,13 +119,19 @@ impl Application for Client {
                 Some(serv) => {
                     // Send player position update packets
                     if serv.get_player().id != 0 {
-                        serv.send_packet(encode(PlayerPositionAndRotation {
-                            x: (serv.get_player().get_position().x as f64),
-                            feet_y: (serv.get_player().get_position().y as f64),
-                            z: (serv.get_player().get_position().z as f64),
-                            yaw: (serv.get_player().get_orientation().get_yaw() as f32),
-                            pitch: (serv.get_player().get_orientation().get_head_pitch() as f32),
-                            on_ground: (true),
+                        serv.send_packet(encode(PlayClientPlayerPositionAndRotationSpec {
+                            feet_location: EntityLocation{
+                                position: types::Vec3{
+                                    x: serv.get_player().get_position().x as f64,
+                                    y: serv.get_player().get_position().y as f64,
+                                    z: serv.get_player().get_position().z as f64
+                                },
+                                rotation: types::EntityRotation {
+                                    yaw: serv.get_player().get_orientation().get_yaw() as f32,
+                                    pitch: serv.get_player().get_orientation().get_head_pitch() as f32,
+                                },
+                            },
+                            on_ground: true,
                         }));
                     }
                 }
