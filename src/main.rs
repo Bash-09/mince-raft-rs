@@ -143,7 +143,7 @@ impl Application for Client {
                 self.state
                     .rend
                     .cam
-                    .set_pos(serv.get_player().get_position().clone());
+                    .set_pos(*serv.get_player().get_position());
                 self.state.rend.cam.translate(Vec3::new(0.0, 1.7, 0.0));
                 self.state
                     .rend
@@ -156,7 +156,7 @@ impl Application for Client {
                     // Disconnect dialog
                     let reason = serv.disconnect_reason.clone();
                     self.window_manager.push(PersistentWindow::new(Box::new(
-                        move |id, gui_ctx, state| {
+                        move |id, _, gui_ctx, _state| {
                             let mut open = true;
 
                             egui::Window::new("Disconnected")
@@ -229,7 +229,7 @@ impl Application for Client {
         }
 
         // GUI
-        let _repaint = gui.run(&dis, |gui_ctx| {
+        let _repaint = gui.run(dis, |gui_ctx| {
             gui::render(gui_ctx, self, t);
 
             let render_windows = match &self.state.server {
@@ -252,7 +252,7 @@ impl Application for Client {
         target.finish().unwrap();
     }
 
-    fn close(&mut self) {
+    fn close(&mut self, ctx: &Context) {
         match self.state.settings.save("settings.json") {
             Ok(_) => {
                 info!("Saved settings!");

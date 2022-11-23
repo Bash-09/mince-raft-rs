@@ -30,6 +30,8 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
 
             ui.separator();
 
+            ui.label("Cum");
+
             if cli.state.settings.online_play {
                 ui.label("Online play is not yet implemented");
             } else {
@@ -123,7 +125,7 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
 
                                 // Edit
                                 wm.push(PersistentWindow::new(Box::new(
-                                    move |id, gui_ctx, state| {
+                                    move |id, _, gui_ctx, state| {
                                         let current_length = state.settings.saved_servers.len();
                                         if current_length != len || index >= current_length {
                                             return false;

@@ -6,7 +6,7 @@ use glium_app::utils::persistent_window::PersistentWindow;
 use crate::WindowManagerType;
 
 pub fn new_options_window() -> PersistentWindow<WindowManagerType> {
-    PersistentWindow::new(Box::new(move |id, gui_ctx, state| {
+    PersistentWindow::new(Box::new(move |id, _, gui_ctx, state| {
         let mut open = true;
 
         egui::Window::new("Settings")
