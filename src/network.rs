@@ -470,7 +470,7 @@ impl NetworkManager {
     /// Handles an incoming packet
     fn handle_packet(&mut self, packet: PacketType) {
         match &packet {
-            PacketType::PlayClientKeepAlive(pack) => {
+            PacketType::PlayServerKeepAlive(pack) => {
                 self.send_packet(&encode(PacketType::PlayClientKeepAlive(PlayClientKeepAliveSpec{id: pack.id}))).expect("Failed to send heartbeat.");
             },
             PacketType::LoginSetCompression(pack) => {
@@ -567,8 +567,6 @@ pub fn write_varint<W: Write>(w: &mut W, val: i32) -> io::Result<()> {
 }
 
 pub fn encode(packet: PacketType) -> Vec<u8> {
-    log::debug!("Encoding packet: {:?}", packet);
-
     let mut id: Vec<u8> = Vec::new();
     write_varint(&mut id, packet.id().id).unwrap();
 

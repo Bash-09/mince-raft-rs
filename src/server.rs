@@ -219,20 +219,8 @@ impl Server {
 
         // }
 
-        // Collect messages from the NetworkManager
-        let mut command_queue: Vec<NetworkCommand> = Vec::new();
-        loop {
-            match self.network.recv.try_recv() {
-                Ok(comm) => {
-                    command_queue.push(comm);
-                }
-                Err(_) => {
-                    break;
-                }
-            }
-        }
-        // Handle messages from the network manager
-        for comm in command_queue {
+        // Handle messages from the NetworkManager
+        while let Ok(comm) = self.network.recv.try_recv() {
             self.handle_message(comm, ctx);
         }
     }
