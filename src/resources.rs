@@ -33,7 +33,7 @@ lazy_static! {
                         name: format_name(name),
                         id: id.as_u64().unwrap() as u32,
                         translation_key: val
-                            .get("translation_key")
+                            .get("loot_table")
                             .unwrap()
                             .as_str()
                             .unwrap()

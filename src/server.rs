@@ -94,7 +94,7 @@ impl Server {
     }
 
     pub fn get_difficulty(&self) -> Difficulty {
-        self.difficulty
+        self.difficulty.clone()
     }
 
     pub fn is_difficulty_locked(&self) -> bool {
@@ -149,7 +149,7 @@ impl Server {
             let text = self.chat.get_message_and_clear();
             self.chat.send = false;
 
-            self.send_packet(encode(PlayClientChatMessageSpec{ message: text }));
+            self.send_packet(encode(PacketType::PlayClientChatMessage(PlayClientChatMessageSpec{ message: text })));
         }
 
         // if !self.gui.show_gui {
@@ -252,7 +252,7 @@ impl Server {
         match comm {
             // Handles any incoming packets
             ReceivePacket(packet) => {
-                match &packet {
+                match packet {
                     PacketType::PlayServerDifficulty(pack) => {
                         self.difficulty = pack.difficulty;
                         self.difficulty_locked = pack.locked;
@@ -282,15 +282,15 @@ impl Server {
 
                     PacketType::PlayJoinGame(id) => {
                         self.join_game(id.entity_id);
-                        self.send_packet(encode(PlayClientSettingsSpec {
+                        self.send_packet(encode(PacketType::PlayClientSettings(PlayClientSettingsSpec {
                             locale: self.player.locale.clone(),
                             view_distance: (self.player.view_distance),
-                            chat_mode: self.player.chat_mode,
+                            chat_mode: self.player.chat_mode.clone(),
                             chat_colors: (false),
                             displayed_skin_parts: self.player.displayed_skin_parts,
-                            main_hand: self.player.main_hand,
-                        }));
-                        self.send_packet(encode(PlayClientStatusSpec { action: ClientStatusAction::PerformRespawn }));
+                            main_hand: self.player.main_hand.clone(),
+                        })));
+                        self.send_packet(encode(PacketType::PlayClientStatus(PlayClientStatusSpec { action: ClientStatusAction::PerformRespawn })));
                     }
 
                     PacketType::PlaySpawnLivingEntity(pack) => {
@@ -427,21 +427,21 @@ impl Server {
                             .get_orientation_mut()
                             .set(pack.location.rotation.yaw, pack.location.rotation.pitch);
 
-                        self.send_packet(encode(PlayTeleportConfirmSpec {
+                        self.send_packet(encode(PacketType::PlayTeleportConfirm(PlayTeleportConfirmSpec {
                             teleport_id: pack.teleport_id.clone(),
-                        }));
+                        })));
 
                         let px = self.player.get_position().x;
                         let py = self.player.get_position().y;
                         let pz = self.player.get_position().z;
 
-                        self.send_packet(encode(PlayClientPlayerPositionAndRotationSpec {
+                        self.send_packet(encode(PacketType::PlayClientPlayerPositionAndRotation(PlayClientPlayerPositionAndRotationSpec {
                             on_ground: (true),
                             feet_location: EntityLocation {
                                 position: types::Vec3{x: px as f64, y: py as f64, z: pz as f64},
                                 rotation: pack.location.rotation,
                             },
-                        }));
+                        })));
                     }
 
                     PacketType::PlayServerChatMessage(chat) => {

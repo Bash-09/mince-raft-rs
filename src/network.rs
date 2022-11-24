@@ -1,12 +1,12 @@
-
 use log::debug;
 use log::{error, info, warn};
-use mcproto_rs::protocol::{RawPacket, Id, PacketErr};
+use mcproto_rs::protocol::{RawPacket, Id, PacketErr, HasPacketId, HasPacketBody};
 use mcproto_rs::types::{BytesSerializer, self, VarInt, TextComponent, BaseComponent};
-use mcproto_rs::{v1_16_3::*, status};
-use mcproto_rs::{protocol, v1_16_3, Serialize};
+use mcproto_rs::{v1_16_3::*, status, Serializer};
+use mcproto_rs::{protocol, v1_16_3};
 use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib};
 
+use std::fmt::Debug;
 use std::io::{Cursor, self, ErrorKind};
 use std::time::Instant;
 use std::{
@@ -18,6 +18,7 @@ use std::{
 
 use crate::server::*;
 
+pub const PROTOCOL: i32 = 753;
 pub type PacketType = v1_16_3::Packet753;
 pub type RawPacketType<'a> = v1_16_3::RawPacket753<'a>;
 
@@ -63,7 +64,7 @@ impl NetworkManager {
         let mut dest: String = destination.to_string();
 
         // Check for port included in address
-        if !dest.contains(":") {
+        if !dest.contains(':') {
             debug!("Server address didn't contain port, appending :25565");
             dest.push_str(":25565");
         }
@@ -192,7 +193,7 @@ impl NetworkManager {
             }
 
             match decompress_to_vec_zlib(&buf[cur.position() as usize..]) {
-                Ok(uncompressed) => {
+                Ok(mut uncompressed) => {
                     let mut cur = Cursor::new(&mut uncompressed);
                     let id = read_varint(&mut cur)?;
                     let id = Id {
@@ -201,7 +202,7 @@ impl NetworkManager {
                         direction: protocol::PacketDirection::ClientBound,
                     };
                     return Ok(
-                        match RawPacketType::create(id, &uncompressed[cur.position() as usize..]) {
+                        match RawPacketType::create(id, cur.remaining_slice()) {
                             Ok(raw_packet) => raw_packet.deserialize(),
                             Err(e) => Err(e),
                         }
@@ -216,13 +217,16 @@ impl NetworkManager {
 
         let mut cur = Cursor::new(&mut buf);
         let id = read_varint(&mut cur)?;
+        let contents = cur.remaining_slice();
+        log::debug!("Got packet with ID: {:#x}", id);
+        log::debug!("Packet length: {}", contents.len());
         let id = Id {
             id,
             state: self.state,
             direction: protocol::PacketDirection::ClientBound,
         };
         return Ok(
-            match RawPacketType::create(id, &buf[cur.position() as usize..]) {
+            match RawPacketType::create(id, contents) {
                 Ok(raw_packet) => raw_packet.deserialize(),
                 Err(e) => Err(e),
             }
@@ -260,10 +264,10 @@ impl NetworkManager {
             name,
         };
 
-        self.send_packet(&encode(handshake))
+        self.send_packet(&encode(PacketType::Handshake(handshake)))
             .expect("Failed to send handshake");
         self.state = protocol::State::Login;
-        self.send_packet(&encode(login))
+        self.send_packet(&encode(PacketType::LoginStart(login)))
             .expect("Failed to send login request");
 
         // Handle all incoming packets until success or failure
@@ -340,18 +344,18 @@ impl NetworkManager {
 
         // Construct and send handshake and login packets
         let handshake = HandshakeSpec {
-            version: VarInt(0),
+            version: VarInt(PROTOCOL),
             server_address: local_addr,
             server_port: 0,
             next_state: HandshakeNextState::Status,
         };
 
         let now = Instant::now();
-        self.send_packet(&encode(handshake))
+        self.send_packet(&encode(PacketType::Handshake(handshake)))
             .expect("Failed to send handshake");
-        self.send_packet(&encode(StatusRequestSpec{}))
+        self.send_packet(&encode(PacketType::StatusRequest(StatusRequestSpec{})))
             .expect("Failed to send status request");
-        self.send_packet(&encode(StatusPingSpec{ payload: 0 }))
+        self.send_packet(&encode(PacketType::StatusPing(StatusPingSpec{ payload: 0 })))
             .expect("Failed to send Status Ping");
 
         let ping;
@@ -413,21 +417,20 @@ impl NetworkManager {
                 let mut packet_length = Vec::new();
                 write_varint(&mut packet_length, (data_length.len() + compressed.len()) as i32)?;
 
-                s.write(&packet_length)?;
-                s.write(&data_length)?;
-                s.write(&compressed)?;
+                s.write_all(&packet_length)?;
+                s.write_all(&data_length)?;
+                s.write_all(&compressed)?;
             } else {
                 write_varint(s, (packet.len() + 1) as i32)?;
-                s.write(&[0u8])?;
-                s.write(packet)?;
+                s.write_all(&[0u8])?;
+                s.write_all(packet)?;
             }
-            return Ok(());
+        } else {
+            write_varint(s, packet.len() as i32)?;
+            s.write_all(packet)?;
         }
 
-        write_varint(s, packet.len() as i32)?;
-        s.write(packet)?;
-        s.set_nonblocking(true)
-            .expect("Failed to set TcpStream nonblocking");
+        s.set_nonblocking(true).expect("Failed to set TcpStream nonblocking");
         Ok(())
     }
 
@@ -439,12 +442,12 @@ impl NetworkManager {
                 self.login(protocol, port, name);
             }
             NetworkCommand::Disconnect => {
-                self.send_packet(&encode(PlayDisconnectSpec {
+                self.send_packet(&encode(PacketType::PlayDisconnect(PlayDisconnectSpec {
                     reason: types::Chat::Text(TextComponent {
                         text: String::from("Player Disconnected"),
                         base: BaseComponent::default(),
                     }),
-                }))
+                })))
                 .expect("Failed to send packet");
                 self.close = true;
             }
@@ -468,7 +471,7 @@ impl NetworkManager {
     fn handle_packet(&mut self, packet: PacketType) {
         match &packet {
             PacketType::PlayClientKeepAlive(pack) => {
-                self.send_packet(&encode(PlayClientKeepAliveSpec{id: pack.id})).expect("Failed to send heartbeat.");
+                self.send_packet(&encode(PacketType::PlayClientKeepAlive(PlayClientKeepAliveSpec{id: pack.id}))).expect("Failed to send heartbeat.");
             },
             PacketType::LoginSetCompression(pack) => {
                 if pack.threshold.0 <= 0 {
@@ -487,15 +490,15 @@ impl NetworkManager {
     }
 
     fn send_message(&mut self, comm: NetworkCommand) {
-        if let Err(_) = self.channel.send.send(comm) {
+        if self.channel.send.send(comm).is_err() {
             error!("Couldn't communicated with main thread, assuming connection was closed and disconnecting from server.");
             self.close = true;
-            self.send_packet(&encode(PlayDisconnectSpec {
+            self.send_packet(&encode(PacketType::PlayDisconnect(PlayDisconnectSpec {
                 reason: types::Chat::Text(types::TextComponent {
                     text: String::from("Player Disconnected"),
                     base: types::BaseComponent::default(),
                 })
-            }))
+            })))
             .expect("Failed to send Disconnect packet");
         }
     }
@@ -525,7 +528,7 @@ pub enum NetworkCommand {
     Spawn,
 }
 
-fn read_varint<R: Read>(r: &mut R) -> io::Result<i32> {
+pub fn read_varint<R: Read>(r: &mut R) -> io::Result<i32> {
     const PART: u32 = 0x7F;
     let mut size = 0;
     let mut val = 0u32;
@@ -546,7 +549,7 @@ fn read_varint<R: Read>(r: &mut R) -> io::Result<i32> {
     Ok(val as i32)
 }
 
-fn write_varint<W: Write>(w: &mut W, val: i32) -> io::Result<()> {
+pub fn write_varint<W: Write>(w: &mut W, val: i32) -> io::Result<()> {
     let mut buf: Vec<u8> = Vec::new();
 
     const PART: u32 = 0x7F;
@@ -559,14 +562,18 @@ fn write_varint<W: Write>(w: &mut W, val: i32) -> io::Result<()> {
         buf.push(val as u8 | !0x7F);
         val >>= 7;
     }
-    w.write(&buf)?;
+    w.write_all(&buf)?;
     Ok(())
 }
 
-pub fn encode<S: Serialize>(packet: S) -> Vec<u8> {
-    let mut serializer = BytesSerializer {
-        data: Vec::new(),
-    };
-    packet.mc_serialize(&mut serializer);
+pub fn encode(packet: PacketType) -> Vec<u8> {
+    log::debug!("Encoding packet: {:?}", packet);
+
+    let mut id: Vec<u8> = Vec::new();
+    write_varint(&mut id, packet.id().id).unwrap();
+
+    let mut serializer = BytesSerializer::default();
+    serializer.serialize_bytes(&id).unwrap();
+    packet.mc_serialize_body(&mut serializer).expect("Failed to serialize packet");
     serializer.into_bytes()
 }

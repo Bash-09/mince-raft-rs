@@ -5,7 +5,7 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    network::{NetworkCommand, NetworkManager},
+    network::{NetworkCommand, NetworkManager, PROTOCOL},
     server::Server,
     state::State,
     Client,
@@ -176,17 +176,17 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
                     match server_pings.get(&s.ip) {
                         Some(status) => {
                             // Favicon
-                            if let Some(bytes) = &status.icon {
+                            if let Some(favicon) = &status.favicon {
                                 if icon_handles.get(&s.ip).is_none() {
                                     // Load image
                                     icon_handles.insert(
                                         s.ip.clone(),
-                                        RetainedImage::from_image_bytes(s.ip.clone(), bytes)
+                                        RetainedImage::from_image_bytes(s.ip.clone(), &favicon.data)
                                             .unwrap(),
                                     );
                                 }
 
-                                if let Some(icon) = &icon_handles.get(&s.ip) {
+                                if let Some(icon) = icon_handles.get(&s.ip) {
                                     // ui.image(tex_handle, Vec2::new(50.0, 50.0));
 
                                     icon.show_size(ui, Vec2::new(50.0, 50.0));
@@ -195,22 +195,27 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
 
                             // Version, Players, Ping
                             ui.vertical(|ui| {
-                                ui.label(&status.version);
+                                if let Some(version) = &status.version {
+                                    ui.label(&version.name);
+                                }
+
                                 let players = ui.label(&format!(
                                     "Players: {} / {}",
-                                    status.num_players, status.max_players
+                                    status.players.online, status.players.max
                                 ));
-                                if status.num_players > 0 {
+                                if status.players.online > 0 {
                                     players.on_hover_ui(|ui| {
-                                        for p in &status.online_players {
-                                            ui.label(p);
+                                        for p in &status.players.sample {
+                                            ui.label(&p.name);
                                         }
                                     });
                                 }
-                                ui.label(&format!("Ping: {}ms", status.ping));
+                                // ui.label(&format!("Ping: {}ms", status.ping));
                             });
 
-                            ui.label(&status.motd);
+                            if let Some(desc) = status.description.to_traditional() {
+                                ui.label(&desc);
+                            }
                         }
                         None => {}
                     }
@@ -234,13 +239,13 @@ fn connect(ip: &str, name: String) -> Result<Server, std::io::Error> {
         Ok(server) => {
             debug!("Connected to server.");
             server
-                .send_command(NetworkCommand::Login(PROTOCOL_1_17_1, 25565, name))
+                .send_command(NetworkCommand::Login(PROTOCOL, 25565, name))
                 .expect("Failed to login");
 
-            return Ok(server);
+            Ok(server)
         }
         Err(e) => {
-            return Err(e);
+            Err(e)
         }
     }
 }

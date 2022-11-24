@@ -1,3 +1,5 @@
+#![feature(cursor_remaining)]
+
 extern crate chrono;
 extern crate egui;
 extern crate glium;
@@ -47,9 +49,9 @@ fn main() {
     let wb = WindowBuilder::new()
         .with_title("Minceraft!")
         .with_resizable(true)
-        .with_window_icon(Some(
-            Icon::from_rgba(include_bytes!("../assets/img.bmp")[70..].to_vec(), 512, 512).unwrap(),
-        ))
+        // .with_window_icon(Some(
+        //     Icon::from_rgba(include_bytes!("../assets/img.bmp")[70..].to_vec(), 512, 512).unwrap(),
+        // ))
         .with_inner_size(glutin::dpi::PhysicalSize::new(1200i32, 700i32));
 
     let (ctx, el) = glium_app::create(wb);
@@ -119,7 +121,7 @@ impl Application for Client {
                 Some(serv) => {
                     // Send player position update packets
                     if serv.get_player().id != 0 {
-                        serv.send_packet(encode(PlayClientPlayerPositionAndRotationSpec {
+                        serv.send_packet(encode(PacketType::PlayClientPlayerPositionAndRotation(PlayClientPlayerPositionAndRotationSpec {
                             feet_location: EntityLocation{
                                 position: types::Vec3{
                                     x: serv.get_player().get_position().x as f64,
@@ -132,7 +134,7 @@ impl Application for Client {
                                 },
                             },
                             on_ground: true,
-                        }));
+                        })));
                     }
                 }
                 None => {}

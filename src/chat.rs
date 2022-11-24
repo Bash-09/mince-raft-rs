@@ -1,8 +1,7 @@
-use mcproto_rs::{types, v1_16_3::PlayServerChatMessageSpec};
-use serde_json::Value;
+use mcproto_rs::v1_16_3::PlayServerChatMessageSpec;
 
 pub struct Chat {
-    history: Vec<types::Chat>,
+    history: Vec<PlayServerChatMessageSpec>,
 
     input: String,
     pub send: bool,
@@ -17,19 +16,12 @@ impl Chat {
         }
     }
 
-    pub fn get_history(&self) -> &Vec<ChatMessage> {
+    pub fn get_history(&self) -> &Vec<PlayServerChatMessageSpec> {
         &self.history
     }
 
-    pub fn add_message(&mut self, chat: &PlayServerChatMessageSpec) {
-        let value: Value =
-            serde_json::from_str(&chat.json).expect("Failed to unwrap JSON from chat message");
-
-        self.history.push(ChatMessage {
-            sender: UUID(chat.sender.0.clone()),
-            message_type: ChatMessageType::Temp,
-            text: value["extra"][0]["text"].to_string().replace("\"", ""),
-        });
+    pub fn add_message(&mut self, chat: PlayServerChatMessageSpec) {
+        self.history.push(chat);
     }
 
     pub fn get_message(&self) -> &String {
@@ -50,16 +42,4 @@ impl Chat {
     pub fn set_message(&mut self, text: String) {
         self.input = text;
     }
-}
-
-#[derive(Debug)]
-pub struct ChatMessage {
-    pub sender: UUID,
-    pub message_type: ChatMessageType,
-    pub text: String,
-}
-
-#[derive(Debug)]
-pub enum ChatMessageType {
-    Temp,
 }
