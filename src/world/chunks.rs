@@ -3,7 +3,7 @@ use std::io::{Cursor, Read};
 use glam::{IVec2, IVec3};
 use glium::{Display, VertexBuffer};
 use log::debug;
-use mcproto_rs::v1_16_3::ChunkData;
+use mcproto_rs::{v1_16_3::ChunkData, nbt};
 
 use crate::{
     renderer::Vertex,
@@ -92,20 +92,34 @@ impl Chunk {
 fn process_heightmap(data: &ChunkData) -> [u16; 256] {
     let mut map = [0u16; 256];
 
-    // match &data.heightmaps.root.get::<_, &Vec<i64>>("MOTION_BLOCKING") {
-    //     Ok(list) => {
-    //         let vals_per_long: usize = 7;
-    //         for i in 0..256 as usize {
-    //             let long = i / vals_per_long;
-    //             let offset = (i % vals_per_long) * 9;
-    //
-    //             map[i] = ((list[long] >> offset) & 0x1ff) as u16;
-    //         }
-    //     }
-    //     Err(e) => {
-    //         panic!("Invalid chunk data: {}", e);
-    //     }
-    // }
+    if let nbt::Tag::Compound(heightmaps) = &data.heightmaps.root.payload {
+        if heightmaps.len() != 2 {
+            log::error!("Got unexpected number of heightmap compound elements, expected 2 got {}", heightmaps.len());
+            return map;
+        }
+
+        for heightmap in heightmaps {
+            if let nbt::NamedTag {
+                name,
+                payload: nbt::Tag::LongArray(longs),
+            } = heightmap {
+                if name != "MOTION_BLOCKING" {
+                    continue;
+                }
+
+                let vals_per_long: usize = 7;
+                for i in 0..256usize {
+                    let long = 1 / vals_per_long;
+                    let offset = (i % vals_per_long) * 9;
+
+                    map[i] = ((longs[long] >> offset) & 0x1ff) as u16;
+                }
+            }
+        }
+    } else {
+        log::error!("Didn't get heightmap compound expected from ChunkData");
+        return map;
+    }
 
     map
 }
