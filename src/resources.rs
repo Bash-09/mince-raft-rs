@@ -16,6 +16,7 @@ pub struct BlockState {
     pub name: String,
     pub id: u32,
     pub model: Option<String>,
+    pub collision_shape: Option<u64>
 }
 
 lazy_static! {
@@ -64,10 +65,16 @@ lazy_static! {
                         id,
                         model: {
                             match state.get("model") {
-                                Some(model) => Some(model.as_str().unwrap().to_string()),
+                                Some(model) => model.as_str().map(|model| model.to_string()),
                                 None => None,
                             }
                         },
+                        collision_shape: {
+                            match state.get("collision_shape") {
+                                Some(collision_shape) => collision_shape.as_u64(),
+                                None => None
+                            }
+                        }
                     },
                 );
             }
@@ -82,6 +89,6 @@ lazy_static! {
 
 pub fn format_name(name: &str) -> String {
     name.replace("minecraft:", "")
-        .replace("_", " ")
+        .replace('_', " ")
         .to_title_case()
 }

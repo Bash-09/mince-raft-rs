@@ -152,7 +152,15 @@ impl Server {
             self.send_packet(encode(PacketType::PlayClientChatMessage(PlayClientChatMessageSpec{ message: text })));
         }
 
-        // if !self.gui.show_gui {
+        self.handle_movement(ctx, delta, settings);
+
+        // Handle messages from the NetworkManager
+        while let Ok(comm) = self.network.recv.try_recv() {
+            self.handle_message(comm, ctx);
+        }
+    }
+
+    pub fn handle_movement(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
         let vel = 14.0 * delta;
 
         if !self.paused {
@@ -177,7 +185,7 @@ impl Server {
                 dir.y = 0.0;
                 dir = dir.normalize();
                 dir *= -vel;
-                dir.y = dir.x;
+                dir.y = dir.x; // Just using this value as temp to swap x and z
                 dir.x = -dir.z;
                 dir.z = dir.y;
                 dir.y = 0.0;
@@ -189,7 +197,7 @@ impl Server {
                 dir.y = 0.0;
                 dir = dir.normalize();
                 dir *= vel;
-                dir.y = dir.x;
+                dir.y = dir.x; // Just using this value as temp to swap x and z
                 dir.x = -dir.z;
                 dir.z = dir.y;
                 dir.y = 0.0;
@@ -208,7 +216,9 @@ impl Server {
                     .add_assign(Vec3::new(0.0, -vel, 0.0));
             }
 
-            if ctx.mouse.pressed_this_frame(0) {}
+            if ctx.mouse.pressed_this_frame(0) {
+
+            }
 
             let off = ctx.mouse.get_delta();
             self.player.get_orientation_mut().rotate(
@@ -216,14 +226,8 @@ impl Server {
                 off.1 as f32 * 0.05 * settings.mouse_sensitivity,
             );
         }
-
-        // }
-
-        // Handle messages from the NetworkManager
-        while let Ok(comm) = self.network.recv.try_recv() {
-            self.handle_message(comm, ctx);
-        }
     }
+
 
     pub fn disconnect(&mut self) {
         info!("Disconnecting from server.");
