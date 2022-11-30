@@ -1,4 +1,4 @@
-VERSION="1.17.1"
+VERSION="1.16.3"
 DATA_FILES=("blocks.min.json" "entities.min.json" "block_entities.min.json" "models.min.json")
 
 mkdir assets
@@ -8,7 +8,7 @@ done
 
 mkdir temp
 cd temp
-curl https://launcher.mojang.com/v1/objects/8d9b65467c7913fcf6f5b2e729d44a1e00fde150/client.jar >> ${VERSION}.jar
+curl https://launcher.mojang.com/v1/objects/1321521b2caf934f7fc9665aab7e059a7b2bfcdf/client.jar >> ${VERSION}.jar
 unzip ${VERSION}.jar
 mv assets/minecraft/textures ../assets/textures
 cd ..

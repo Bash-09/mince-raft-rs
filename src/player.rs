@@ -1,4 +1,5 @@
 use glam::Vec3;
+use mcproto_rs::v1_16_3::{ClientChatMode, ClientMainHand, ClientDisplayedSkinParts};
 
 use super::entities::components::Orientation;
 
@@ -15,9 +16,9 @@ pub struct Player {
     // Client Settings
     pub locale: String,
     pub view_distance: i8,
-    pub chat_mode: i32,               // 0 - Enabled, 1 - Commands only, 2 - Hidden
-    pub displayed_skin_parts: u8,     // Bitmask - https://wiki.vg/Protocol#Client_Settings
-    pub main_hand: i32,               // 0 - Left, 1 - Right
+    pub chat_mode: ClientChatMode,               // 0 - Enabled, 1 - Commands only, 2 - Hidden
+    pub displayed_skin_parts: ClientDisplayedSkinParts,     // Bitmask - https://wiki.vg/Protocol#Client_Settings
+    pub main_hand: ClientMainHand,               // 0 - Left, 1 - Right
     pub disable_text_filtering: bool, // idek what this does
 }
 
@@ -35,9 +36,9 @@ impl Player {
 
             locale: String::from("en_GB"),
             view_distance: 8,
-            chat_mode: 0,
-            displayed_skin_parts: 0xFF,
-            main_hand: 0,
+            chat_mode: ClientChatMode::Enabled,
+            displayed_skin_parts: ClientDisplayedSkinParts::default(),
+            main_hand: ClientMainHand::Left,
             disable_text_filtering: true,
         }
     }

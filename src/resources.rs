@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use inflector::Inflector;
 use lazy_static::lazy_static;
-use serde_json::{self, map::Values, to_string, Value};
+use serde_json::{self, Value};
 
 pub struct Entity {
     pub name: String,
@@ -16,6 +16,7 @@ pub struct BlockState {
     pub name: String,
     pub id: u32,
     pub model: Option<String>,
+    pub collision_shape: Option<u64>
 }
 
 lazy_static! {
@@ -33,7 +34,7 @@ lazy_static! {
                         name: format_name(name),
                         id: id.as_u64().unwrap() as u32,
                         translation_key: val
-                            .get("translation_key")
+                            .get("loot_table")
                             .unwrap()
                             .as_str()
                             .unwrap()
@@ -61,13 +62,19 @@ lazy_static! {
                     id,
                     BlockState {
                         name: name.clone(),
-                        id: id,
+                        id,
                         model: {
                             match state.get("model") {
-                                Some(model) => Some(model.as_str().unwrap().to_string()),
+                                Some(model) => model.as_str().map(|model| model.to_string()),
                                 None => None,
                             }
                         },
+                        collision_shape: {
+                            match state.get("collision_shape") {
+                                Some(collision_shape) => collision_shape.as_u64(),
+                                None => None
+                            }
+                        }
                     },
                 );
             }
@@ -82,6 +89,6 @@ lazy_static! {
 
 pub fn format_name(name: &str) -> String {
     name.replace("minecraft:", "")
-        .replace("_", " ")
+        .replace('_', " ")
         .to_title_case()
 }

@@ -1,32 +1,29 @@
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 
 use glam::{IVec2, IVec3};
 use glium::{Display, VertexBuffer};
 use log::debug;
-use mcnetwork::{
-    packets::ChunkData,
-    types::{PacketType, VarInt},
-};
+use mcproto_rs::{v1_16_3::ChunkData, nbt};
 
 use crate::{
     renderer::Vertex,
-    resources::{BlockState, BLOCKS},
+    resources::{BlockState, BLOCKS}, network::read_varint,
 };
 
-pub type ChunkBlocks = [u16; 4096];
+pub type ChunkArray = [u16; 4096];
 
 #[derive(Debug)]
 pub struct ChunkSection {
     pub y: i32,
-    pub blocks: ChunkBlocks,
+    pub blocks: ChunkArray,
 
     vbo: Option<VertexBuffer<Vertex>>,
 }
 
 impl ChunkSection {
-    pub fn new(y: i32, blocks: ChunkBlocks) -> ChunkSection {
+    pub fn new(y: i32, blocks: ChunkArray) -> ChunkSection {
         ChunkSection {
-            y: y,
+            y,
             blocks,
             vbo: None,
         }
@@ -57,7 +54,7 @@ impl Chunk {
         debug!("Processing chunk data");
 
         Chunk {
-            pos: IVec2::new(data.x, data.z),
+            pos: IVec2::new(data.position.x, data.position.z),
 
             heightmap: process_heightmap(data),
             sections: process_sections(dis, data),
@@ -79,13 +76,14 @@ impl Chunk {
         let y = pos.y as usize;
         let z = pos.z as usize;
         if y >= 16 * 16 || x >= 16 || z >= 16 {
-            return &BLOCKS.get(&0).unwrap();
+            return BLOCKS.get(&0).unwrap();
         }
-        return match &self.sections[y / 16] {
-            Some(cs) => &BLOCKS
-                .get(&(cs.blocks[((y % 16) * 16 * 16 + z * 16 + x) as usize] as u32))
-                .unwrap(),
-            None => &BLOCKS.get(&0).unwrap(),
+        return if let Some(cs) = &self.sections[y / 16] {
+            BLOCKS
+            .get(&(cs.blocks[((y % 16) * 16 * 16 + z * 16 + x) as usize] as u32))
+            .unwrap()
+        } else {
+            BLOCKS.get(&0).unwrap()
         };
     }
 }
@@ -94,19 +92,33 @@ impl Chunk {
 fn process_heightmap(data: &ChunkData) -> [u16; 256] {
     let mut map = [0u16; 256];
 
-    match &data.heightmaps.0.get::<_, &Vec<i64>>("MOTION_BLOCKING") {
-        Ok(list) => {
-            let vals_per_long: usize = 7;
-            for i in 0..256 as usize {
-                let long = i / vals_per_long;
-                let offset = (i % vals_per_long) * 9;
+    if let nbt::Tag::Compound(heightmaps) = &data.heightmaps.root.payload {
+        if heightmaps.len() != 2 {
+            log::error!("Got unexpected number of heightmap compound elements, expected 2 got {}", heightmaps.len());
+            return map;
+        }
 
-                map[i] = ((list[long] >> offset) & 0x1ff) as u16;
+        for heightmap in heightmaps {
+            if let nbt::NamedTag {
+                name,
+                payload: nbt::Tag::LongArray(longs),
+            } = heightmap {
+                if name != "MOTION_BLOCKING" {
+                    continue;
+                }
+
+                let vals_per_long: usize = 7;
+                for i in 0..256usize {
+                    let long = 1 / vals_per_long;
+                    let offset = (i % vals_per_long) * 9;
+
+                    map[i] = ((longs[long] >> offset) & 0x1ff) as u16;
+                }
             }
         }
-        Err(e) => {
-            panic!("Invalid chunk data: {}", e);
-        }
+    } else {
+        log::error!("Didn't get heightmap compound expected from ChunkData");
+        return map;
     }
 
     map
@@ -117,8 +129,8 @@ const INIT: Option<ChunkSection> = None;
 fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 16] {
     // Check bit mask for which chunk sections are present
     let mut chunk_sections_present = [false; 16];
-    for i in 0..16 as usize {
-        if data.bit_mask[0] & 0b1 << i != 0 {
+    for i in 0..16 {
+        if data.primary_bit_mask.0 & 0b1 << i != 0 {
             chunk_sections_present[i] = true;
         }
     }
@@ -127,15 +139,19 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
     // let mut sections: [Option<ChunkSection>; 16] = Default::default();
 
     // Decode data array
-    let mut cur = Cursor::new(&data.data);
-    for i in 0..16 as usize {
+    let mut cur = Cursor::new(&*data.data);
+    for i in 0..16 {
         if !chunk_sections_present[i] {
             continue;
         }
 
-        let block_count = i16::read(&mut cur).unwrap();
+        let mut buf = [0u8; 2];
+        cur.read_exact(&mut buf).unwrap();
+        let block_count = i16::from_ne_bytes(buf);
 
-        let mut bits_per_block = u8::read(&mut cur).unwrap() as u64;
+        let mut buf = [0u8; 1];
+        cur.read_exact(&mut buf).unwrap();
+        let mut bits_per_block = buf[0] as u64;
 
         if bits_per_block <= 4 {
             bits_per_block = 4;
@@ -148,11 +164,12 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
 
         // Construct palette or no palette
         if bits_per_block < 9 {
-            let palette_len = VarInt::read(&mut cur).unwrap();
+            let palette_len = read_varint(&mut cur).unwrap();
+            log::debug!("Got chunk with pallete of {} elements.", palette_len);
             let mut palette_vec: Vec<i32> = Vec::new();
 
-            for p in 0..palette_len.0 as usize {
-                palette_vec.push(VarInt::read(&mut cur).unwrap().0);
+            for _ in 0..palette_len as usize {
+                palette_vec.push(read_varint(&mut cur).unwrap());
             }
             palette = Some(palette_vec);
         } else {
@@ -160,11 +177,13 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
         }
 
         // Get long array of blocks
-        let array_len = VarInt::read(&mut cur).unwrap();
+        let array_len = read_varint(&mut cur).unwrap();
         let mut array = Vec::new();
 
-        for _ in 0..array_len.0 as usize {
-            array.push(i64::read(&mut cur).unwrap());
+        for _ in 0..array_len as usize {
+            let mut buf = [0u8; 8];
+            cur.read_exact(&mut buf).unwrap();
+            array.push(i64::from_be_bytes(buf));
         }
 
         // Bit mask depending on bits per block
@@ -179,7 +198,7 @@ fn process_sections(dis: &Display, data: &ChunkData) -> [Option<ChunkSection>; 1
         let mut blocks = [0u16; 4096];
 
         // Extract blocks
-        for j in 0..4096 as u64 {
+        for j in 0..4096 {
             let long = j / blocks_per_long;
             let start = (j % blocks_per_long) * bits_per_block;
 

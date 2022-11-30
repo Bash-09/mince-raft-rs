@@ -1,15 +1,14 @@
-use egui::TextureHandle;
 use log::debug;
 use log::{error, info, warn};
-use mcnetwork::packets;
+use mcproto_rs::protocol::{RawPacket, Id, PacketErr, HasPacketId, HasPacketBody};
+use mcproto_rs::types::{BytesSerializer, self, VarInt, TextComponent, BaseComponent};
+use mcproto_rs::{v1_16_3::*, status, Serializer};
+use mcproto_rs::{protocol, v1_16_3};
 use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib};
 
-use mcnetwork::packets::*;
-use mcnetwork::types::*;
-use serde_json::Value;
-
-use std::io::Cursor;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::fmt::Debug;
+use std::io::{Cursor, self, ErrorKind};
+use std::time::Instant;
 use std::{
     io::{Error, Read, Write},
     net::TcpStream,
@@ -19,7 +18,9 @@ use std::{
 
 use crate::server::*;
 
-pub const PROTOCOL_1_17_1: VarInt = VarInt(756);
+pub const PROTOCOL: i32 = 753;
+pub type PacketType = v1_16_3::Packet753;
+pub type RawPacketType<'a> = v1_16_3::RawPacket753<'a>;
 
 pub struct NetworkManager {
     pub stream: TcpStream,
@@ -29,7 +30,7 @@ pub struct NetworkManager {
     compress: bool,
     threshold: usize,
 
-    state: ServerState,
+    state: protocol::State,
     pub count: u32,
 }
 
@@ -63,7 +64,7 @@ impl NetworkManager {
         let mut dest: String = destination.to_string();
 
         // Check for port included in address
-        if !dest.contains(":") {
+        if !dest.contains(':') {
             debug!("Server address didn't contain port, appending :25565");
             dest.push_str(":25565");
         }
@@ -80,7 +81,7 @@ impl NetworkManager {
                             threshold: 0,
                             close: false,
                             channel: NetworkChannel { send: ti, recv: ri },
-                            state: ServerState::Status,
+                            state: protocol::State::Status,
                             count: 0,
                         });
 
@@ -124,14 +125,20 @@ impl NetworkManager {
         // Handles incoming packets
         while !self.close {
             match self.next_packet() {
-                Ok(PacketData::Empty) => {
-                    break;
-                }
-                Ok(packet) => {
-                    self.handle_packet(packet);
+                Ok(packet_result) => {
+                    match packet_result {
+                        Ok(packet) => self.handle_packet(packet),
+                        Err(e) => {
+                            log::error!("Couldn't deserialize packet: {}", e);
+                        },
+                    }
                 }
                 Err(e) => {
-                    panic!("Error handling packet: {:?}", e);
+                    if e.kind() == ErrorKind::WouldBlock {
+                        return;
+                    } else {
+                        panic!("Error handling packet: {:?}", e);
+                    }
                 }
             }
         }
@@ -143,17 +150,14 @@ impl NetworkManager {
     ///
     /// Returns a Decoded Packet ready for processing, or Error if it failed.
     ///
-    fn next_packet(&mut self) -> Result<PacketData, Box<dyn std::error::Error>> {
+    fn next_packet(&mut self) -> io::Result<Result<PacketType, PacketErr>> {
         let mut check = [0u8];
         match self.stream.peek(&mut check) {
             Ok(0) => {
                 panic!("TcpStream ded???");
             }
             Err(e) => {
-                if e.kind() == std::io::ErrorKind::WouldBlock {
-                    return Ok(PacketData::Empty);
-                }
-                return Err(Box::new(e));
+                return Err(e);
             }
             _ => {}
         }
@@ -161,7 +165,7 @@ impl NetworkManager {
         self.stream
             .set_nonblocking(false)
             .expect("Failed to set TcpStream to blocking mode");
-        let VarInt(len) = VarInt::read(&mut self.stream)?;
+        let len = read_varint(&mut self.stream)?;
 
         let mut buf = vec![0u8; len as usize];
         self.stream.read_exact(&mut buf)?;
@@ -171,18 +175,38 @@ impl NetworkManager {
 
         if self.compress {
             let mut cur = Cursor::new(&buf);
-            let VarInt(data_len) = VarInt::read(&mut cur)?;
+            let data_len = read_varint(&mut cur)?;
 
             if data_len == 0 {
-                return Ok(decode_packet_clientbound(
-                    &buf[cur.position() as usize..],
-                    &self.state,
-                )?);
+                let id = read_varint(&mut cur)?;
+                let id = Id {
+                    id,
+                    state: self.state,
+                    direction: protocol::PacketDirection::ClientBound,
+                };
+                return Ok(
+                    match RawPacketType::create(id, &buf[cur.position() as usize..]) {
+                        Ok(raw_packet) => raw_packet.deserialize(),
+                        Err(e) => Err(e),
+                    }
+                );
             }
 
             match decompress_to_vec_zlib(&buf[cur.position() as usize..]) {
-                Ok(uncompressed) => {
-                    return Ok(decode_packet_clientbound(&uncompressed, &self.state)?)
+                Ok(mut uncompressed) => {
+                    let mut cur = Cursor::new(&mut uncompressed);
+                    let id = read_varint(&mut cur)?;
+                    let id = Id {
+                        id,
+                        state: self.state,
+                        direction: protocol::PacketDirection::ClientBound,
+                    };
+                    return Ok(
+                        match RawPacketType::create(id, cur.remaining_slice()) {
+                            Ok(raw_packet) => raw_packet.deserialize(),
+                            Err(e) => Err(e),
+                        }
+                    );
                 }
                 Err(e) => {
                     todo!("Properly decompression error handling");
@@ -190,7 +214,23 @@ impl NetworkManager {
             }
         }
 
-        Ok(decode_packet_clientbound(&buf, &self.state)?)
+
+        let mut cur = Cursor::new(&mut buf);
+        let id = read_varint(&mut cur)?;
+        let contents = cur.remaining_slice();
+        log::debug!("Got packet with ID: {:#x}", id);
+        log::debug!("Packet length: {}", contents.len());
+        let id = Id {
+            id,
+            state: self.state,
+            direction: protocol::PacketDirection::ClientBound,
+        };
+        return Ok(
+            match RawPacketType::create(id, contents) {
+                Ok(raw_packet) => raw_packet.deserialize(),
+                Err(e) => Err(e),
+            }
+        );
     }
 
     /// Attempts to login to the server
@@ -198,7 +238,7 @@ impl NetworkManager {
     /// # Returns
     ///
     /// * `Some(())` if it successfully logs in, `None` if it fails
-    fn login(&mut self, protocol: VarInt, port: u16, name: String) -> Option<()> {
+    fn login(&mut self, protocol: i32, port: u16, name: String) -> Option<()> {
         use std::net::SocketAddr;
 
         // Extracts local address from TcpStream
@@ -213,70 +253,82 @@ impl NetworkManager {
         };
 
         // Construct and send handshake and login packets
-        let handshake = Handshake {
-            protocol_version: protocol,
-            address: local_addr,
-            port,
-            next: VarInt(2),
+        let handshake = HandshakeSpec {
+            version: VarInt(protocol),
+            server_address: local_addr,
+            server_port: port,
+            next_state: HandshakeNextState::Login,
         };
 
-        let login = LoginStart { name };
+        let login = LoginStartSpec {
+            name,
+        };
 
-        self.send_packet(&encode(handshake))
+        self.send_packet(&encode(PacketType::Handshake(handshake)))
             .expect("Failed to send handshake");
-        self.state = ServerState::Login;
-        self.send_packet(&encode(login))
+        self.state = protocol::State::Login;
+        self.send_packet(&encode(PacketType::LoginStart(login)))
             .expect("Failed to send login request");
 
         // Handle all incoming packets until success or failure
         loop {
             match self.next_packet() {
-                Ok(PacketData::Empty) => {}
                 Ok(packet) => {
-                    match &packet {
-                        // Please no
-                        PacketData::EncryptionRequest(_) => {
-                            panic!("I ain't implemented this shit yet");
-                        }
-                        PacketData::SetCompression(pack) => {
-                            if pack.threshold.0 <= 0 {
-                                self.compress = false;
-                                info!("Disabled Compression");
-                            } else {
-                                self.compress = true;
-                                self.threshold = pack.threshold.0 as usize;
-                                info!("Set compression: {}", pack.threshold.0);
-                            }
-                        }
-                        PacketData::Disconnect(_) => {
-                            self.send_message(NetworkCommand::ReceivePacket(packet));
-                            self.close = true;
-                            return None;
-                        }
-                        PacketData::LoginPluginRequest(_) => {
-                            panic!("I don't want to think about LoginPlugin");
-                        }
-                        PacketData::LoginSuccess(_) => {
-                            warn!("Connecting to server with no authentication!");
+                    match packet {
+                        Ok(packet) => {
+                            match packet {
+                                // Please no
+                                PacketType::LoginEncryptionRequest(_) => {
+                                    panic!("I ain't implemented this shit yet");
+                                }
+                                PacketType::LoginSetCompression(pack) => {
+                                    if pack.threshold.0 <= 0 {
+                                        self.compress = false;
+                                        info!("Disabled Compression");
+                                    } else {
+                                        self.compress = true;
+                                        self.threshold = pack.threshold.0 as usize;
+                                        info!("Set compression: {}", pack.threshold.0);
+                                    }
+                                }
+                                PacketType::LoginDisconnect(_) => {
+                                    self.send_message(NetworkCommand::ReceivePacket(packet));
+                                    self.close = true;
+                                    return None;
+                                }
+                                PacketType::LoginPluginRequest(_) => {
+                                    panic!("I don't want to think about LoginPlugin");
+                                }
+                                PacketType::LoginSuccess(_) => {
+                                    warn!("Connecting to server with no authentication!");
 
-                            self.state = ServerState::Play;
-                            self.send_message(NetworkCommand::ReceivePacket(packet));
+                                    self.state = protocol::State::Play;
+                                    self.send_message(NetworkCommand::ReceivePacket(packet));
 
-                            return Some(());
-                        }
-                        _ => {
-                            warn!("Got unexpected packet during login: {:?}", packet);
+                                    return Some(());
+                                }
+                                _ => {
+                                    warn!("Got unexpected packet during login: {:?}", packet);
+                                }
+                            };
+                        },
+                        Err(e) => {
+                            panic!("Error decoding packet: {}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    panic!("Error reading packet: {:?}", e);
+                    if e.kind() == ErrorKind::WouldBlock {
+                        continue;
+                    } else {
+                        panic!("Error reading packet: {:?}", e);
+                    }
                 }
             }
         }
     }
 
-    fn status(&mut self) -> Option<ServerStatus> {
+    fn status(&mut self) -> Option<status::StatusSpec> {
         use std::net::SocketAddr;
 
         // Extracts local address from TcpStream
@@ -291,106 +343,50 @@ impl NetworkManager {
         };
 
         // Construct and send handshake and login packets
-        let handshake = Handshake {
-            protocol_version: VarInt(0),
-            address: local_addr,
-            port: 0,
-            next: VarInt(1),
+        let handshake = HandshakeSpec {
+            version: VarInt(PROTOCOL),
+            server_address: local_addr,
+            server_port: 0,
+            next_state: HandshakeNextState::Status,
         };
 
-        let request = Request {};
-
         let now = Instant::now();
-        self.send_packet(&encode(handshake))
+        self.send_packet(&encode(PacketType::Handshake(handshake)))
             .expect("Failed to send handshake");
-        self.send_packet(&encode(request))
+        self.send_packet(&encode(PacketType::StatusRequest(StatusRequestSpec{})))
             .expect("Failed to send status request");
-        self.send_packet(&encode(StatusPing { payload: 0 }))
+        self.send_packet(&encode(PacketType::StatusPing(StatusPingSpec{ payload: 0 })))
             .expect("Failed to send Status Ping");
 
         let ping;
-        let json_data;
+        let mut status: status::StatusSpec;
 
         loop {
             match self.next_packet() {
-                Ok(PacketData::Empty) => {}
                 Ok(pack) => match pack {
-                    PacketData::Response(Response { json }) => {
-                        ping = (Instant::now() - now).as_millis() as u32;
-                        json_data = json;
-                        break;
-                    }
-                    _ => {
-                        warn!(
-                            "Got unexpected packet waiting for status response: {:?}",
-                            pack
-                        );
+                    Ok(pack) => match pack {
+                        PacketType::StatusResponse(pack) => {
+                            ping = (Instant::now() - now).as_millis() as u32;
+                            status = pack.response;
+                            break;
+                        }
+                        _ => {
+                            warn!(
+                                "Got unexpected packet waiting for status response: {:?}",
+                                pack
+                            );
+                        }
+                    },
+                    Err(e) => {
+                        panic!("Error decoding packet: {}", e);
                     }
                 },
                 Err(e) => {
-                    error!("Couldn't get response from server status request: {:?}", e);
-                    return None;
-                }
-            }
-        }
-
-        let mut status = ServerStatus {
-            icon: None,
-            motd: String::new(),
-            version: String::new(),
-            num_players: 0,
-            max_players: 0,
-            online_players: Vec::new(),
-            ping,
-        };
-
-        let val: Value = serde_json::from_str(&json_data).expect("Couldn't read JSON data");
-
-        if let Value::Object(map) = val {
-            // MOTD
-            if let Some(Value::Object(motd)) = map.get("description") {
-                if let Some(Value::String(motd)) = motd.get("text") {
-                    status.motd = motd.clone();
-                }
-            }
-
-            // Version
-            if let Some(Value::Object(version)) = map.get("version") {
-                if let Some(Value::String(version)) = version.get("name") {
-                    status.version = version.clone();
-                }
-            }
-
-            // Players
-            if let Some(Value::Object(players)) = map.get("players") {
-                // Max
-                if let Some(Value::Number(max)) = players.get("max") {
-                    status.max_players = max.as_u64().unwrap() as u32;
-                }
-                // Num online
-                if let Some(Value::Number(online)) = players.get("online") {
-                    status.num_players = online.as_u64().unwrap() as u32;
-                }
-                // Players online
-                if let Some(Value::Array(sample)) = players.get("sample") {
-                    for p in sample {
-                        if let Value::Object(pp) = p {
-                            if let Some(Value::String(name)) = pp.get("name") {
-                                status.online_players.push(name.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Favicon
-            if let Some(Value::String(favicon)) = map.get("favicon") {
-                match base64::decode(&(favicon.replace("\n", ""))[22..]) {
-                    Ok(bytes) => {
-                        status.icon = Some(bytes);
-                    }
-                    Err(e) => {
-                        error!("Couldn't interpret bytes from server favicon");
+                    if e.kind() == ErrorKind::WouldBlock {
+                        continue;
+                    } else {
+                        error!("Couldn't get response from server status request: {:?}", e);
+                        return None;
                     }
                 }
             }
@@ -416,26 +412,25 @@ impl NetworkManager {
         if self.compress {
             if packet.len() >= self.threshold {
                 let mut data_length = Vec::new();
-                VarInt(packet.len() as i32).write(&mut data_length)?;
+                write_varint(&mut data_length, packet.len() as i32)?;
                 let compressed = compress_to_vec_zlib(packet, 0);
                 let mut packet_length = Vec::new();
-                VarInt((data_length.len() + compressed.len()) as i32).write(&mut packet_length)?;
+                write_varint(&mut packet_length, (data_length.len() + compressed.len()) as i32)?;
 
-                s.write(&packet_length)?;
-                s.write(&data_length)?;
-                s.write(&compressed)?;
+                s.write_all(&packet_length)?;
+                s.write_all(&data_length)?;
+                s.write_all(&compressed)?;
             } else {
-                VarInt((packet.len() + 1) as i32).write(s)?;
-                s.write(&[0u8])?;
-                s.write(packet)?;
+                write_varint(s, (packet.len() + 1) as i32)?;
+                s.write_all(&[0u8])?;
+                s.write_all(packet)?;
             }
-            return Ok(());
+        } else {
+            write_varint(s, packet.len() as i32)?;
+            s.write_all(packet)?;
         }
 
-        VarInt(packet.len() as i32).write(s)?;
-        s.write(packet)?;
-        s.set_nonblocking(true)
-            .expect("Failed to set TcpStream nonblocking");
+        s.set_nonblocking(true).expect("Failed to set TcpStream nonblocking");
         Ok(())
     }
 
@@ -447,9 +442,12 @@ impl NetworkManager {
                 self.login(protocol, port, name);
             }
             NetworkCommand::Disconnect => {
-                self.send_packet(&encode(Disconnect {
-                    reason: String::from("Player Disconnected"),
-                }))
+                self.send_packet(&encode(PacketType::PlayDisconnect(PlayDisconnectSpec {
+                    reason: types::Chat::Text(TextComponent {
+                        text: String::from("Player Disconnected"),
+                        base: BaseComponent::default(),
+                    }),
+                })))
                 .expect("Failed to send packet");
                 self.close = true;
             }
@@ -470,32 +468,21 @@ impl NetworkManager {
     }
 
     /// Handles an incoming packet
-    fn handle_packet(&mut self, packet: PacketData) {
-        use PacketData::*;
-
+    fn handle_packet(&mut self, packet: PacketType) {
         match &packet {
-            Unknown(_buf) => {
-                // println!("Got unknown packet: {:02x}", buf[0]);
-            }
-            KeepAliveClientbound(pack) => {
-                self.send_packet(&encode(packets::KeepAliveServerbound {
-                    keep_alive_id: pack.keep_alive_id.clone(),
-                }))
-                .expect("Failed to send heartbeat");
-            }
-
-            SetCompression(pack) => {
+            PacketType::PlayServerKeepAlive(pack) => {
+                self.send_packet(&encode(PacketType::PlayClientKeepAlive(PlayClientKeepAliveSpec{id: pack.id}))).expect("Failed to send heartbeat.");
+            },
+            PacketType::LoginSetCompression(pack) => {
                 if pack.threshold.0 <= 0 {
                     self.compress = false;
-                    info!("Disabled Packet Compression.");
+                    info!("Disabled packet compression.");
                 } else {
-                    info!("Set Packet Compression: {}", pack.threshold.0);
+                    info!("Set Packet Compression: {}", pack.threshold);
                     self.compress = true;
                     self.threshold = pack.threshold.0 as usize;
                 }
             }
-
-            // Forward other packets to the main thread
             _ => {
                 self.send_message(NetworkCommand::ReceivePacket(packet));
             }
@@ -503,12 +490,15 @@ impl NetworkManager {
     }
 
     fn send_message(&mut self, comm: NetworkCommand) {
-        if let Err(_) = self.channel.send.send(comm) {
+        if self.channel.send.send(comm).is_err() {
             error!("Couldn't communicated with main thread, assuming connection was closed and disconnecting from server.");
             self.close = true;
-            self.send_packet(&encode(Disconnect {
-                reason: String::from("Player Disconnected"),
-            }))
+            self.send_packet(&encode(PacketType::PlayDisconnect(PlayDisconnectSpec {
+                reason: types::Chat::Text(types::TextComponent {
+                    text: String::from("Player Disconnected"),
+                    base: types::BaseComponent::default(),
+                })
+            })))
             .expect("Failed to send Disconnect packet");
         }
     }
@@ -527,13 +517,61 @@ pub enum NetworkCommand {
     Error(Error),
     Disconnect,
     // Login(protocol, port, name)
-    Login(VarInt, u16, String),
+    Login(i32, u16, String),
 
     SendPacket(Vec<u8>),
-    ReceivePacket(PacketData),
+    ReceivePacket(PacketType),
 
     RequestStatus,
-    ReceiveStatus(ServerStatus),
+    ReceiveStatus(status::StatusSpec),
 
     Spawn,
+}
+
+pub fn read_varint<R: Read>(r: &mut R) -> io::Result<i32> {
+    const PART: u32 = 0x7F;
+    let mut size = 0;
+    let mut val = 0u32;
+    let mut byte: [u8; 1] = [0];
+
+    r.read_exact(&mut byte)?;
+    loop {
+        val |= (byte[0] as u32 & PART) << (size * 7);
+        size += 1;
+
+        if (byte[0] & 0x80) == 0 {
+            break;
+        }
+
+        r.read_exact(&mut byte)?;
+    }
+
+    Ok(val as i32)
+}
+
+pub fn write_varint<W: Write>(w: &mut W, val: i32) -> io::Result<()> {
+    let mut buf: Vec<u8> = Vec::new();
+
+    const PART: u32 = 0x7F;
+    let mut val = val as u32;
+    loop {
+        if (val & !PART) == 0 {
+            buf.push(val as u8);
+            break;
+        }
+        buf.push(val as u8 | !0x7F);
+        val >>= 7;
+    }
+    w.write_all(&buf)?;
+    Ok(())
+}
+
+pub fn encode(packet: PacketType) -> Vec<u8> {
+    let mut id: Vec<u8> = Vec::new();
+    write_varint(&mut id, packet.id().id).unwrap();
+
+    let mut serializer = BytesSerializer::default();
+    serializer.serialize_bytes(&id).unwrap();
+    packet.mc_serialize_body(&mut serializer).expect("Failed to serialize packet");
+    serializer.into_bytes()
 }

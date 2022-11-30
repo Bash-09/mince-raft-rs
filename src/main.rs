@@ -1,3 +1,5 @@
+#![feature(cursor_remaining)]
+
 extern crate chrono;
 extern crate egui;
 extern crate glium;
@@ -5,8 +7,6 @@ extern crate glium_app;
 extern crate lazy_static;
 extern crate log;
 extern crate quartz_nbt;
-
-extern crate mcnetwork;
 
 use std::{sync::mpsc::TryRecvError, time::Instant};
 
@@ -26,9 +26,9 @@ use log::{debug, error, info};
 use glium_app::*;
 use glium_app::{
     context::Context,
-    utils::persistent_window::{PersistentWindow, PersistentWindowManager},
+    utils::persistent_window::PersistentWindowManager,
 };
-use mcnetwork::packets::{encode, PlayerPositionAndRotation};
+use mcproto_rs::{v1_16_3::PlayClientPlayerPositionAndRotationSpec, types::{EntityLocation, self}};
 use state::State;
 
 pub mod chat;
@@ -49,9 +49,9 @@ fn main() {
     let wb = WindowBuilder::new()
         .with_title("Minceraft!")
         .with_resizable(true)
-        .with_window_icon(Some(
-            Icon::from_rgba(include_bytes!("../assets/img.bmp")[70..].to_vec(), 512, 512).unwrap(),
-        ))
+        // .with_window_icon(Some(
+        //     Icon::from_rgba(include_bytes!("../assets/img.bmp")[70..].to_vec(), 512, 512).unwrap(),
+        // ))
         .with_inner_size(glutin::dpi::PhysicalSize::new(1200i32, 700i32));
 
     let (ctx, el) = glium_app::create(wb);
@@ -121,14 +121,20 @@ impl Application for Client {
                 Some(serv) => {
                     // Send player position update packets
                     if serv.get_player().id != 0 {
-                        serv.send_packet(encode(PlayerPositionAndRotation {
-                            x: (serv.get_player().get_position().x as f64),
-                            feet_y: (serv.get_player().get_position().y as f64),
-                            z: (serv.get_player().get_position().z as f64),
-                            yaw: (serv.get_player().get_orientation().get_yaw() as f32),
-                            pitch: (serv.get_player().get_orientation().get_head_pitch() as f32),
-                            on_ground: (true),
-                        }));
+                        serv.send_packet(encode(PacketType::PlayClientPlayerPositionAndRotation(PlayClientPlayerPositionAndRotationSpec {
+                            feet_location: EntityLocation{
+                                position: types::Vec3{
+                                    x: serv.get_player().get_position().x as f64,
+                                    y: serv.get_player().get_position().y as f64,
+                                    z: serv.get_player().get_position().z as f64
+                                },
+                                rotation: types::EntityRotation {
+                                    yaw: serv.get_player().get_orientation().get_yaw() as f32,
+                                    pitch: serv.get_player().get_orientation().get_head_pitch() as f32,
+                                },
+                            },
+                            on_ground: true,
+                        })));
                     }
                 }
                 None => {}
@@ -154,39 +160,7 @@ impl Application for Client {
 
                 if serv.disconnect {
                     // Disconnect dialog
-                    let reason = serv.disconnect_reason.clone();
-                    self.window_manager.push(PersistentWindow::new(Box::new(
-                        move |id, _, gui_ctx, _state| {
-                            let mut open = true;
-
-                            egui::Window::new("Disconnected")
-                                .id(Id::new(id))
-                                .resizable(false)
-                                .collapsible(false)
-                                .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
-                                .show(gui_ctx, |ui| {
-                                    let mut label = None;
-
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(15.0);
-                                        label = Some(ui.label(match &reason {
-                                            Some(r) => r,
-                                            None => "No reason Specified.",
-                                        }));
-                                    });
-
-                                    ui.horizontal(|ui| {
-                                        let size = label.unwrap().rect.width() / 2.0;
-                                        ui.add_space(size);
-                                        open = !ui.button("Ok").clicked();
-                                        ui.add_space(size);
-                                    });
-                                });
-
-                            open
-                        },
-                    )));
-
+                    self.window_manager.push(gui::disconnect_window(serv.disconnect_reason.clone()));
                     self.state.server = None;
                 }
             }
@@ -217,8 +191,8 @@ impl Application for Client {
         let Context {
             dis,
             gui,
-            mouse,
-            keyboard,
+            mouse: _,
+            keyboard: _,
         } = ctx;
 
         let mut target = dis.draw();

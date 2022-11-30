@@ -1,5 +1,4 @@
 use crate::{
-    mcnetwork::types::UUID,
     renderer::Vertex,
     resources::{self, ENTITIES},
 };
@@ -7,11 +6,11 @@ use crate::{
 pub mod components;
 use components::*;
 use glam::Vec3;
-use serde_json::Value;
+use mcproto_rs::uuid::UUID4;
 
 pub struct Entity {
     pub id: i32,
-    pub uuid: UUID,
+    pub uuid: UUID4,
 
     pub entity_type: &'static resources::Entity,
 
@@ -30,7 +29,7 @@ impl Entity {
     pub fn new(entity_type: u32) -> Entity {
         Entity {
             id: 0,
-            uuid: UUID([0, 0]),
+            uuid: UUID4::random(),
 
             entity_type: ENTITIES
                 .get(&entity_type)
@@ -49,7 +48,7 @@ impl Entity {
 
     pub fn new_with_values(
         id: i32,
-        uuid: UUID,
+        uuid: UUID4,
         entity_type: u32,
         data: i32,
         px: f32,
@@ -82,8 +81,8 @@ impl Entity {
         self.id
     }
 
-    pub fn get_uuid(&self) -> UUID {
-        self.uuid.clone()
+    pub fn get_uuid(&self) -> UUID4 {
+        self.uuid
     }
 
     pub fn get_type(&self) -> &'static resources::Entity {
