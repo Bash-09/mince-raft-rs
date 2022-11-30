@@ -49,7 +49,7 @@ pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
 
 pub fn disconnect_window(reason: Option<String>) -> PersistentWindow<State> {
     PersistentWindow::new(Box::new(
-        move |id, gui_ctx, _| {
+        move |id, _, gui_ctx, _| {
             let mut open = true;
 
             egui::Window::new("Disconnected")
