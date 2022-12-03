@@ -30,8 +30,6 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
 
             ui.separator();
 
-            ui.label("Cum");
-
             if cli.state.settings.online_play {
                 ui.label("Online play is not yet implemented");
             } else {

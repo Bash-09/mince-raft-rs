@@ -3,16 +3,16 @@
 use egui::{Context, Id, Align2, Vec2};
 use glium_app::{Timer, utils::persistent_window::PersistentWindow};
 
-use crate::{Client, state::State};
+use crate::{Client, state::State, server::InputState};
 
-use self::pause_menu::PauseAction;
+use self::other_windows::fps_counter;
 
-pub mod entities_window;
-pub mod fps_counter;
-pub mod info_window;
+pub mod info_windows;
+pub mod other_windows;
+pub mod pause_windows;
+pub mod chat_windows;
+
 pub mod main_menu;
-pub mod options_window;
-pub mod pause_menu;
 
 pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
     match &mut cli.state.server {
@@ -21,25 +21,11 @@ pub fn render(gui_ctx: &Context, cli: &mut Client, t: &Timer) {
                 fps_counter::render(gui_ctx, t.fps(), t.delta());
             }
 
-            if s.is_paused() {
-                entities_window::render(gui_ctx, s);
-                info_window::render(gui_ctx, s);
-
-                match pause_menu::render(gui_ctx, &mut cli.window_manager) {
-                    PauseAction::Unpause => {
-                        s.set_paused(false);
-                    }
-                    PauseAction::Disconnect => {
-                        s.disconnect();
-                        cli.state.server = None;
-                    }
-                    _ => {}
-                }
-            }
+            s.render(gui_ctx, &mut cli.window_manager);
         }
         None => match main_menu::render(gui_ctx, cli) {
             Some(mut s) => {
-                s.set_paused(false);
+                s.set_input_state(InputState::Playing);
                 cli.state.server = Some(s);
             }
             None => {}

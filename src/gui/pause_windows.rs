@@ -1,7 +1,9 @@
 use egui::{Align2, Context, Vec2};
 use glium_app::utils::persistent_window::PersistentWindowManager;
 
-use crate::{gui::options_window, WindowManagerType};
+use crate::WindowManagerType;
+
+use super::other_windows::options_window;
 
 pub enum PauseAction {
     Nothing,

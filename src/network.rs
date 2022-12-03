@@ -45,6 +45,24 @@ pub struct ServerStatus {
     pub ping: u32,
 }
 
+// Types of Messages that can be sent
+#[derive(Debug)]
+pub enum NetworkCommand {
+    Ok,
+    Error(Error),
+    Disconnect,
+    // Login(protocol, port, name)
+    Login(i32, u16, String),
+
+    SendPacket(Vec<u8>),
+    ReceivePacket(PacketType),
+
+    RequestStatus,
+    ReceiveStatus(status::StatusSpec),
+
+    Spawn,
+}
+
 impl NetworkManager {
     /// Attempts to connect to a server, returning a NetworkChannel to communicate with the NetworkManager and receive packets from
     ///
@@ -100,7 +118,7 @@ impl NetworkManager {
                             .expect("Couldn't shutdown TCPStream");
                     }
                     Err(e) => {
-                        error!("Cum");
+                        error!("Could not connect to server.");
                         ti.send(NetworkCommand::Error(e))
                             .expect("NetworkChannel Receiver cannot be reached");
                     }
@@ -116,10 +134,20 @@ impl NetworkManager {
     /// Manages any incoming packets or messages from other threads
     fn update(&mut self) {
         // Handles all queued messages from other threads
-        let mut maybe_msg = self.channel.recv.try_recv();
-        while maybe_msg.is_ok() {
-            self.handle_message(maybe_msg.unwrap());
-            maybe_msg = self.channel.recv.try_recv();
+        loop {
+            match self.channel.recv.try_recv() {
+                Ok(msg) => self.handle_message(msg),
+                Err(e) => {
+                    match e {
+                        mpsc::TryRecvError::Empty => break,
+                        mpsc::TryRecvError::Disconnected => {
+                            log::info!("Network channel disconnected, stopping network manager.");
+                            self.close = true;
+                            return;
+                        },
+                    }
+                },
+            }
         }
 
         // Handles incoming packets
@@ -508,24 +536,6 @@ impl NetworkManager {
 pub struct NetworkChannel {
     pub send: Sender<NetworkCommand>,
     pub recv: Receiver<NetworkCommand>,
-}
-
-// Types of Messages that can be sent
-#[derive(Debug)]
-pub enum NetworkCommand {
-    Ok,
-    Error(Error),
-    Disconnect,
-    // Login(protocol, port, name)
-    Login(i32, u16, String),
-
-    SendPacket(Vec<u8>),
-    ReceivePacket(PacketType),
-
-    RequestStatus,
-    ReceiveStatus(status::StatusSpec),
-
-    Spawn,
 }
 
 pub fn read_varint<R: Read>(r: &mut R) -> io::Result<i32> {

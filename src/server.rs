@@ -13,7 +13,7 @@ use crate::{
     world::{
         self,
         chunks::{self, Chunk, ChunkSection},
-    },
+    }, WindowManager, gui::{pause_windows, info_windows, chat_windows},
 };
 
 use super::{chat::Chat, entities::Entity, player::Player, world::World};
@@ -21,6 +21,8 @@ use super::{chat::Chat, entities::Entity, player::Player, world::World};
 pub struct Server {
     network_destination: String,
     pub network: NetworkChannel,
+
+    input_state: InputState,
 
     world_time: i64,
     day_time: i64,
@@ -35,9 +37,26 @@ pub struct Server {
     difficulty: Difficulty,
     difficulty_locked: bool,
 
-    paused: bool,
-    pub disconnect: bool,
+    pub client_disconnect: bool,
+    pub server_disconnect: bool,
     pub disconnect_reason: Option<String>,
+}
+
+/// The input state of the player.
+/// `Playing` - Normal fps input where the mouse and keyboard control the player
+/// `Paused` - Paused menu is visible, mouse and keyboard are visible and interact with ui
+/// `ShowingInfo` - Similar to Playing but also showing a handful of debug and other useful info,
+/// clicking will transition to `InteractingInfo`
+/// `InteractingInfo` - Debug and other useful info is visible, mouse is visible and can interact
+/// with the info windows
+/// `ChatOpen` - Chat is visible and interactable, mouse is visible and can scroll through the chat
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum InputState {
+    Playing,
+    Paused,
+    ShowingInfo,
+    InteractingInfo,
+    ChatOpen
 }
 
 impl Server {
@@ -45,6 +64,8 @@ impl Server {
         Server {
             network_destination,
             network,
+
+            input_state: InputState::Playing,
 
             world_time: 0,
             day_time: 0,
@@ -59,14 +80,18 @@ impl Server {
             difficulty: Difficulty::Easy,
             difficulty_locked: false,
 
-            paused: false,
-            disconnect: false,
+            client_disconnect: false,
+            server_disconnect: false,
             disconnect_reason: None,
         }
     }
 
     pub fn get_network_destination(&self) -> &str {
         &self.network_destination
+    }
+
+    pub fn get_input_state(&self) -> InputState {
+        self.input_state
     }
 
     pub fn get_world_time(&self) -> i64 {
@@ -83,6 +108,10 @@ impl Server {
 
     pub fn get_chat(&self) -> &Chat {
         &self.chat
+    }
+
+    pub fn get_chat_mut(&mut self) -> &mut Chat {
+        &mut self.chat
     }
 
     pub fn get_world(&self) -> &World {
@@ -102,11 +131,11 @@ impl Server {
     }
 
     pub fn is_paused(&self) -> bool {
-        self.paused
+        self.input_state == InputState::Paused
     }
 
-    pub fn set_paused(&mut self, paused: bool) {
-        self.paused = paused;
+    pub fn set_input_state(&mut self, state: InputState) {
+        self.input_state = state;
     }
 
     pub fn join_game(&mut self, player_id: i32) {
@@ -135,96 +164,186 @@ impl Server {
         }
     }
 
+    pub fn should_grab_mouse(&self) -> bool {
+        match self.input_state {
+            InputState::Playing => true,
+            InputState::Paused => false,
+            InputState::ShowingInfo => true,
+            InputState::InteractingInfo => false,
+            InputState::ChatOpen => false,
+        }
+    }
+
+    pub fn render(&mut self, gui_ctx: &egui::Context, windows: &mut WindowManager) {
+        if self.input_state != InputState::ChatOpen {
+            chat_windows::render_inactive(self, gui_ctx);
+        }
+
+        match self.input_state {
+            InputState::Playing => {},
+            InputState::Paused => {
+                match pause_windows::render(gui_ctx, windows) {
+                    pause_windows::PauseAction::Disconnect => self.disconnect(),
+                    pause_windows::PauseAction::Unpause => self.set_input_state(InputState::Playing),
+                    pause_windows::PauseAction::Nothing => {},
+                }
+            },
+            InputState::ShowingInfo  | InputState::InteractingInfo => info_windows::render(gui_ctx, self),
+            InputState::ChatOpen => chat_windows::render_active(self, gui_ctx),
+        }
+    }
+
     pub fn update(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
         for ent in self.entities.values_mut() {
             ent.update(delta);
         }
 
-        if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
-            self.set_paused(!self.paused);
+        match self.input_state {
+            InputState::Playing => self.handle_playing_state(ctx, delta, settings),
+            InputState::Paused => self.handle_paused_state(ctx, delta, settings),
+            InputState::ShowingInfo => self.handle_show_info_state(ctx, delta, settings),
+            InputState::InteractingInfo => self.handle_interact_info_state(ctx, delta, settings),
+            InputState::ChatOpen => self.handle_chat_open_state(ctx, delta, settings),
         }
-
-        // Send chat message
-        if self.chat.send {
-            let text = self.chat.get_message_and_clear();
-            self.chat.send = false;
-
-            self.send_packet(encode(PacketType::PlayClientChatMessage(PlayClientChatMessageSpec{ message: text })));
-        }
-
-        self.handle_movement(ctx, delta, settings);
 
         // Handle messages from the NetworkManager
-        while let Ok(comm) = self.network.recv.try_recv() {
-            self.handle_message(comm, ctx);
+        loop {
+            match self.network.recv.try_recv() {
+                Ok(comm) => self.handle_message(comm, ctx),
+                Err(e) => match e {
+                    std::sync::mpsc::TryRecvError::Empty => break,
+                    std::sync::mpsc::TryRecvError::Disconnected => {
+                        log::error!("Could not communicate with server. Assuming disconnected.");
+                        self.server_disconnect = true;
+                        if self.disconnect_reason.is_none() {
+                            self.disconnect_reason = Some(String::from("Server forced disconnect. (You were probably sending too many connection requests)"));
+                        }
+                        return;
+                    },
+                },
+            }
         }
     }
 
-    pub fn handle_movement(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
+    fn handle_playing_state(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
+        if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
+            self.input_state = InputState::Paused;
+        } else if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::T) {
+            self.input_state = InputState::ChatOpen;
+        } else if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Slash) {
+            self.input_state = InputState::ChatOpen;
+            self.chat.set_current_message(String::from("/"));
+        } else if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Tab) {
+            self.input_state = InputState::ShowingInfo;
+        }
+
+        self.handle_keyboard_movement(ctx, delta, settings);
+        self.handle_mouse_movement(ctx, delta, settings);
+    }
+
+    fn handle_paused_state(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
+        if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
+            self.input_state = InputState::Playing;
+        }
+
+    }
+
+    fn handle_show_info_state(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
+        if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
+            self.input_state = InputState::Paused;
+        } else if ctx.mouse.pressed_this_frame(0) {
+            self.input_state = InputState::InteractingInfo;
+        } else if ctx.keyboard.released_this_frame(&VirtualKeyCode::Tab) {
+            self.input_state = InputState::Playing;
+        }
+
+        self.handle_keyboard_movement(ctx, delta, settings);
+        self.handle_mouse_movement(ctx, delta, settings);
+    }
+
+    fn handle_interact_info_state(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
+        if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
+            self.input_state = InputState::Paused;
+        } else if ctx.keyboard.released_this_frame(&VirtualKeyCode::Tab) {
+            self.input_state = InputState::Playing;
+        }
+
+        self.handle_keyboard_movement(ctx, delta, settings);
+    }
+
+    fn handle_chat_open_state(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
+        if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
+            self.input_state = InputState::Playing;
+        } else if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Return) {
+            let text = self.chat.get_current_message_and_clear();
+            if !text.is_empty() {
+                self.send_packet(encode(PacketType::PlayClientChatMessage(PlayClientChatMessageSpec{ message: text })));
+            }
+            self.input_state = InputState::Playing;
+        }
+    }
+
+    pub fn handle_mouse_movement(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
+        let off = ctx.mouse.get_delta();
+        self.player.get_orientation_mut().rotate(
+            off.0 as f32 * 0.05 * settings.mouse_sensitivity,
+            off.1 as f32 * 0.05 * settings.mouse_sensitivity,
+        );
+    }
+
+    pub fn handle_keyboard_movement(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
         let vel = 14.0 * delta;
 
-        if !self.paused {
-            if ctx.keyboard.is_pressed(&VirtualKeyCode::W) {
-                let mut dir = self.player.get_orientation().get_look_vector();
-                dir.y = 0.0;
-                dir = dir.normalize();
-                dir *= vel;
-                self.player.get_position_mut().add_assign(dir);
-            }
+        if ctx.keyboard.is_pressed(&VirtualKeyCode::W) {
+            let mut dir = self.player.get_orientation().get_look_vector();
+            dir.y = 0.0;
+            dir = dir.normalize();
+            dir *= vel;
+            self.player.get_position_mut().add_assign(dir);
+        }
 
-            if ctx.keyboard.is_pressed(&VirtualKeyCode::S) {
-                let mut dir = self.player.get_orientation().get_look_vector();
-                dir.y = 0.0;
-                dir = dir.normalize();
-                dir *= -vel;
-                self.player.get_position_mut().add_assign(dir);
-            }
+        if ctx.keyboard.is_pressed(&VirtualKeyCode::S) {
+            let mut dir = self.player.get_orientation().get_look_vector();
+            dir.y = 0.0;
+            dir = dir.normalize();
+            dir *= -vel;
+            self.player.get_position_mut().add_assign(dir);
+        }
 
-            if ctx.keyboard.is_pressed(&VirtualKeyCode::A) {
-                let mut dir = self.player.get_orientation().get_look_vector();
-                dir.y = 0.0;
-                dir = dir.normalize();
-                dir *= -vel;
-                dir.y = dir.x; // Just using this value as temp to swap x and z
-                dir.x = -dir.z;
-                dir.z = dir.y;
-                dir.y = 0.0;
-                self.player.get_position_mut().add_assign(dir);
-            }
+        if ctx.keyboard.is_pressed(&VirtualKeyCode::A) {
+            let mut dir = self.player.get_orientation().get_look_vector();
+            dir.y = 0.0;
+            dir = dir.normalize();
+            dir *= -vel;
+            dir.y = dir.x; // Just using this value as temp to swap x and z
+            dir.x = -dir.z;
+            dir.z = dir.y;
+            dir.y = 0.0;
+            self.player.get_position_mut().add_assign(dir);
+        }
 
-            if ctx.keyboard.is_pressed(&VirtualKeyCode::D) {
-                let mut dir = self.player.get_orientation().get_look_vector();
-                dir.y = 0.0;
-                dir = dir.normalize();
-                dir *= vel;
-                dir.y = dir.x; // Just using this value as temp to swap x and z
-                dir.x = -dir.z;
-                dir.z = dir.y;
-                dir.y = 0.0;
-                self.player.get_position_mut().add_assign(dir);
-            }
+        if ctx.keyboard.is_pressed(&VirtualKeyCode::D) {
+            let mut dir = self.player.get_orientation().get_look_vector();
+            dir.y = 0.0;
+            dir = dir.normalize();
+            dir *= vel;
+            dir.y = dir.x; // Just using this value as temp to swap x and z
+            dir.x = -dir.z;
+            dir.z = dir.y;
+            dir.y = 0.0;
+            self.player.get_position_mut().add_assign(dir);
+        }
 
-            if ctx.keyboard.is_pressed(&VirtualKeyCode::Space) {
-                self.player
-                    .get_position_mut()
-                    .add_assign(Vec3::new(0.0, vel, 0.0));
-            }
+        if ctx.keyboard.is_pressed(&VirtualKeyCode::Space) {
+            self.player
+                .get_position_mut()
+                .add_assign(Vec3::new(0.0, vel, 0.0));
+        }
 
-            if ctx.keyboard.is_pressed(&VirtualKeyCode::LShift) {
-                self.player
-                    .get_position_mut()
-                    .add_assign(Vec3::new(0.0, -vel, 0.0));
-            }
-
-            if ctx.mouse.pressed_this_frame(0) {
-
-            }
-
-            let off = ctx.mouse.get_delta();
-            self.player.get_orientation_mut().rotate(
-                off.0 as f32 * 0.05 * settings.mouse_sensitivity,
-                off.1 as f32 * 0.05 * settings.mouse_sensitivity,
-            );
+        if ctx.keyboard.is_pressed(&VirtualKeyCode::LShift) {
+            self.player
+                .get_position_mut()
+                .add_assign(Vec3::new(0.0, -vel, 0.0));
         }
     }
 
@@ -235,6 +354,7 @@ impl Server {
             .send
             .send(NetworkCommand::Disconnect)
             .expect("Failed to send message to network thread.");
+        self.client_disconnect = true;
     }
 
     /// Handles a message from the NetworkManager
@@ -265,11 +385,17 @@ impl Server {
                     PacketType::PlayDisconnect(pack) => {
                         self.disconnect_reason = pack.reason.to_traditional();
                         info!("Disconnected from server: {:?}", self.disconnect_reason);
-                        self.disconnect = true;
+                        self.server_disconnect = true;
                     }
 
                     PacketType::LoginSuccess(pack) => {
                         info!("Successfully Logged in!");
+                    }
+
+                    PacketType::LoginDisconnect(pack) => {
+                        info!("Disconnected during login");
+                        self.server_disconnect = true;
+                        self.disconnect_reason = pack.message.to_traditional();
                     }
 
                     PacketType::PlayJoinGame(id) => {
@@ -437,7 +563,7 @@ impl Server {
                     }
 
                     PacketType::PlayServerChatMessage(chat) => {
-                        self.chat.add_message(chat);
+                        self.chat.add_message(chat, self.world_time);
                     }
 
                     PacketType::PlayChunkData(cd) => {

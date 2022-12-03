@@ -29,6 +29,7 @@ use glium_app::{
     utils::persistent_window::PersistentWindowManager,
 };
 use mcproto_rs::{v1_16_3::PlayClientPlayerPositionAndRotationSpec, types::{EntityLocation, self}};
+use server::InputState;
 use state::State;
 
 pub mod chat;
@@ -158,11 +159,6 @@ impl Application for Client {
 
                 serv.update(ctx, delta, &mut self.state.settings);
 
-                if serv.disconnect {
-                    // Disconnect dialog
-                    self.window_manager.push(gui::disconnect_window(serv.disconnect_reason.clone()));
-                    self.state.server = None;
-                }
             }
             None => {
                 let State {
@@ -193,6 +189,8 @@ impl Application for Client {
             gui,
             mouse: _,
             keyboard: _,
+            block_gui_input,
+            block_gui_tab_input,
         } = ctx;
 
         let mut target = dis.draw();
@@ -216,14 +214,23 @@ impl Application for Client {
         });
         gui.paint(dis, &mut target);
 
-        let grab_mouse = match &self.state.server {
-            Some(s) => !s.is_paused(),
-            None => false,
-        };
+        *block_gui_tab_input = self.state.server.as_ref().map(|s| s.get_input_state() == InputState::InteractingInfo).unwrap_or(false);
+        let grab_mouse = self.state.server.as_ref().map(|s| s.should_grab_mouse()).unwrap_or(false);
+        *block_gui_input = grab_mouse;
         ctx.set_mouse_grabbed(grab_mouse).ok();
         ctx.set_mouse_visible(!grab_mouse);
 
         target.finish().unwrap();
+
+        // Check for server disconnect
+        if let Some(serv) = &mut self.state.server {
+            if serv.server_disconnect {
+                self.window_manager.push(gui::disconnect_window(serv.disconnect_reason.clone()));
+                self.state.server = None;
+            } else if serv.client_disconnect {
+                self.state.server = None;
+            }
+        }
     }
 
     fn close(&mut self, ctx: &Context) {
@@ -255,7 +262,7 @@ impl Application for Client {
             } => {
                 if let Some(server) = &mut self.state.server {
                     if !focused {
-                        server.set_paused(true);
+                        server.set_input_state(InputState::Paused);
                     }
                 }
             }
