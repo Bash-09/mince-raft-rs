@@ -5,7 +5,7 @@ use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
 use glium_app::context::Context;
 use lazy_static::__Deref;
 use log::{debug, error, info, warn};
-use mcproto_rs::{v1_16_3::{Difficulty, PlayClientSettingsSpec, PlayClientStatusSpec, PlayClientChatMessageSpec, ClientStatusAction, PlayTeleportConfirmSpec, PlayClientPlayerPositionAndRotationSpec}, types::{self, EntityLocation}};
+use mcproto_rs::{v1_16_3::{Difficulty, PlayClientSettingsSpec, PlayClientStatusSpec, PlayClientChatMessageSpec, ClientStatusAction, PlayTeleportConfirmSpec, PlayClientPlayerPositionAndRotationSpec, PlayerInfoAction, GameMode}, types::{self, EntityLocation, VarInt}, uuid::UUID4};
 
 use crate::{
     network::{NetworkChannel, NetworkCommand, encode, PacketType},
@@ -16,7 +16,11 @@ use crate::{
     }, WindowManager, gui::{pause_windows, info_windows, chat_windows},
 };
 
+use self::remote_player::RemotePlayer;
+
 use super::{chat::Chat, entities::Entity, player::Player, world::World};
+
+pub mod remote_player;
 
 pub struct Server {
     network_destination: String,
@@ -33,6 +37,7 @@ pub struct Server {
     world: World,
 
     entities: HashMap<i32, Entity>,
+    players: HashMap<UUID4, RemotePlayer>,
 
     difficulty: Difficulty,
     difficulty_locked: bool,
@@ -76,6 +81,7 @@ impl Server {
             world: World::new(),
 
             entities: HashMap::new(),
+            players: HashMap::new(),
 
             difficulty: Difficulty::Easy,
             difficulty_locked: false,
@@ -140,6 +146,10 @@ impl Server {
 
     pub fn join_game(&mut self, player_id: i32) {
         self.player.id = player_id;
+    }
+
+    pub fn get_players(&self) -> &HashMap<UUID4, RemotePlayer> {
+        &self.players
     }
 
     /// Attempts to send a packet over the provided (possible) network channel
@@ -416,7 +426,7 @@ impl Server {
                             pack.entity_id.0,
                             Entity::new_with_values(
                                 pack.entity_id.0,
-                                pack.entity_uuid.clone(),
+                                pack.entity_uuid,
                                 pack.entity_type.0 as u32,
                                 0,
                                 pack.location.position.x as f32,
@@ -440,7 +450,7 @@ impl Server {
                             pack.entity_id.0,
                             Entity::new_with_values(
                                 pack.entity_id.0,
-                                pack.object_uuid.clone(),
+                                pack.object_uuid,
                                 pack.entity_type.0 as u32,
                                 pack.data,
                                 pack.position.x as f32,
@@ -546,7 +556,7 @@ impl Server {
                             .set(pack.location.rotation.yaw, pack.location.rotation.pitch);
 
                         self.send_packet(encode(PacketType::PlayTeleportConfirm(PlayTeleportConfirmSpec {
-                            teleport_id: pack.teleport_id.clone(),
+                            teleport_id: pack.teleport_id,
                         })));
 
                         let px = self.player.get_position().x;
@@ -661,6 +671,51 @@ impl Server {
                             }
                         } else {
                             warn!("Block update in unloaded chunk");
+                        }
+                    }
+
+                    PacketType::PlayPlayerInfo(pack) => {
+                        use mcproto_rs::v1_16_3::PlayerInfoActionList;
+                        match pack.actions {
+                            PlayerInfoActionList::Add(players) => {
+                                for player in players.iter() {
+                                    self.players.insert(player.uuid, RemotePlayer { 
+                                        uuid: player.uuid, 
+                                        name: player.action.name.clone(), 
+                                        gamemode: player.action.game_mode.clone(), 
+                                        ping: player.action.ping_ms.0, 
+                                        display_name:  player.action.display_name.clone().map(|dn| dn.to_traditional()).unwrap_or(None)
+                                    });
+                                }
+                            },
+                            PlayerInfoActionList::UpdateGameMode(players) => {
+                                let players: Vec<PlayerInfoAction<GameMode>> = From::from(players);
+                                for player in players {
+                                    if let Some(p) = self.players.get_mut(&player.uuid) {
+                                        p.gamemode = player.action;
+                                    }
+                                }
+                            },
+                            PlayerInfoActionList::UpdateLatency(players) => {
+                                let players: Vec<PlayerInfoAction<VarInt>> = From::from(players);
+                                for player in players {
+                                    if let Some(p) = self.players.get_mut(&player.uuid) {
+                                        p.ping = player.action.into();
+                                    }
+                                }
+                            },
+                            PlayerInfoActionList::UpdateDisplayName(players) => {
+                                for player in players.iter() {
+                                    if let Some(p) = self.players.get_mut(&player.uuid) {
+                                        p.display_name = player.action.clone().map(|chat| chat.to_traditional().unwrap_or_else(|| "Failed to parse name".to_string()));
+                                    }
+                                }
+                            },
+                            PlayerInfoActionList::Remove(players) => {
+                                for player in players.iter() {
+                                    self.players.remove(player);
+                                }
+                            },
                         }
                     }
 
