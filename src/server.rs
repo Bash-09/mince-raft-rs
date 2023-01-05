@@ -13,7 +13,7 @@ use crate::{
     world::{
         self,
         chunks::{self, Chunk, ChunkSection},
-    }, WindowManager, gui::{pause_windows, info_windows, chat_windows},
+    }, WindowManager, gui::{pause_windows, info_windows, chat_windows}, resources::PLAYER_INDEX,
 };
 
 use self::remote_player::RemotePlayer;
@@ -419,6 +419,24 @@ impl Server {
                             main_hand: self.player.main_hand.clone(),
                         })));
                         self.send_packet(encode(PacketType::PlayClientStatus(PlayClientStatusSpec { action: ClientStatusAction::PerformRespawn })));
+                    }
+
+                    PacketType::PlaySpawnPlayer(pack) => {
+                        self.entities.insert(
+                            pack.entity_id.0, 
+                            Entity::new_with_values(
+                                pack.entity_id.0, 
+                                pack.uuid, 
+                                PLAYER_INDEX as u32, 
+                                0, 
+                                pack.location.position.x as f32, 
+                                pack.location.position.y as f32, 
+                                pack.location.position.z as f32, 
+                                pack.location.rotation.yaw.value as f32 / 255.0, 
+                                pack.location.rotation.pitch.value  as f32 / 255.0, 
+                                pack.location.rotation.pitch.value  as f32 / 255.0, 
+                                0.0, 0.0, 0.0)
+                        );
                     }
 
                     PacketType::PlaySpawnLivingEntity(pack) => {

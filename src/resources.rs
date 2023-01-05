@@ -19,6 +19,8 @@ pub struct BlockState {
     pub collision_shape: Option<u64>
 }
 
+pub const PLAYER_INDEX: usize = 106;
+
 lazy_static! {
     pub static ref ENTITIES: HashMap<u32, Entity> = {
         let mut entities = HashMap::new();

@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use glam::IVec3;
 
 use crate::renderer::Vertex;
@@ -120,11 +118,7 @@ impl ChunkBuilder {
             };
 
             verts.append(&mut ChunkBuilder::generate_block_mesh(
-                IVec3::new(
-                    x.try_into().unwrap(),
-                    y.try_into().unwrap(),
-                    z.try_into().unwrap(),
-                ),
+                IVec3::new(x, y, z),
                 *b,
                 b_above,
                 b_below,

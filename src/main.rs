@@ -14,10 +14,10 @@ use crate::network::*;
 
 mod network;
 
-use egui::{Align2, FontData, FontDefinitions, FontFamily, Id, Vec2};
+use egui::{FontData, FontDefinitions, FontFamily};
 use egui_winit::winit::{
     event::Event,
-    window::{Icon, WindowBuilder},
+    window::WindowBuilder,
 };
 use glam::Vec3;
 use glium::glutin;
