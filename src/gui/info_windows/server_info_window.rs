@@ -1,11 +1,12 @@
 
 use egui::{Color32, Context, RichText};
-use glam::Vec3Swizzles;
+
 
 use crate::{
     server::Server,
-    world::{self, block_coords},
+    world::{block_coords, chunks::Chunk},
 };
+
 
 pub fn render(gui_ctx: &Context, server: &Server) {
     egui::Window::new("Info").show(gui_ctx, |ui| {
@@ -113,8 +114,8 @@ pub fn render(gui_ctx: &Context, server: &Server) {
         ui.separator();
 
         let pos = block_coords(&server.get_player().get_position());
-        let chunk = world::chunk_at_coords(&pos.xz());
-        let chunk_coords = world::local_chunk_coords(&pos);
+        let chunk = Chunk::chunk_containing(&pos);
+        let chunk_coords = Chunk::map_from_world_coords(&pos);
 
         ui.horizontal(|ui| {
             ui.label("Chunk: ");
@@ -142,7 +143,7 @@ pub fn render(gui_ctx: &Context, server: &Server) {
                 if pos.y <= 0 {
                     break;
                 }
-                match server.get_world().get_block_at(&pos) {
+                match server.get_world().block_at(&pos) {
                     Some(b) => {
                         if b.id == 0 {
                             pos.y -= 1;

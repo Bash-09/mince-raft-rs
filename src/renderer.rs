@@ -9,6 +9,7 @@ use glium::*;
 use glium::{Display, Surface};
 
 
+use crate::world::chunks::SECTIONS_PER_CHUNK;
 use crate::{
     entities::{self, Entity},
     renderer::camera::Camera,
@@ -146,59 +147,51 @@ impl Renderer {
                 continue;
             }
 
-            for (y, section) in chunk.sections.iter().enumerate() {
-                match section {
-                    None => continue,
-                    Some(cs) => {
-                        if cs.get_vbo().is_none() {
-                            continue;
-                        }
-                        let vbo = cs.get_vbo().as_ref().unwrap();
+            for y in 0..SECTIONS_PER_CHUNK {
+                if let Some(vbo) = chunk.get_section_vbo(y) {
+                    let cy = (y * 16) as f32;
 
-                        let cy = (y * 16) as f32;
+                    // Get points for corners of chunk section
+                    points[0].x = cx;
+                    points[0].y = cy;
+                    points[0].z = cz;
+                    points[1].x = cx + 16.0;
+                    points[1].y = cy;
+                    points[1].z = cz;
+                    points[2].x = cx;
+                    points[2].y = cy + 16.0;
+                    points[2].z = cz;
+                    points[3].x = cx;
+                    points[3].y = cy;
+                    points[3].z = cz + 16.0;
+                    points[4].x = cx + 16.0;
+                    points[4].y = cy + 16.0;
+                    points[4].z = cz;
+                    points[5].x = cx + 16.0;
+                    points[5].y = cy;
+                    points[5].z = cz + 16.0;
+                    points[6].x = cx;
+                    points[6].y = cy + 16.0;
+                    points[6].z = cz + 16.0;
+                    points[7].x = cx + 16.0;
+                    points[7].y = cy + 16.0;
+                    points[7].z = cz + 16.0;
 
-                        // Get points for corners of chunk section
-                        points[0].x = cx;
-                        points[0].y = cy;
-                        points[0].z = cz;
-                        points[1].x = cx + 16.0;
-                        points[1].y = cy;
-                        points[1].z = cz;
-                        points[2].x = cx;
-                        points[2].y = cy + 16.0;
-                        points[2].z = cz;
-                        points[3].x = cx;
-                        points[3].y = cy;
-                        points[3].z = cz + 16.0;
-                        points[4].x = cx + 16.0;
-                        points[4].y = cy + 16.0;
-                        points[4].z = cz;
-                        points[5].x = cx + 16.0;
-                        points[5].y = cy;
-                        points[5].z = cz + 16.0;
-                        points[6].x = cx;
-                        points[6].y = cy + 16.0;
-                        points[6].z = cz + 16.0;
-                        points[7].x = cx + 16.0;
-                        points[7].y = cy + 16.0;
-                        points[7].z = cz + 16.0;
-
-                        // Frustum cull this chunk section
-                        if !vf.accept_points(&points) {
-                            continue;
-                        }
-
-                        let tmat: Mat4 = Mat4::from_translation(Vec3::new(cx, cy, cz));
-
-                        let uniforms = uniform! {
-                            pvmat: pvmat,
-                            tmat: tmat.to_cols_array_2d(),
-                        };
-
-                        target
-                            .draw(vbo, inds, &self.chunk_prog, &uniforms, &params)
-                            .unwrap();
+                    // Frustum cull this chunk section
+                    if !vf.accept_points(&points) {
+                        continue;
                     }
+
+                    let tmat: Mat4 = Mat4::from_translation(Vec3::new(cx, cy, cz));
+
+                    let uniforms = uniform! {
+                        pvmat: pvmat,
+                        tmat: tmat.to_cols_array_2d(),
+                    };
+
+                    target
+                        .draw(vbo, inds, &self.chunk_prog, &uniforms, &params)
+                        .unwrap();
                 }
             }
         }

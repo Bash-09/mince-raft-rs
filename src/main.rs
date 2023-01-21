@@ -1,4 +1,4 @@
-#![feature(cursor_remaining)]
+#![feature(cursor_remaining, int_roundings, drain_filter)]
 
 extern crate chrono;
 extern crate egui;

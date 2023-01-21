@@ -1,3 +1,5 @@
+use std::sync::RwLockReadGuard;
+
 use glam::IVec3;
 
 use crate::renderer::Vertex;
@@ -8,17 +10,18 @@ pub struct ChunkBuilder {}
 
 impl ChunkBuilder {
     pub fn generate_mesh(
-        section: &ChunkSection,
-        above: &Option<ChunkSection>,
-        below: &Option<ChunkSection>,
-        north: &Option<ChunkSection>,
-        east: &Option<ChunkSection>,
-        south: &Option<ChunkSection>,
-        west: &Option<ChunkSection>,
+        section: RwLockReadGuard<ChunkSection>,
+        above: Option<RwLockReadGuard<ChunkSection>>,
+        below: Option<RwLockReadGuard<ChunkSection>>,
+        north: Option<RwLockReadGuard<ChunkSection>>,
+        east:  Option<RwLockReadGuard<ChunkSection>>,
+        south: Option<RwLockReadGuard<ChunkSection>>,
+        west:  Option<RwLockReadGuard<ChunkSection>>,
     ) -> Vec<Vertex> {
         let mut verts: Vec<Vertex> = Vec::new();
 
-        for (i, b) in section.blocks.iter().enumerate() {
+        let value = section.blocks;
+        for (i, b) in value.iter().enumerate() {
             if *b == 0 {
                 continue;
             }
@@ -33,7 +36,7 @@ impl ChunkBuilder {
             let nz = z;
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_above = if y == 15 {
-                if let Some(above) = above {
+                if let Some(above) = &above {
                     above.blocks[ni as usize]
                 } else {
                     0
@@ -48,7 +51,7 @@ impl ChunkBuilder {
             let nz = z;
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_below = if y == 0 {
-                if let Some(below) = below {
+                if let Some(below) = &below {
                     below.blocks[ni as usize]
                 } else {
                     0
@@ -63,7 +66,7 @@ impl ChunkBuilder {
             let nz = (z - 1).rem_euclid(16);
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_north = if z == 0 {
-                if let Some(north) = north {
+                if let Some(north) = &north {
                     north.blocks[ni as usize]
                 } else {
                     0
@@ -78,7 +81,7 @@ impl ChunkBuilder {
             let nz = (z + 1).rem_euclid(16);
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_south = if z == 15 {
-                if let Some(south) = south {
+                if let Some(south) = &south {
                     south.blocks[ni as usize]
                 } else {
                     0
@@ -93,7 +96,7 @@ impl ChunkBuilder {
             let nz = z;
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_east = if x == 15 {
-                if let Some(east) = east {
+                if let Some(east) = &east {
                     east.blocks[ni as usize]
                 } else {
                     0
@@ -108,7 +111,7 @@ impl ChunkBuilder {
             let nz = z;
             let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
             let b_west = if x == 0 {
-                if let Some(west) = west {
+                if let Some(west) = &west {
                     west.blocks[ni as usize]
                 } else {
                     0
