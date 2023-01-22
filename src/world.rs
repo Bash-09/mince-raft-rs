@@ -2,10 +2,14 @@ use std::{collections::HashMap, sync::RwLockReadGuard};
 
 use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
 use glium::Display;
+use mcproto_rs::v1_16_3::PlayBlockChangeSpec;
 
 use crate::resources::BlockState;
 
-use self::{chunks::{Chunk, BlockIndex, ChunkSection, SECTIONS_PER_CHUNK, MAX_SECTION, MIN_SECTION}, chunk_builder::ChunkBuilder};
+use self::{
+    chunk_builder::ChunkBuilder,
+    chunks::{Chunk, ChunkSection, MAX_SECTION, MIN_SECTION},
+};
 
 pub mod chunk_builder;
 pub mod chunks;
@@ -47,27 +51,29 @@ impl World {
 
     fn are_chunk_neighbours_loaded(&self, loc: &ChunkLocation) -> bool {
         let chunk = self.get_chunk(loc);
-        let north = self.get_chunk(&ChunkLocation::new(loc.x,     loc.y - 1));
-        let east  = self.get_chunk(&ChunkLocation::new(loc.x + 1, loc.y));
-        let south = self.get_chunk(&ChunkLocation::new(loc.x,     loc.y + 1));
-        let west  = self.get_chunk(&ChunkLocation::new(loc.x - 1, loc.y));
+        let north = self.get_chunk(&ChunkLocation::new(loc.x, loc.y - 1));
+        let east = self.get_chunk(&ChunkLocation::new(loc.x + 1, loc.y));
+        let south = self.get_chunk(&ChunkLocation::new(loc.x, loc.y + 1));
+        let west = self.get_chunk(&ChunkLocation::new(loc.x - 1, loc.y));
         chunk.is_some() && north.is_some() && east.is_some() && south.is_some() && west.is_some()
     }
 
     fn generate_section_mesh(&mut self, loc: &SectionLocation, dis: &Display, threaded: bool) {
         let chunk = self.get_section(loc);
         // Discard chunk sections that are empty
-        if chunk.is_none() { return }
+        if chunk.is_none() {
+            return;
+        }
         let chunk = chunk.unwrap();
 
         // Can unwrap because we checked above that they are all valid
-        let north = self.get_section(&SectionLocation::new(loc.x,     loc.y, loc.z - 1));
-        let east  = self.get_section(&SectionLocation::new(loc.x + 1, loc.y, loc.z));
-        let south = self.get_section(&SectionLocation::new(loc.x,     loc.y, loc.z + 1));
-        let west  = self.get_section(&SectionLocation::new(loc.x - 1, loc.y, loc.z));
+        let north = self.get_section(&SectionLocation::new(loc.x, loc.y, loc.z - 1));
+        let east = self.get_section(&SectionLocation::new(loc.x + 1, loc.y, loc.z));
+        let south = self.get_section(&SectionLocation::new(loc.x, loc.y, loc.z + 1));
+        let west = self.get_section(&SectionLocation::new(loc.x - 1, loc.y, loc.z));
         let above = if loc.y >= MAX_SECTION {
             None
-        }  else {
+        } else {
             self.get_section(&SectionLocation::new(loc.x, loc.y + 1, loc.z))
         };
         let below = if loc.y <= MIN_SECTION {
@@ -80,20 +86,23 @@ impl World {
             todo!();
         } else {
             let verts = ChunkBuilder::generate_mesh(chunk, above, below, north, east, south, west);
-            self.get_chunk_mut(&ChunkLocation::new(loc.x, loc.z)).unwrap().load_mesh(dis, verts, ChunkSection::index_of_section(loc.y));
+            self.get_chunk_mut(&ChunkLocation::new(loc.x, loc.z))
+                .unwrap()
+                .load_mesh(dis, verts, loc.y);
         }
     }
 
     pub fn generate_meshes(&mut self, dis: &Display, threaded: bool) {
-
         let mut temp = Vec::new();
         std::mem::swap(&mut self.chunks_to_generate, &mut temp);
-        let ready_chunks: Vec<_> = temp.drain_filter(|loc| self.are_chunk_neighbours_loaded(loc)).collect();
+        let ready_chunks: Vec<_> = temp
+            .drain_filter(|loc| self.are_chunk_neighbours_loaded(loc))
+            .collect();
         std::mem::swap(&mut self.chunks_to_generate, &mut temp);
 
         for loc in ready_chunks {
-            for i in 0..SECTIONS_PER_CHUNK {
-                self.generate_section_mesh(&SectionLocation::new(loc.x, ChunkSection::section_at_index(i), loc.y), dis, threaded);
+            for y in MIN_SECTION..=MAX_SECTION {
+                self.generate_section_mesh(&SectionLocation::new(loc.x, y, loc.y), dis, threaded);
             }
         }
 
@@ -101,10 +110,14 @@ impl World {
         std::mem::swap(&mut temp, &mut self.sections_to_generate);
         temp.retain(|loc| {
             // Retain chunks that don't have all their neighbouring chunks
-            if !self.are_chunk_neighbours_loaded(&ChunkLocation::new(loc.x, loc.z)) { return true }
+            if !self.are_chunk_neighbours_loaded(&ChunkLocation::new(loc.x, loc.z)) {
+                return true;
+            }
 
             // Discard chunk sections that are empty
-            if self.get_section(loc).is_none() { return false }
+            if self.get_section(loc).is_none() {
+                return false;
+            }
 
             self.generate_section_mesh(loc, dis, threaded);
             false
@@ -138,18 +151,26 @@ impl World {
     }
 
     pub fn get_section(&self, location: &SectionLocation) -> Option<RwLockReadGuard<ChunkSection>> {
-        self.get_chunk(&ChunkLocation::new(location.x, location.z)).map(|c| c.get_section(ChunkSection::index_of_section(location.y))).unwrap_or(None)
+        self.get_chunk(&ChunkLocation::new(location.x, location.z))
+            .map(|c| c.get_section(location.y))
+            .unwrap_or(None)
     }
 
-    pub fn get_section_containing(&self, coords: &WorldCoords) -> Option<RwLockReadGuard<ChunkSection>> {
-        self.get_chunk_containing(coords).map(|c| c.get_section_containing(coords.y)).unwrap_or(None)
+    pub fn get_section_containing(
+        &self,
+        coords: &WorldCoords,
+    ) -> Option<RwLockReadGuard<ChunkSection>> {
+        self.get_chunk_containing(coords)
+            .map(|c| c.get_section_containing(coords.y))
+            .unwrap_or(None)
     }
 
     /// Get the height of the highest block at the x/z coordinates provided. Can return None if the
     /// coordinates provided are within an unloaded chunk
     pub fn get_highest_block(&self, coords: &IVec2) -> Option<i32> {
         let coords = IVec3::new(coords.x, 0, coords.y);
-        self.get_chunk(&Chunk::chunk_containing(&coords)).map(|c| c.get_highest_block(Chunk::map_from_world_coords(&coords).xz()))
+        self.get_chunk(&Chunk::chunk_containing(&coords))
+            .map(|c| c.get_highest_block(Chunk::map_from_world_coords(&coords).xz()))
     }
 
     pub fn is_chunk_loaded(&self, location: &ChunkLocation) -> bool {
@@ -157,54 +178,70 @@ impl World {
     }
 
     pub fn block_at(&self, coords: &WorldCoords) -> Option<&BlockState> {
-        self.chunks.get(&Chunk::chunk_containing(coords)).map(|c| c.block_at(&Chunk::map_from_world_coords(coords))).unwrap_or(None)
+        self.chunks
+            .get(&Chunk::chunk_containing(coords))
+            .map(|c| c.block_at(&Chunk::map_from_world_coords(coords)))
+            .unwrap_or(None)
     }
 
-    // pub fn regenerate_chunk_section(&mut self, dis: &Display, cs: IVec3) {
-    //     if let Some(chunk) = self.chunks.get(&cs.xz()) {
-    //         if chunk.sections[cs.y as usize].is_none() {
-    //             return;
-    //         }
-    //
-    //         let north = self.chunks.get(&IVec2::new(cs.x, cs.z - 1));
-    //         let east = self.chunks.get(&IVec2::new(cs.x + 1, cs.z));
-    //         let south = self.chunks.get(&IVec2::new(cs.x, cs.z + 1));
-    //         let west = self.chunks.get(&IVec2::new(cs.x - 1, cs.z));
-    //
-    //         if north.is_none() || east.is_none() || south.is_none() || west.is_none() {
-    //             return;
-    //         }
-    //
-    //         let mesh = ChunkBuilder::generate_mesh(
-    //             &chunk.sections[cs.y as usize].as_ref().unwrap(),
-    //             if cs.y == 15 {
-    //                 &None
-    //             } else {
-    //                 &chunk.sections[cs.y as usize + 1]
-    //             },
-    //             if cs.y == 0 {
-    //                 &None
-    //             } else {
-    //                 &chunk.sections[cs.y as usize - 1]
-    //             },
-    //             &north.unwrap().sections[cs.y as usize],
-    //             &east.unwrap().sections[cs.y as usize],
-    //             &south.unwrap().sections[cs.y as usize],
-    //             &west.unwrap().sections[cs.y as usize],
-    //         );
-    //
-    //         self.chunks.get_mut(&cs.xz()).unwrap().sections[cs.y as usize]
-    //             .as_mut()
-    //             .unwrap()
-    //             .load_mesh(dis, mesh);
-    //     }
-    // }
-    //
-    // pub fn regenerate_chunk(&mut self, dis: &Display, cs: IVec2) {
-    //     for y in 0..16 {
-    //         self.regenerate_chunk_section(dis, IVec3::new(cs.x, y, cs.y));
-    //     }
-    // }
+    pub fn handle_block_change(&mut self, pack: PlayBlockChangeSpec) {
+        let coords = IVec3::new(pack.location.x, pack.location.y.into(), pack.location.z);
+
+        if let Some(chunk) = self.get_chunk_mut(&Chunk::chunk_containing(&coords)) {}
+        // if let Some(chunk) = self.get_chunk_mut(&Chunk::map_from_world_coords(&chunk_coords)) {}
+        //     if chunk.sections[chunk_coords.y as usize].is_none() {
+        //         chunk.sections[chunk_coords.y as usize] =
+        //             Some(ChunkSection::new(chunk_coords.y, [0; 4096]));
+        //     }
+        //
+        //     if let Some(chunk_section) = &mut chunk.sections[chunk_coords.y as usize] {
+        //         chunk_section.blocks[chunks::block_pos_to_index(&local_coords)] =
+        //             pack.block_id.0 as u16;
+        //         self.world.regenerate_chunk_section(&ctx.dis, chunk_coords);
+        //
+        //         if local_coords.x == 0 {
+        //             self.world.regenerate_chunk_section(
+        //                 &ctx.dis,
+        //                 IVec3::new(chunk_coords.x - 1, chunk_coords.y, chunk_coords.z),
+        //             );
+        //         }
+        //         if local_coords.x == 15 {
+        //             self.world.regenerate_chunk_section(
+        //                 &ctx.dis,
+        //                 IVec3::new(chunk_coords.x + 1, chunk_coords.y, chunk_coords.z),
+        //             );
+        //         }
+        //         if local_coords.y == 0 {
+        //             self.world.regenerate_chunk_section(
+        //                 &ctx.dis,
+        //                 IVec3::new(chunk_coords.x, chunk_coords.y - 1, chunk_coords.z),
+        //             );
+        //         }
+        //         if local_coords.y == 15 {
+        //             self.world.regenerate_chunk_section(
+        //                 &ctx.dis,
+        //                 IVec3::new(chunk_coords.x, chunk_coords.y + 1, chunk_coords.z),
+        //             );
+        //         }
+        //         if local_coords.z == 0 {
+        //             self.world.regenerate_chunk_section(
+        //                 &ctx.dis,
+        //                 IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z - 1),
+        //             );
+        //         }
+        //         if local_coords.z == 15 {
+        //             self.world.regenerate_chunk_section(
+        //                 &ctx.dis,
+        //                 IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z + 1),
+        //             );
+        //         }
+        //     } else {
+        //         error!("Block update in empty chunk section");
+        //     }
+        // } else {
+        //     warn!("Block update in unloaded chunk");
+        // }
+    }
 }
 
 impl Default for World {

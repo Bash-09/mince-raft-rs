@@ -16,7 +16,7 @@ pub struct BlockState {
     pub name: String,
     pub id: u32,
     pub model: Option<String>,
-    pub collision_shape: Option<u64>
+    pub collision_shape: Option<u64>,
 }
 
 pub const PLAYER_INDEX: usize = 106;
@@ -74,9 +74,9 @@ lazy_static! {
                         collision_shape: {
                             match state.get("collision_shape") {
                                 Some(collision_shape) => collision_shape.as_u64(),
-                                None => None
+                                None => None,
                             }
-                        }
+                        },
                     },
                 );
             }

@@ -15,20 +15,17 @@ use crate::network::*;
 mod network;
 
 use egui::{FontData, FontDefinitions, FontFamily};
-use egui_winit::winit::{
-    event::Event,
-    window::WindowBuilder,
-};
+use egui_winit::winit::{event::Event, window::WindowBuilder};
 use glam::Vec3;
 use glium::glutin;
 use log::{debug, error, info};
 
 use glium_app::*;
-use glium_app::{
-    context::Context,
-    utils::persistent_window::PersistentWindowManager,
+use glium_app::{context::Context, utils::persistent_window::PersistentWindowManager};
+use mcproto_rs::{
+    types::{self, EntityLocation},
+    v1_16_3::PlayClientPlayerPositionAndRotationSpec,
 };
-use mcproto_rs::{v1_16_3::PlayClientPlayerPositionAndRotationSpec, types::{EntityLocation, self}};
 use server::InputState;
 use state::State;
 
@@ -122,20 +119,23 @@ impl Application for Client {
                 Some(serv) => {
                     // Send player position update packets
                     if serv.get_player().id != 0 {
-                        serv.send_packet(encode(PacketType::PlayClientPlayerPositionAndRotation(PlayClientPlayerPositionAndRotationSpec {
-                            feet_location: EntityLocation{
-                                position: types::Vec3{
-                                    x: serv.get_player().get_position().x as f64,
-                                    y: serv.get_player().get_position().y as f64,
-                                    z: serv.get_player().get_position().z as f64
+                        serv.send_packet(encode(PacketType::PlayClientPlayerPositionAndRotation(
+                            PlayClientPlayerPositionAndRotationSpec {
+                                feet_location: EntityLocation {
+                                    position: types::Vec3 {
+                                        x: serv.get_player().get_position().x as f64,
+                                        y: serv.get_player().get_position().y as f64,
+                                        z: serv.get_player().get_position().z as f64,
+                                    },
+                                    rotation: types::EntityRotation {
+                                        yaw: serv.get_player().get_orientation().get_yaw() as f32,
+                                        pitch: serv.get_player().get_orientation().get_head_pitch()
+                                            as f32,
+                                    },
                                 },
-                                rotation: types::EntityRotation {
-                                    yaw: serv.get_player().get_orientation().get_yaw() as f32,
-                                    pitch: serv.get_player().get_orientation().get_head_pitch() as f32,
-                                },
+                                on_ground: true,
                             },
-                            on_ground: true,
-                        })));
+                        )));
                     }
                 }
                 None => {}
@@ -158,7 +158,6 @@ impl Application for Client {
                     .set_rot(serv.get_player().get_orientation().get_rotations() * -1.0);
 
                 serv.update(ctx, delta, &mut self.state.settings);
-
             }
             None => {
                 let State {
@@ -214,8 +213,18 @@ impl Application for Client {
         });
         gui.paint(dis, &mut target);
 
-        *block_gui_tab_input = self.state.server.as_ref().map(|s| s.get_input_state() == InputState::InteractingInfo).unwrap_or(false);
-        let grab_mouse = self.state.server.as_ref().map(|s| s.should_grab_mouse()).unwrap_or(false);
+        *block_gui_tab_input = self
+            .state
+            .server
+            .as_ref()
+            .map(|s| s.get_input_state() == InputState::InteractingInfo)
+            .unwrap_or(false);
+        let grab_mouse = self
+            .state
+            .server
+            .as_ref()
+            .map(|s| s.should_grab_mouse())
+            .unwrap_or(false);
         *block_gui_input = grab_mouse;
         ctx.set_mouse_grabbed(grab_mouse).ok();
         ctx.set_mouse_visible(!grab_mouse);
@@ -225,7 +234,8 @@ impl Application for Client {
         // Check for server disconnect
         if let Some(serv) = &mut self.state.server {
             if serv.server_disconnect {
-                self.window_manager.push(gui::disconnect_window(serv.disconnect_reason.clone()));
+                self.window_manager
+                    .push(gui::disconnect_window(serv.disconnect_reason.clone()));
                 self.state.server = None;
             } else if serv.client_disconnect {
                 self.state.server = None;

@@ -1,15 +1,11 @@
 use std::collections::HashMap;
 
 use glam::{Mat4, Vec3};
-use glium::index::{
-    NoIndices,
-    PrimitiveType::TrianglesList,
-};
+use glium::index::{NoIndices, PrimitiveType::TrianglesList};
 use glium::*;
 use glium::{Display, Surface};
 
-
-use crate::world::chunks::SECTIONS_PER_CHUNK;
+use crate::world::chunks::{MAX_SECTION, MIN_SECTION, SECTIONS_PER_CHUNK};
 use crate::{
     entities::{self, Entity},
     renderer::camera::Camera,
@@ -147,7 +143,7 @@ impl Renderer {
                 continue;
             }
 
-            for y in 0..SECTIONS_PER_CHUNK {
+            for y in MIN_SECTION..=MAX_SECTION {
                 if let Some(vbo) = chunk.get_section_vbo(y) {
                     let cy = (y * 16) as f32;
 

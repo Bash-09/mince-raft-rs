@@ -1,13 +1,13 @@
 use log::debug;
 use log::{error, info, warn};
-use mcproto_rs::protocol::{RawPacket, Id, PacketErr, HasPacketId, HasPacketBody};
-use mcproto_rs::types::{BytesSerializer, self, VarInt, TextComponent, BaseComponent};
-use mcproto_rs::{v1_16_3::*, status, Serializer};
+use mcproto_rs::protocol::{HasPacketBody, HasPacketId, Id, PacketErr, RawPacket};
+use mcproto_rs::types::{self, BaseComponent, BytesSerializer, TextComponent, VarInt};
 use mcproto_rs::{protocol, v1_16_3};
+use mcproto_rs::{status, v1_16_3::*, Serializer};
 use miniz_oxide::{deflate::compress_to_vec_zlib, inflate::decompress_to_vec_zlib};
 
 use std::fmt::Debug;
-use std::io::{Cursor, self, ErrorKind};
+use std::io::{self, Cursor, ErrorKind};
 use std::time::Instant;
 use std::{
     io::{Error, Read, Write},
@@ -137,14 +137,12 @@ impl NetworkManager {
         loop {
             match self.channel.recv.try_recv() {
                 Ok(msg) => self.handle_message(msg),
-                Err(e) => {
-                    match e {
-                        mpsc::TryRecvError::Empty => break,
-                        mpsc::TryRecvError::Disconnected => {
-                            log::info!("Network channel disconnected, stopping network manager.");
-                            self.close = true;
-                            return;
-                        },
+                Err(e) => match e {
+                    mpsc::TryRecvError::Empty => break,
+                    mpsc::TryRecvError::Disconnected => {
+                        log::info!("Network channel disconnected, stopping network manager.");
+                        self.close = true;
+                        return;
                     }
                 },
             }
@@ -153,14 +151,12 @@ impl NetworkManager {
         // Handles incoming packets
         while !self.close {
             match self.next_packet() {
-                Ok(packet_result) => {
-                    match packet_result {
-                        Ok(packet) => self.handle_packet(packet),
-                        Err(e) => {
-                            log::error!("Couldn't deserialize packet: {}", e);
-                        },
+                Ok(packet_result) => match packet_result {
+                    Ok(packet) => self.handle_packet(packet),
+                    Err(e) => {
+                        log::error!("Couldn't deserialize packet: {}", e);
                     }
-                }
+                },
                 Err(e) => {
                     if e.kind() == ErrorKind::WouldBlock {
                         return;
@@ -216,7 +212,7 @@ impl NetworkManager {
                     match RawPacketType::create(id, &buf[cur.position() as usize..]) {
                         Ok(raw_packet) => raw_packet.deserialize(),
                         Err(e) => Err(e),
-                    }
+                    },
                 );
             }
 
@@ -229,19 +225,16 @@ impl NetworkManager {
                         state: self.state,
                         direction: protocol::PacketDirection::ClientBound,
                     };
-                    return Ok(
-                        match RawPacketType::create(id, cur.remaining_slice()) {
-                            Ok(raw_packet) => raw_packet.deserialize(),
-                            Err(e) => Err(e),
-                        }
-                    );
+                    return Ok(match RawPacketType::create(id, cur.remaining_slice()) {
+                        Ok(raw_packet) => raw_packet.deserialize(),
+                        Err(e) => Err(e),
+                    });
                 }
                 Err(e) => {
                     todo!("Properly decompression error handling");
                 }
             }
         }
-
 
         let mut cur = Cursor::new(&mut buf);
         let id = read_varint(&mut cur)?;
@@ -253,12 +246,10 @@ impl NetworkManager {
             state: self.state,
             direction: protocol::PacketDirection::ClientBound,
         };
-        return Ok(
-            match RawPacketType::create(id, contents) {
-                Ok(raw_packet) => raw_packet.deserialize(),
-                Err(e) => Err(e),
-            }
-        );
+        return Ok(match RawPacketType::create(id, contents) {
+            Ok(raw_packet) => raw_packet.deserialize(),
+            Err(e) => Err(e),
+        });
     }
 
     /// Attempts to login to the server
@@ -288,9 +279,7 @@ impl NetworkManager {
             next_state: HandshakeNextState::Login,
         };
 
-        let login = LoginStartSpec {
-            name,
-        };
+        let login = LoginStartSpec { name };
 
         self.send_packet(&encode(PacketType::Handshake(handshake)))
             .expect("Failed to send handshake");
@@ -339,7 +328,7 @@ impl NetworkManager {
                                     warn!("Got unexpected packet during login: {:?}", packet);
                                 }
                             };
-                        },
+                        }
                         Err(e) => {
                             panic!("Error decoding packet: {}", e);
                         }
@@ -381,10 +370,12 @@ impl NetworkManager {
         let now = Instant::now();
         self.send_packet(&encode(PacketType::Handshake(handshake)))
             .expect("Failed to send handshake");
-        self.send_packet(&encode(PacketType::StatusRequest(StatusRequestSpec{})))
+        self.send_packet(&encode(PacketType::StatusRequest(StatusRequestSpec {})))
             .expect("Failed to send status request");
-        self.send_packet(&encode(PacketType::StatusPing(StatusPingSpec{ payload: 0 })))
-            .expect("Failed to send Status Ping");
+        self.send_packet(&encode(PacketType::StatusPing(StatusPingSpec {
+            payload: 0,
+        })))
+        .expect("Failed to send Status Ping");
 
         let ping;
         let mut status: status::StatusSpec;
@@ -443,7 +434,10 @@ impl NetworkManager {
                 write_varint(&mut data_length, packet.len() as i32)?;
                 let compressed = compress_to_vec_zlib(packet, 0);
                 let mut packet_length = Vec::new();
-                write_varint(&mut packet_length, (data_length.len() + compressed.len()) as i32)?;
+                write_varint(
+                    &mut packet_length,
+                    (data_length.len() + compressed.len()) as i32,
+                )?;
 
                 s.write_all(&packet_length)?;
                 s.write_all(&data_length)?;
@@ -458,7 +452,8 @@ impl NetworkManager {
             s.write_all(packet)?;
         }
 
-        s.set_nonblocking(true).expect("Failed to set TcpStream nonblocking");
+        s.set_nonblocking(true)
+            .expect("Failed to set TcpStream nonblocking");
         Ok(())
     }
 
@@ -499,8 +494,11 @@ impl NetworkManager {
     fn handle_packet(&mut self, packet: PacketType) {
         match &packet {
             PacketType::PlayServerKeepAlive(pack) => {
-                self.send_packet(&encode(PacketType::PlayClientKeepAlive(PlayClientKeepAliveSpec{id: pack.id}))).expect("Failed to send heartbeat.");
-            },
+                self.send_packet(&encode(PacketType::PlayClientKeepAlive(
+                    PlayClientKeepAliveSpec { id: pack.id },
+                )))
+                .expect("Failed to send heartbeat.");
+            }
             PacketType::LoginSetCompression(pack) => {
                 if pack.threshold.0 <= 0 {
                     self.compress = false;
@@ -525,7 +523,7 @@ impl NetworkManager {
                 reason: types::Chat::Text(types::TextComponent {
                     text: String::from("Player Disconnected"),
                     base: types::BaseComponent::default(),
-                })
+                }),
             })))
             .expect("Failed to send Disconnect packet");
         }
@@ -582,6 +580,8 @@ pub fn encode(packet: PacketType) -> Vec<u8> {
 
     let mut serializer = BytesSerializer::default();
     serializer.serialize_bytes(&id).unwrap();
-    packet.mc_serialize_body(&mut serializer).expect("Failed to serialize packet");
+    packet
+        .mc_serialize_body(&mut serializer)
+        .expect("Failed to serialize packet");
     serializer.into_bytes()
 }

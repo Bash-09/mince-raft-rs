@@ -5,15 +5,26 @@ use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
 use glium_app::context::Context;
 use lazy_static::__Deref;
 use log::{debug, error, info, warn};
-use mcproto_rs::{v1_16_3::{Difficulty, PlayClientSettingsSpec, PlayClientStatusSpec, PlayClientChatMessageSpec, ClientStatusAction, PlayTeleportConfirmSpec, PlayClientPlayerPositionAndRotationSpec, PlayerInfoAction, GameMode}, types::{self, EntityLocation, VarInt}, uuid::UUID4};
+use mcproto_rs::{
+    types::{self, EntityLocation, VarInt},
+    uuid::UUID4,
+    v1_16_3::{
+        ClientStatusAction, Difficulty, GameMode, PlayClientChatMessageSpec,
+        PlayClientPlayerPositionAndRotationSpec, PlayClientSettingsSpec, PlayClientStatusSpec,
+        PlayTeleportConfirmSpec, PlayerInfoAction,
+    },
+};
 
 use crate::{
-    network::{NetworkChannel, NetworkCommand, encode, PacketType},
+    gui::{chat_windows, info_windows, pause_windows},
+    network::{encode, NetworkChannel, NetworkCommand, PacketType},
+    resources::PLAYER_INDEX,
     settings::Settings,
     world::{
         self,
         chunks::{self, Chunk, ChunkSection},
-    }, WindowManager, gui::{pause_windows, info_windows, chat_windows}, resources::PLAYER_INDEX,
+    },
+    WindowManager,
 };
 
 use self::remote_player::RemotePlayer;
@@ -61,7 +72,7 @@ pub enum InputState {
     Paused,
     ShowingInfo,
     InteractingInfo,
-    ChatOpen
+    ChatOpen,
 }
 
 impl Server {
@@ -190,15 +201,15 @@ impl Server {
         }
 
         match self.input_state {
-            InputState::Playing => {},
-            InputState::Paused => {
-                match pause_windows::render(gui_ctx, windows) {
-                    pause_windows::PauseAction::Disconnect => self.disconnect(),
-                    pause_windows::PauseAction::Unpause => self.set_input_state(InputState::Playing),
-                    pause_windows::PauseAction::Nothing => {},
-                }
+            InputState::Playing => {}
+            InputState::Paused => match pause_windows::render(gui_ctx, windows) {
+                pause_windows::PauseAction::Disconnect => self.disconnect(),
+                pause_windows::PauseAction::Unpause => self.set_input_state(InputState::Playing),
+                pause_windows::PauseAction::Nothing => {}
             },
-            InputState::ShowingInfo  | InputState::InteractingInfo => info_windows::render(gui_ctx, self),
+            InputState::ShowingInfo | InputState::InteractingInfo => {
+                info_windows::render(gui_ctx, self)
+            }
             InputState::ChatOpen => chat_windows::render_active(self, gui_ctx),
         }
     }
@@ -233,7 +244,7 @@ impl Server {
                             self.disconnect_reason = Some(String::from("Server forced disconnect. (You were probably sending too many connection requests)"));
                         }
                         return;
-                    },
+                    }
                 },
             }
         }
@@ -259,7 +270,6 @@ impl Server {
         if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Escape) {
             self.input_state = InputState::Playing;
         }
-
     }
 
     fn handle_show_info_state(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
@@ -291,7 +301,9 @@ impl Server {
         } else if ctx.keyboard.pressed_this_frame(&VirtualKeyCode::Return) {
             let text = self.chat.get_current_message_and_clear();
             if !text.is_empty() {
-                self.send_packet(encode(PacketType::PlayClientChatMessage(PlayClientChatMessageSpec{ message: text })));
+                self.send_packet(encode(PacketType::PlayClientChatMessage(
+                    PlayClientChatMessageSpec { message: text },
+                )));
             }
             self.input_state = InputState::Playing;
         }
@@ -361,7 +373,6 @@ impl Server {
         }
     }
 
-
     pub fn disconnect(&mut self) {
         info!("Disconnecting from server.");
         self.network
@@ -414,32 +425,41 @@ impl Server {
 
                     PacketType::PlayJoinGame(id) => {
                         self.join_game(id.entity_id);
-                        self.send_packet(encode(PacketType::PlayClientSettings(PlayClientSettingsSpec {
-                            locale: self.player.locale.clone(),
-                            view_distance: (self.player.view_distance),
-                            chat_mode: self.player.chat_mode.clone(),
-                            chat_colors: (false),
-                            displayed_skin_parts: self.player.displayed_skin_parts,
-                            main_hand: self.player.main_hand.clone(),
-                        })));
-                        self.send_packet(encode(PacketType::PlayClientStatus(PlayClientStatusSpec { action: ClientStatusAction::PerformRespawn })));
+                        self.send_packet(encode(PacketType::PlayClientSettings(
+                            PlayClientSettingsSpec {
+                                locale: self.player.locale.clone(),
+                                view_distance: (self.player.view_distance),
+                                chat_mode: self.player.chat_mode.clone(),
+                                chat_colors: (false),
+                                displayed_skin_parts: self.player.displayed_skin_parts,
+                                main_hand: self.player.main_hand.clone(),
+                            },
+                        )));
+                        self.send_packet(encode(PacketType::PlayClientStatus(
+                            PlayClientStatusSpec {
+                                action: ClientStatusAction::PerformRespawn,
+                            },
+                        )));
                     }
 
                     PacketType::PlaySpawnPlayer(pack) => {
                         self.entities.insert(
-                            pack.entity_id.0, 
+                            pack.entity_id.0,
                             Entity::new_with_values(
-                                pack.entity_id.0, 
-                                pack.uuid, 
-                                PLAYER_INDEX as u32, 
-                                0, 
-                                pack.location.position.x as f32, 
-                                pack.location.position.y as f32, 
-                                pack.location.position.z as f32, 
-                                pack.location.rotation.yaw.value as f32 / 255.0, 
-                                pack.location.rotation.pitch.value  as f32 / 255.0, 
-                                pack.location.rotation.pitch.value  as f32 / 255.0, 
-                                0.0, 0.0, 0.0)
+                                pack.entity_id.0,
+                                pack.uuid,
+                                PLAYER_INDEX as u32,
+                                0,
+                                pack.location.position.x as f32,
+                                pack.location.position.y as f32,
+                                pack.location.position.z as f32,
+                                pack.location.rotation.yaw.value as f32 / 255.0,
+                                pack.location.rotation.pitch.value as f32 / 255.0,
+                                pack.location.rotation.pitch.value as f32 / 255.0,
+                                0.0,
+                                0.0,
+                                0.0,
+                            ),
                         );
                     }
 
@@ -494,19 +514,21 @@ impl Server {
                         }
                     }
 
-                    PacketType::PlayEntityPosition(pack) => match self.entities.get_mut(&pack.entity_id.0) {
-                        Some(ent) => {
-                            let new_pos = ent.last_pos
-                                + Vec3::new(
-                                    (pack.delta.x as f32) / 4096.0,
-                                    (pack.delta.y as f32) / 4096.0,
-                                    (pack.delta.z as f32) / 4096.0,
-                                );
-                            ent.pos = new_pos;
-                            ent.last_pos = new_pos;
+                    PacketType::PlayEntityPosition(pack) => {
+                        match self.entities.get_mut(&pack.entity_id.0) {
+                            Some(ent) => {
+                                let new_pos = ent.last_pos
+                                    + Vec3::new(
+                                        (pack.delta.x as f32) / 4096.0,
+                                        (pack.delta.y as f32) / 4096.0,
+                                        (pack.delta.z as f32) / 4096.0,
+                                    );
+                                ent.pos = new_pos;
+                                ent.last_pos = new_pos;
+                            }
+                            None => {}
                         }
-                        None => {}
-                    },
+                    }
 
                     PacketType::PlayEntityPositionAndRotation(pack) => {
                         match self.entities.get_mut(&pack.entity_id.0) {
@@ -519,51 +541,71 @@ impl Server {
                                     );
                                 ent.pos = new_pos;
                                 ent.last_pos = new_pos;
-                                ent.ori
-                                    .set(pack.delta.rotation.yaw.value as f32 / 256.0, pack.delta.rotation.pitch.value as f32 / 256.0);
+                                ent.ori.set(
+                                    pack.delta.rotation.yaw.value as f32 / 256.0,
+                                    pack.delta.rotation.pitch.value as f32 / 256.0,
+                                );
                                 ent.on_ground = pack.on_ground;
                             }
                             None => {}
                         }
                     }
 
-                    PacketType::PlayEntityRotation(pack) => match self.entities.get_mut(&pack.entity_id.0) {
-                        Some(ent) => {
-                            ent.ori
-                                .set(pack.rotation.yaw.value as f32 / 256.0, pack.rotation.pitch.value as f32 / 256.0);
-                            ent.on_ground = pack.on_ground;
+                    PacketType::PlayEntityRotation(pack) => {
+                        match self.entities.get_mut(&pack.entity_id.0) {
+                            Some(ent) => {
+                                ent.ori.set(
+                                    pack.rotation.yaw.value as f32 / 256.0,
+                                    pack.rotation.pitch.value as f32 / 256.0,
+                                );
+                                ent.on_ground = pack.on_ground;
+                            }
+                            None => {}
                         }
-                        None => {}
-                    },
+                    }
 
-                    PacketType::PlayEntityHeadLook(pack) => match self.entities.get_mut(&pack.entity_id.0) {
-                        Some(ent) => {
-                            ent.ori_head
-                                .set(pack.head_yaw.value as f32 / 256.0, ent.ori_head.get_head_pitch());
+                    PacketType::PlayEntityHeadLook(pack) => {
+                        match self.entities.get_mut(&pack.entity_id.0) {
+                            Some(ent) => {
+                                ent.ori_head.set(
+                                    pack.head_yaw.value as f32 / 256.0,
+                                    ent.ori_head.get_head_pitch(),
+                                );
+                            }
+                            None => {}
                         }
-                        None => {}
-                    },
+                    }
 
-                    PacketType::PlayEntityVelocity(pack) => match self.entities.get_mut(&pack.entity_id.0) {
-                        Some(ent) => {
-                            ent.vel = Vec3::new(
-                                pack.velocity.x as f32 / 400.0,
-                                pack.velocity.y as f32 / 400.0,
-                                pack.velocity.z as f32 / 400.0,
-                            );
+                    PacketType::PlayEntityVelocity(pack) => {
+                        match self.entities.get_mut(&pack.entity_id.0) {
+                            Some(ent) => {
+                                ent.vel = Vec3::new(
+                                    pack.velocity.x as f32 / 400.0,
+                                    pack.velocity.y as f32 / 400.0,
+                                    pack.velocity.z as f32 / 400.0,
+                                );
+                            }
+                            None => {}
                         }
-                        None => {}
-                    },
+                    }
 
-                    PacketType::PlayEntityTeleport(pack) => match self.entities.get_mut(&pack.entity_id.0) {
-                        Some(ent) => {
-                            ent.pos = Vec3::new(pack.location.position.x as f32, pack.location.position.y as f32, pack.location.position.z as f32);
-                            ent.ori
-                                .set(pack.location.rotation.yaw.value as f32 / 256.0, pack.location.rotation.pitch.value as f32 / 256.0);
-                            ent.on_ground = pack.on_ground;
+                    PacketType::PlayEntityTeleport(pack) => {
+                        match self.entities.get_mut(&pack.entity_id.0) {
+                            Some(ent) => {
+                                ent.pos = Vec3::new(
+                                    pack.location.position.x as f32,
+                                    pack.location.position.y as f32,
+                                    pack.location.position.z as f32,
+                                );
+                                ent.ori.set(
+                                    pack.location.rotation.yaw.value as f32 / 256.0,
+                                    pack.location.rotation.pitch.value as f32 / 256.0,
+                                );
+                                ent.on_ground = pack.on_ground;
+                            }
+                            None => {}
                         }
-                        None => {}
-                    },
+                    }
 
                     PacketType::PlayServerPlayerPositionAndLook(pack) => {
                         debug!("Player position updated!");
@@ -577,21 +619,29 @@ impl Server {
                             .get_orientation_mut()
                             .set(pack.location.rotation.yaw, pack.location.rotation.pitch);
 
-                        self.send_packet(encode(PacketType::PlayTeleportConfirm(PlayTeleportConfirmSpec {
-                            teleport_id: pack.teleport_id,
-                        })));
+                        self.send_packet(encode(PacketType::PlayTeleportConfirm(
+                            PlayTeleportConfirmSpec {
+                                teleport_id: pack.teleport_id,
+                            },
+                        )));
 
                         let px = self.player.get_position().x;
                         let py = self.player.get_position().y;
                         let pz = self.player.get_position().z;
 
-                        self.send_packet(encode(PacketType::PlayClientPlayerPositionAndRotation(PlayClientPlayerPositionAndRotationSpec {
-                            on_ground: (true),
-                            feet_location: EntityLocation {
-                                position: types::Vec3{x: px as f64, y: py as f64, z: pz as f64},
-                                rotation: pack.location.rotation,
+                        self.send_packet(encode(PacketType::PlayClientPlayerPositionAndRotation(
+                            PlayClientPlayerPositionAndRotationSpec {
+                                on_ground: (true),
+                                feet_location: EntityLocation {
+                                    position: types::Vec3 {
+                                        x: px as f64,
+                                        y: py as f64,
+                                        z: pz as f64,
+                                    },
+                                    rotation: pack.location.rotation,
+                                },
                             },
-                        })));
+                        )));
                     }
 
                     PacketType::PlayServerChatMessage(chat) => {
@@ -606,6 +656,10 @@ impl Server {
                         self.world
                             .get_chunks_mut()
                             .remove(&IVec2::new(pack.position.x, pack.position.z));
+                    }
+
+                    PacketType::PlayBlockChange(pack) => {
+                        self.world.handle_block_change(pack);
                     }
 
                     // PacketType::PlayBlockChange(pack) => {
@@ -695,21 +749,28 @@ impl Server {
                     //         warn!("Block update in unloaded chunk");
                     //     }
                     // }
-
                     PacketType::PlayPlayerInfo(pack) => {
                         use mcproto_rs::v1_16_3::PlayerInfoActionList;
                         match pack.actions {
                             PlayerInfoActionList::Add(players) => {
                                 for player in players.iter() {
-                                    self.players.insert(player.uuid, RemotePlayer { 
-                                        uuid: player.uuid, 
-                                        name: player.action.name.clone(), 
-                                        gamemode: player.action.game_mode.clone(), 
-                                        ping: player.action.ping_ms.0, 
-                                        display_name:  player.action.display_name.clone().map(|dn| dn.to_traditional()).unwrap_or(None)
-                                    });
+                                    self.players.insert(
+                                        player.uuid,
+                                        RemotePlayer {
+                                            uuid: player.uuid,
+                                            name: player.action.name.clone(),
+                                            gamemode: player.action.game_mode.clone(),
+                                            ping: player.action.ping_ms.0,
+                                            display_name: player
+                                                .action
+                                                .display_name
+                                                .clone()
+                                                .map(|dn| dn.to_traditional())
+                                                .unwrap_or(None),
+                                        },
+                                    );
                                 }
-                            },
+                            }
                             PlayerInfoActionList::UpdateGameMode(players) => {
                                 let players: Vec<PlayerInfoAction<GameMode>> = From::from(players);
                                 for player in players {
@@ -717,7 +778,7 @@ impl Server {
                                         p.gamemode = player.action;
                                     }
                                 }
-                            },
+                            }
                             PlayerInfoActionList::UpdateLatency(players) => {
                                 let players: Vec<PlayerInfoAction<VarInt>> = From::from(players);
                                 for player in players {
@@ -725,24 +786,30 @@ impl Server {
                                         p.ping = player.action.into();
                                     }
                                 }
-                            },
+                            }
                             PlayerInfoActionList::UpdateDisplayName(players) => {
                                 for player in players.iter() {
                                     if let Some(p) = self.players.get_mut(&player.uuid) {
-                                        p.display_name = player.action.clone().map(|chat| chat.to_traditional().unwrap_or_else(|| "Failed to parse name".to_string()));
+                                        p.display_name = player.action.clone().map(|chat| {
+                                            chat.to_traditional().unwrap_or_else(|| {
+                                                "Failed to parse name".to_string()
+                                            })
+                                        });
                                     }
                                 }
-                            },
+                            }
                             PlayerInfoActionList::Remove(players) => {
                                 for player in players.iter() {
                                     self.players.remove(player);
                                 }
-                            },
+                            }
                         }
                     }
 
                     // Currently ignoring these packets
-                    PacketType::PlayEntityMetadata(_) | PacketType::PlayEntityProperties(_) | PacketType::PlayEntityStatus(_)
+                    PacketType::PlayEntityMetadata(_)
+                    | PacketType::PlayEntityProperties(_)
+                    | PacketType::PlayEntityStatus(_)
                     | PacketType::PlayEntityAnimation(_) => {}
 
                     // Packets that have been forwarded but not handled properly

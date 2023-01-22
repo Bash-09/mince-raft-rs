@@ -1,12 +1,9 @@
-
 use egui::{Color32, Context, RichText};
-
 
 use crate::{
     server::Server,
     world::{block_coords, chunks::Chunk},
 };
-
 
 pub fn render(gui_ctx: &Context, server: &Server) {
     egui::Window::new("Info").show(gui_ctx, |ui| {

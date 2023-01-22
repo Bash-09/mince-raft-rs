@@ -1,16 +1,21 @@
-use std::{io::{Cursor, Read}, sync::{RwLock, Arc, RwLockReadGuard}, convert::TryInto};
+use std::{
+    convert::TryInto,
+    io::{Cursor, Read},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+};
 
 use glam::{IVec2, IVec3};
 use glium::{Display, VertexBuffer};
 use log::debug;
-use mcproto_rs::{v1_16_3::ChunkData, nbt};
+use mcproto_rs::{nbt, v1_16_3::ChunkData};
 
 use crate::{
-    renderer::Vertex, network::read_varint, resources::{BlockState, BLOCKS},
+    network::read_varint,
+    renderer::Vertex,
+    resources::{BlockState, BLOCKS},
 };
 
-
-use super::{WorldCoords, ChunkCoords, SectionCoords, ChunkLocation};
+use super::{ChunkCoords, ChunkLocation, SectionCoords, WorldCoords};
 
 // Base 2 Log of number of state ids in the game
 const MAX_BITS_PER_BLOCK: u64 = 15;
@@ -28,10 +33,7 @@ pub struct ChunkSection {
 
 impl ChunkSection {
     pub fn new(y: i32, blocks: ChunkArray) -> ChunkSection {
-        ChunkSection {
-            y,
-            blocks,
-        }
+        ChunkSection { y, blocks }
     }
 
     /// Convert block coordinates from within a chunk to the chunk section
@@ -50,16 +52,8 @@ impl ChunkSection {
     }
 
     /// Get the chunk section index of the section containing the provided y level
-    pub fn section_containing(y: i32) -> usize {
-        y as usize / 16
-    }
-
-    pub fn section_at_index(index: usize) -> i32 {
-        index as i32
-    }
-
-    pub fn index_of_section(section: i32) -> usize {
-        section.try_into().unwrap()
+    pub fn section_containing(y: i32) -> i32 {
+        y / 16
     }
 }
 
@@ -83,13 +77,34 @@ impl Chunk {
         }
     }
 
-    /// Returns an option containing a reference to the request section of this chunk
-    pub fn get_section(&self, y: usize) -> Option<RwLockReadGuard<ChunkSection>> {
-        self.sections.get(y).unwrap_or(&None).as_ref().map(|(s,_)| s.read().unwrap())
+    pub fn is_section_present(&self, y: i32) -> bool {
+        self.sections.get(section_to_index(y)).is_some()
     }
 
-    pub fn get_section_vbo(&self, y: usize) -> Option<&VertexBuffer<Vertex>> {
-        self.sections.get(y).unwrap_or(&None).as_ref().map(|(_,vbo)| vbo.as_ref()).unwrap_or(None)
+    /// Returns an option containing a reference to the request section of this chunk
+    pub fn get_section(&self, y: i32) -> Option<RwLockReadGuard<ChunkSection>> {
+        self.sections
+            .get(section_to_index(y))
+            .unwrap_or(&None)
+            .as_ref()
+            .map(|(s, _)| s.read().unwrap())
+    }
+
+    pub fn get_section_mut(&self, y: i32) -> Option<RwLockWriteGuard<ChunkSection>> {
+        self.sections
+            .get(section_to_index(y))
+            .unwrap_or(&None)
+            .as_ref()
+            .map(|(s, _)| s.write().unwrap())
+    }
+
+    pub fn get_section_vbo(&self, y: i32) -> Option<&VertexBuffer<Vertex>> {
+        self.sections
+            .get(section_to_index(y))
+            .unwrap_or(&None)
+            .as_ref()
+            .map(|(_, vbo)| vbo.as_ref())
+            .unwrap_or(None)
     }
 
     pub fn get_section_containing(&self, y: i32) -> Option<RwLockReadGuard<ChunkSection>> {
@@ -109,15 +124,22 @@ impl Chunk {
     pub fn map_to_world_coords(&self, coords: &ChunkCoords) -> WorldCoords {
         assert!(coords.x >= 0 && coords.x < 16);
         assert!(coords.z >= 0 && coords.z < 16);
-        IVec3::new(self.pos.x * 16 + coords.x, coords.y, self.pos.y * 16 + coords.z)
+        IVec3::new(
+            self.pos.x * 16 + coords.x,
+            coords.y,
+            self.pos.y * 16 + coords.z,
+        )
     }
 
     pub fn chunk_containing(coords: &WorldCoords) -> ChunkLocation {
         IVec2::new(coords.x.div_floor(16), coords.z.div_floor(16))
     }
 
-    pub fn load_mesh(&mut self, dis: &Display, verts: Vec<Vertex>, section: usize) {
-        self.sections.get_mut(section).map(|cs| cs.as_mut().map(|cs| cs.1 = Some(VertexBuffer::new(dis, &verts).unwrap())));
+    pub fn load_mesh(&mut self, dis: &Display, verts: Vec<Vertex>, section: i32) {
+        self.sections.get_mut(section_to_index(section)).map(|cs| {
+            cs.as_mut()
+                .map(|cs| cs.1 = Some(VertexBuffer::new(dis, &verts).unwrap()))
+        });
     }
 
     pub fn block_at(&self, coords: &ChunkCoords) -> Option<&'static BlockState> {
@@ -138,7 +160,10 @@ fn process_heightmap(data: &ChunkData) -> [u16; 256] {
 
     if let nbt::Tag::Compound(heightmaps) = &data.heightmaps.root.payload {
         if heightmaps.len() != 2 {
-            log::error!("Got unexpected number of heightmap compound elements, expected 2 got {}", heightmaps.len());
+            log::error!(
+                "Got unexpected number of heightmap compound elements, expected 2 got {}",
+                heightmaps.len()
+            );
             return map;
         }
 
@@ -146,7 +171,8 @@ fn process_heightmap(data: &ChunkData) -> [u16; 256] {
             if let nbt::NamedTag {
                 name,
                 payload: nbt::Tag::LongArray(longs),
-            } = heightmap {
+            } = heightmap
+            {
                 if name != "MOTION_BLOCKING" {
                     continue;
                 }
@@ -169,7 +195,9 @@ fn process_heightmap(data: &ChunkData) -> [u16; 256] {
 }
 
 /// Builds a list of chunk sections from chunk data
-fn process_sections(data: &ChunkData) -> [Option<(Arc<RwLock<ChunkSection>>, Option<VertexBuffer<Vertex>>)>; 16] {
+fn process_sections(
+    data: &ChunkData,
+) -> [Option<(Arc<RwLock<ChunkSection>>, Option<VertexBuffer<Vertex>>)>; 16] {
     // Check bit mask for which chunk sections are present
     let mut chunk_sections_present = [false; SECTIONS_PER_CHUNK];
     for i in 0..16 {
@@ -259,10 +287,13 @@ fn process_sections(data: &ChunkData) -> [Option<(Arc<RwLock<ChunkSection>>, Opt
             }
         }
 
-        sections[i] = Some((Arc::new(RwLock::new(ChunkSection {
-            y: i as i32,
-            blocks,
-        })), None));
+        sections[i] = Some((
+            Arc::new(RwLock::new(ChunkSection {
+                y: i as i32,
+                blocks,
+            })),
+            None,
+        ));
     }
     sections
 }
@@ -279,4 +310,8 @@ pub fn block_index_to_pos(i: usize) -> IVec3 {
     let z = (i / 16) % 16;
 
     IVec3::new(x as i32, y as i32, z as i32)
+}
+
+fn section_to_index(loc: i32) -> usize {
+    loc.try_into().unwrap()
 }

@@ -179,8 +179,11 @@ pub fn render(gui_ctx: &Context, cli: &mut Client) -> Option<Server> {
                                     // Load image
                                     icon_handles.insert(
                                         s.ip.clone(),
-                                        RetainedImage::from_image_bytes(s.ip.clone(), &favicon.data)
-                                            .unwrap(),
+                                        RetainedImage::from_image_bytes(
+                                            s.ip.clone(),
+                                            &favicon.data,
+                                        )
+                                        .unwrap(),
                                     );
                                 }
 
@@ -242,8 +245,6 @@ fn connect(ip: &str, name: String) -> Result<Server, std::io::Error> {
 
             Ok(server)
         }
-        Err(e) => {
-            Err(e)
-        }
+        Err(e) => Err(e),
     }
 }

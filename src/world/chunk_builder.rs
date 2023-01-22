@@ -14,9 +14,9 @@ impl ChunkBuilder {
         above: Option<RwLockReadGuard<ChunkSection>>,
         below: Option<RwLockReadGuard<ChunkSection>>,
         north: Option<RwLockReadGuard<ChunkSection>>,
-        east:  Option<RwLockReadGuard<ChunkSection>>,
+        east: Option<RwLockReadGuard<ChunkSection>>,
         south: Option<RwLockReadGuard<ChunkSection>>,
-        west:  Option<RwLockReadGuard<ChunkSection>>,
+        west: Option<RwLockReadGuard<ChunkSection>>,
     ) -> Vec<Vertex> {
         let mut verts: Vec<Vertex> = Vec::new();
 
