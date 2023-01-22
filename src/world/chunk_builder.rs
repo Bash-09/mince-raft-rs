@@ -4,7 +4,7 @@ use glam::IVec3;
 
 use crate::renderer::Vertex;
 
-use super::chunks::ChunkSection;
+use super::chunks::{block_index_to_pos, block_pos_to_index, ChunkSection};
 
 pub struct ChunkBuilder {}
 
@@ -26,16 +26,13 @@ impl ChunkBuilder {
                 continue;
             }
 
-            let y = (i / (16 * 16)) as i32;
-            let z = ((i / 16) % 16) as i32;
-            let x = (i % 16) as i32;
+            let pos = block_index_to_pos(i);
 
             // Top Face
-            let nx = x;
-            let ny = (y + 1).rem_euclid(16);
-            let nz = z;
-            let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
-            let b_above = if y == 15 {
+            let mut n = pos;
+            n.y = (n.y + 1).rem_euclid(16);
+            let ni = block_pos_to_index(&n);
+            let b_above = if pos.y == 15 {
                 if let Some(above) = &above {
                     above.blocks[ni as usize]
                 } else {
@@ -46,11 +43,10 @@ impl ChunkBuilder {
             };
 
             // Bottom Face
-            let nx = x;
-            let ny = (y - 1).rem_euclid(16);
-            let nz = z;
-            let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
-            let b_below = if y == 0 {
+            let mut n = pos;
+            n.y = (n.y - 1).rem_euclid(16);
+            let ni = block_pos_to_index(&n);
+            let b_below = if pos.y == 0 {
                 if let Some(below) = &below {
                     below.blocks[ni as usize]
                 } else {
@@ -61,11 +57,10 @@ impl ChunkBuilder {
             };
 
             // North Face
-            let nx = x;
-            let ny = y;
-            let nz = (z - 1).rem_euclid(16);
-            let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
-            let b_north = if z == 0 {
+            let mut n = pos;
+            n.z = (n.z - 1).rem_euclid(16);
+            let ni = block_pos_to_index(&n);
+            let b_north = if pos.z == 0 {
                 if let Some(north) = &north {
                     north.blocks[ni as usize]
                 } else {
@@ -76,11 +71,10 @@ impl ChunkBuilder {
             };
 
             // South Face
-            let nx = x;
-            let ny = y;
-            let nz = (z + 1).rem_euclid(16);
-            let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
-            let b_south = if z == 15 {
+            let mut n = pos;
+            n.z = (n.z + 1).rem_euclid(16);
+            let ni = block_pos_to_index(&n);
+            let b_south = if pos.z == 15 {
                 if let Some(south) = &south {
                     south.blocks[ni as usize]
                 } else {
@@ -91,11 +85,10 @@ impl ChunkBuilder {
             };
 
             // East Face
-            let nx = (x + 1).rem_euclid(16);
-            let ny = y;
-            let nz = z;
-            let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
-            let b_east = if x == 15 {
+            let mut n = pos;
+            n.x = (n.x + 1).rem_euclid(16);
+            let ni = block_pos_to_index(&n);
+            let b_east = if pos.x == 15 {
                 if let Some(east) = &east {
                     east.blocks[ni as usize]
                 } else {
@@ -106,11 +99,10 @@ impl ChunkBuilder {
             };
 
             // West Face
-            let nx = (x - 1).rem_euclid(16);
-            let ny = y;
-            let nz = z;
-            let ni = (ny % 16) * 16 * 16 + nz * 16 + nx;
-            let b_west = if x == 0 {
+            let mut n = pos;
+            n.x = (n.x - 1).rem_euclid(16);
+            let ni = block_pos_to_index(&n);
+            let b_west = if pos.x == 0 {
                 if let Some(west) = &west {
                     west.blocks[ni as usize]
                 } else {
@@ -121,14 +113,7 @@ impl ChunkBuilder {
             };
 
             verts.append(&mut ChunkBuilder::generate_block_mesh(
-                IVec3::new(x, y, z),
-                *b,
-                b_above,
-                b_below,
-                b_north,
-                b_east,
-                b_south,
-                b_west,
+                pos, *b, b_above, b_below, b_north, b_east, b_south, b_west,
             ));
         }
 

@@ -341,7 +341,7 @@ fn process_sections(
 
 /// Converts a block position to an index within a chunk section array
 pub fn block_pos_to_index(pos: &IVec3) -> usize {
-    ((pos.y % 16) * 16 * 16 + pos.z * 16 + pos.x) as usize
+    ((pos.y.rem_euclid(16)) * 16 * 16 + pos.z * 16 + pos.x) as usize
 }
 
 /// Converts an index within a chunk section array to a 3d block pos

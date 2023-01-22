@@ -659,93 +659,10 @@ impl Server {
                         self.world.handle_block_change(pack);
                     }
 
-                    // PacketType::PlayBlockChange(pack) => {
-                    //     let coords =
-                    //         IVec3::new(pack.location.x, pack.location.y as i32, pack.location.z);
-                    //     let local_coords = world::local_chunk_section_coords(&coords);
-                    //     let chunk_coords = world::chunk_section_at_coords(&coords);
-                    //
-                    //     if let Some(chunk) = self.world.get_chunks_mut().get_mut(&chunk_coords.xz())
-                    //     {
-                    //         if chunk.sections[chunk_coords.y as usize].is_none() {
-                    //             chunk.sections[chunk_coords.y as usize] =
-                    //                 Some(ChunkSection::new(chunk_coords.y, [0; 4096]));
-                    //         }
-                    //
-                    //         if let Some(chunk_section) =
-                    //             &mut chunk.sections[chunk_coords.y as usize]
-                    //         {
-                    //             chunk_section.blocks[chunks::block_pos_to_index(&local_coords)] =
-                    //                 pack.block_id.0 as u16;
-                    //             self.world.regenerate_chunk_section(&ctx.dis, chunk_coords);
-                    //
-                    //             if local_coords.x == 0 {
-                    //                 self.world.regenerate_chunk_section(
-                    //                     &ctx.dis,
-                    //                     IVec3::new(
-                    //                         chunk_coords.x - 1,
-                    //                         chunk_coords.y,
-                    //                         chunk_coords.z,
-                    //                     ),
-                    //                 );
-                    //             }
-                    //             if local_coords.x == 15 {
-                    //                 self.world.regenerate_chunk_section(
-                    //                     &ctx.dis,
-                    //                     IVec3::new(
-                    //                         chunk_coords.x + 1,
-                    //                         chunk_coords.y,
-                    //                         chunk_coords.z,
-                    //                     ),
-                    //                 );
-                    //             }
-                    //             if local_coords.y == 0 {
-                    //                 self.world.regenerate_chunk_section(
-                    //                     &ctx.dis,
-                    //                     IVec3::new(
-                    //                         chunk_coords.x,
-                    //                         chunk_coords.y - 1,
-                    //                         chunk_coords.z,
-                    //                     ),
-                    //                 );
-                    //             }
-                    //             if local_coords.y == 15 {
-                    //                 self.world.regenerate_chunk_section(
-                    //                     &ctx.dis,
-                    //                     IVec3::new(
-                    //                         chunk_coords.x,
-                    //                         chunk_coords.y + 1,
-                    //                         chunk_coords.z,
-                    //                     ),
-                    //                 );
-                    //             }
-                    //             if local_coords.z == 0 {
-                    //                 self.world.regenerate_chunk_section(
-                    //                     &ctx.dis,
-                    //                     IVec3::new(
-                    //                         chunk_coords.x,
-                    //                         chunk_coords.y,
-                    //                         chunk_coords.z - 1,
-                    //                     ),
-                    //                 );
-                    //             }
-                    //             if local_coords.z == 15 {
-                    //                 self.world.regenerate_chunk_section(
-                    //                     &ctx.dis,
-                    //                     IVec3::new(
-                    //                         chunk_coords.x,
-                    //                         chunk_coords.y,
-                    //                         chunk_coords.z + 1,
-                    //                     ),
-                    //                 );
-                    //             }
-                    //         } else {
-                    //             error!("Block update in empty chunk section");
-                    //         }
-                    //     } else {
-                    //         warn!("Block update in unloaded chunk");
-                    //     }
-                    // }
+                    PacketType::PlayMultiBlockChange(pack) => {
+                        self.world.handle_multi_block_change(pack);
+                    }
+
                     PacketType::PlayPlayerInfo(pack) => {
                         use mcproto_rs::v1_16_3::PlayerInfoActionList;
                         match pack.actions {

@@ -93,6 +93,8 @@ impl Entity {
         let mut vel = self.vel;
         if self.on_ground {
             vel.y = 0.0;
+        } else {
+            vel.y -= 13.0 * delta;
         }
 
         self.pos += vel * delta;
