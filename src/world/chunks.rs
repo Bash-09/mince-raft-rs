@@ -1,7 +1,7 @@
 use std::{
     convert::TryInto,
     io::{Cursor, Read},
-    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockResult},
 };
 
 use glam::{IVec2, IVec3};
@@ -15,10 +15,10 @@ use crate::{
     resources::{BlockState, BLOCKS},
 };
 
-use super::{ChunkCoords, ChunkLocation, SectionCoords, WorldCoords};
+use super::{ChunkCoords, ChunkLocation, SectionCoords, SectionLocation, WorldCoords};
 
 // Base 2 Log of number of state ids in the game
-const MAX_BITS_PER_BLOCK: u64 = 15;
+const MAX_BITS_PER_BLOCK: u32 = 15;
 pub const SECTIONS_PER_CHUNK: usize = 16;
 pub const MAX_SECTION: i32 = 15;
 pub const MIN_SECTION: i32 = 0;
@@ -46,14 +46,26 @@ impl ChunkSection {
         IVec3::new(coords.x, self.y * 16 + coords.y, coords.z)
     }
 
+    pub fn map_from_world_coords(coords: &WorldCoords) -> SectionCoords {
+        Self::map_from_chunk_coords(&Chunk::map_from_world_coords(coords))
+    }
+
     /// Get the block at the provided SectionCoords within this chunk section
     pub fn block_at(&self, coords: &SectionCoords) -> Option<&'static BlockState> {
         BLOCKS.get(&self.blocks[block_pos_to_index(coords)].into())
     }
 
     /// Get the chunk section index of the section containing the provided y level
-    pub fn section_containing(y: i32) -> i32 {
+    pub fn section_containing_height(y: i32) -> i32 {
         y / 16
+    }
+
+    pub fn section_containing(coords: &WorldCoords) -> SectionLocation {
+        IVec3::new(
+            coords.x.div_floor(16),
+            coords.y.div_floor(16),
+            coords.z.div_floor(16),
+        )
     }
 }
 
@@ -77,8 +89,20 @@ impl Chunk {
         }
     }
 
+    /// Returns true if there are any non-air blocks within a section of the chunk
     pub fn is_section_present(&self, y: i32) -> bool {
         self.sections.get(section_to_index(y)).is_some()
+    }
+
+    pub fn is_section_containing_present(&self, y: i32) -> bool {
+        self.sections
+            .get(section_to_index(ChunkSection::section_containing_height(y)))
+            .is_some()
+    }
+
+    pub fn put_section(&mut self, section: ChunkSection) {
+        let index = section_to_index(section.y);
+        *self.sections.get_mut(index).unwrap() = Some((Arc::new(RwLock::new(section)), None));
     }
 
     /// Returns an option containing a reference to the request section of this chunk
@@ -98,6 +122,17 @@ impl Chunk {
             .map(|(s, _)| s.write().unwrap())
     }
 
+    pub fn try_get_section_mut(
+        &self,
+        y: i32,
+    ) -> Option<TryLockResult<RwLockWriteGuard<ChunkSection>>> {
+        self.sections
+            .get(section_to_index(y))
+            .unwrap_or(&None)
+            .as_ref()
+            .map(|(s, _)| s.try_write())
+    }
+
     pub fn get_section_vbo(&self, y: i32) -> Option<&VertexBuffer<Vertex>> {
         self.sections
             .get(section_to_index(y))
@@ -108,7 +143,18 @@ impl Chunk {
     }
 
     pub fn get_section_containing(&self, y: i32) -> Option<RwLockReadGuard<ChunkSection>> {
-        self.get_section(ChunkSection::section_containing(y))
+        self.get_section(ChunkSection::section_containing_height(y))
+    }
+
+    pub fn get_section_containing_mut(&mut self, y: i32) -> Option<RwLockWriteGuard<ChunkSection>> {
+        self.get_section_mut(ChunkSection::section_containing_height(y))
+    }
+
+    pub fn try_get_section_containing_mut(
+        &mut self,
+        y: i32,
+    ) -> Option<TryLockResult<RwLockWriteGuard<ChunkSection>>> {
+        self.try_get_section_mut(ChunkSection::section_containing_height(y))
     }
 
     pub fn get_coords(&self) -> &ChunkLocation {
@@ -143,7 +189,7 @@ impl Chunk {
     }
 
     pub fn block_at(&self, coords: &ChunkCoords) -> Option<&'static BlockState> {
-        self.get_section(ChunkSection::section_containing(coords.y))
+        self.get_section(ChunkSection::section_containing_height(coords.y))
             .map(|s| s.block_at(&ChunkSection::map_from_chunk_coords(coords)))
             .unwrap_or(None)
     }
@@ -200,7 +246,7 @@ fn process_sections(
 ) -> [Option<(Arc<RwLock<ChunkSection>>, Option<VertexBuffer<Vertex>>)>; 16] {
     // Check bit mask for which chunk sections are present
     let mut chunk_sections_present = [false; SECTIONS_PER_CHUNK];
-    for i in 0..16 {
+    for i in 0..SECTIONS_PER_CHUNK {
         if data.primary_bit_mask.0 & 0b1 << i != 0 {
             chunk_sections_present[i] = true;
         }
@@ -222,7 +268,7 @@ fn process_sections(
 
         let mut buf = [0u8; 1];
         cur.read_exact(&mut buf).unwrap();
-        let mut bits_per_block = buf[0] as u64;
+        let mut bits_per_block = buf[0].into();
 
         if bits_per_block <= 4 {
             bits_per_block = 4;
@@ -258,12 +304,7 @@ fn process_sections(
         }
 
         // Bit mask depending on bits per block
-        let mut mask = 0;
-        for j in 0..bits_per_block {
-            mask |= 1 << j;
-        }
-        let mask = mask;
-
+        let mask = 2i64.pow(bits_per_block) - 1;
         let blocks_per_long = 64 / bits_per_block;
 
         let mut blocks = [0u16; 4096];

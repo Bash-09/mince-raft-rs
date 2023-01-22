@@ -4,11 +4,11 @@ use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
 use glium::Display;
 use mcproto_rs::v1_16_3::PlayBlockChangeSpec;
 
-use crate::resources::BlockState;
+use crate::resources::{BlockState, BLOCKS};
 
 use self::{
     chunk_builder::ChunkBuilder,
-    chunks::{Chunk, ChunkSection, MAX_SECTION, MIN_SECTION},
+    chunks::{block_pos_to_index, BlockIndex, Chunk, ChunkSection, MAX_SECTION, MIN_SECTION},
 };
 
 pub mod chunk_builder;
@@ -185,62 +185,81 @@ impl World {
     }
 
     pub fn handle_block_change(&mut self, pack: PlayBlockChangeSpec) {
-        let coords = IVec3::new(pack.location.x, pack.location.y.into(), pack.location.z);
+        if pack.block_id.0 < 0 || pack.block_id.0 > BLOCKS.len() as i32 {
+            log::error!("Got block change with invalid block ID");
+            return;
+        }
 
-        if let Some(chunk) = self.get_chunk_mut(&Chunk::chunk_containing(&coords)) {}
-        // if let Some(chunk) = self.get_chunk_mut(&Chunk::map_from_world_coords(&chunk_coords)) {}
-        //     if chunk.sections[chunk_coords.y as usize].is_none() {
-        //         chunk.sections[chunk_coords.y as usize] =
-        //             Some(ChunkSection::new(chunk_coords.y, [0; 4096]));
-        //     }
-        //
-        //     if let Some(chunk_section) = &mut chunk.sections[chunk_coords.y as usize] {
-        //         chunk_section.blocks[chunks::block_pos_to_index(&local_coords)] =
-        //             pack.block_id.0 as u16;
-        //         self.world.regenerate_chunk_section(&ctx.dis, chunk_coords);
-        //
-        //         if local_coords.x == 0 {
-        //             self.world.regenerate_chunk_section(
-        //                 &ctx.dis,
-        //                 IVec3::new(chunk_coords.x - 1, chunk_coords.y, chunk_coords.z),
-        //             );
-        //         }
-        //         if local_coords.x == 15 {
-        //             self.world.regenerate_chunk_section(
-        //                 &ctx.dis,
-        //                 IVec3::new(chunk_coords.x + 1, chunk_coords.y, chunk_coords.z),
-        //             );
-        //         }
-        //         if local_coords.y == 0 {
-        //             self.world.regenerate_chunk_section(
-        //                 &ctx.dis,
-        //                 IVec3::new(chunk_coords.x, chunk_coords.y - 1, chunk_coords.z),
-        //             );
-        //         }
-        //         if local_coords.y == 15 {
-        //             self.world.regenerate_chunk_section(
-        //                 &ctx.dis,
-        //                 IVec3::new(chunk_coords.x, chunk_coords.y + 1, chunk_coords.z),
-        //             );
-        //         }
-        //         if local_coords.z == 0 {
-        //             self.world.regenerate_chunk_section(
-        //                 &ctx.dis,
-        //                 IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z - 1),
-        //             );
-        //         }
-        //         if local_coords.z == 15 {
-        //             self.world.regenerate_chunk_section(
-        //                 &ctx.dis,
-        //                 IVec3::new(chunk_coords.x, chunk_coords.y, chunk_coords.z + 1),
-        //             );
-        //         }
-        //     } else {
-        //         error!("Block update in empty chunk section");
-        //     }
-        // } else {
-        //     warn!("Block update in unloaded chunk");
-        // }
+        let coords = IVec3::new(pack.location.x, pack.location.y.into(), pack.location.z);
+        let section_loc = ChunkSection::section_containing(&coords);
+        let mut sections_to_regenerate = Vec::new();
+
+        if let Some(chunk) = self.get_chunk_containing_mut(&coords) {
+            if !chunk.is_section_present(section_loc.y) {
+                chunk.put_section(ChunkSection {
+                    y: ChunkSection::section_containing_height(coords.y),
+                    blocks: [0; 4096],
+                });
+            }
+
+            if let Some(mut section) = chunk.get_section_mut(section_loc.y) {
+                let local_coords = ChunkSection::map_from_world_coords(&coords);
+
+                section.blocks[block_pos_to_index(&local_coords)] = pack.block_id.0 as BlockIndex;
+                sections_to_regenerate.push(section_loc);
+
+                if local_coords.x == 0 {
+                    sections_to_regenerate.push(IVec3::new(
+                        section_loc.x - 1,
+                        section_loc.y,
+                        section_loc.z,
+                    ));
+                }
+                if local_coords.x == 15 {
+                    sections_to_regenerate.push(IVec3::new(
+                        section_loc.x + 1,
+                        section_loc.y,
+                        section_loc.z,
+                    ));
+                }
+                if local_coords.y == 0 {
+                    sections_to_regenerate.push(IVec3::new(
+                        section_loc.x,
+                        section_loc.y - 1,
+                        section_loc.z,
+                    ));
+                }
+                if local_coords.y == 15 {
+                    sections_to_regenerate.push(IVec3::new(
+                        section_loc.x,
+                        section_loc.y + 1,
+                        section_loc.z,
+                    ));
+                }
+                if local_coords.z == 0 {
+                    sections_to_regenerate.push(IVec3::new(
+                        section_loc.x,
+                        section_loc.y,
+                        section_loc.z - 1,
+                    ));
+                }
+                if local_coords.z == 15 {
+                    sections_to_regenerate.push(IVec3::new(
+                        section_loc.x,
+                        section_loc.y,
+                        section_loc.z + 1,
+                    ));
+                }
+            } else {
+                panic!("New ChunkSection was not emplaced on block update in empty chunk section");
+            }
+        } else {
+            log::warn!("Block update in unloaded chunk");
+        }
+
+        for coords in sections_to_regenerate {
+            self.queue_chunk_section_mesh(coords);
+        }
     }
 }
 
