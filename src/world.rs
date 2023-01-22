@@ -208,6 +208,7 @@ impl World {
                 section.blocks[block_pos_to_index(&local_coords)] = pack.block_id.0 as BlockIndex;
                 sections_to_regenerate.push(section_loc);
 
+                // Regenerate neighbouring chunks if necessary
                 if local_coords.x == 0 {
                     sections_to_regenerate.push(IVec3::new(
                         section_loc.x - 1,

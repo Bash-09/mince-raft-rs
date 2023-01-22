@@ -5,7 +5,7 @@ use glium::index::{NoIndices, PrimitiveType::TrianglesList};
 use glium::*;
 use glium::{Display, Surface};
 
-use crate::world::chunks::{MAX_SECTION, MIN_SECTION, SECTIONS_PER_CHUNK};
+use crate::world::chunks::{MAX_SECTION, MIN_SECTION};
 use crate::{
     entities::{self, Entity},
     renderer::camera::Camera,

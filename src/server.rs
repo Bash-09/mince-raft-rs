@@ -1,10 +1,10 @@
 use std::{collections::HashMap, ops::AddAssign};
 
 use egui_winit::winit::event::VirtualKeyCode;
-use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
+use glam::{IVec2, Vec3};
 use glium_app::context::Context;
 use lazy_static::__Deref;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use mcproto_rs::{
     types::{self, EntityLocation, VarInt},
     uuid::UUID4,
@@ -20,10 +20,7 @@ use crate::{
     network::{encode, NetworkChannel, NetworkCommand, PacketType},
     resources::PLAYER_INDEX,
     settings::Settings,
-    world::{
-        self,
-        chunks::{self, Chunk, ChunkSection},
-    },
+    world::chunks::Chunk,
     WindowManager,
 };
 

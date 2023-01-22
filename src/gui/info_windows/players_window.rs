@@ -1,6 +1,6 @@
 use egui::Context;
 
-use crate::{gui, server::Server};
+use crate::server::Server;
 
 pub fn render(gui_ctx: &Context, server: &Server) {
     egui::Window::new("Players").show(gui_ctx, |ui| {
