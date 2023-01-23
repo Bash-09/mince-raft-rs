@@ -9,6 +9,7 @@ pub struct Camera {
 
     fov: f32,
     aspect: f32,
+    gamma: f32,
 
     pmat: Mat4,
     vmat: Mat4,
@@ -36,6 +37,7 @@ impl Camera {
 
             fov: 90.0,
             aspect: 1.333,
+            gamma: 0.5,
 
             pmat,
             vmat,
@@ -62,6 +64,7 @@ impl Camera {
 
             fov,
             aspect: dims.0 as f32 / dims.1 as f32,
+            gamma: 0.5,
 
             pmat,
             vmat,
@@ -76,6 +79,14 @@ impl Camera {
         self.fov = fov;
         self.update_pmat();
         self.update_pvmat();
+    }
+
+    pub fn set_gamma(&mut self, gamma: f32) {
+        self.gamma = gamma;
+    }
+
+    pub fn get_gamma(&mut self) -> f32 {
+        self.gamma
     }
 
     /// Recalculate the Perspective matrix for this camera according to the aspect ratio of the given dimensions

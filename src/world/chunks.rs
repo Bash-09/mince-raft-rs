@@ -11,7 +11,7 @@ use mcproto_rs::{nbt, v1_16_3::ChunkData};
 
 use crate::{
     network::read_varint,
-    renderer::Vertex,
+    renderer::BlockVertex,
     resources::{BlockState, BLOCKS},
 };
 
@@ -70,7 +70,7 @@ impl ChunkSection {
 }
 
 pub type WrappedChunkSection = Arc<RwLock<ChunkSection>>;
-pub type VBO = VertexBuffer<Vertex>;
+pub type VBO = VertexBuffer<BlockVertex>;
 pub struct Chunk {
     pos: ChunkLocation,
     heightmap: [u16; 256],
@@ -133,7 +133,7 @@ impl Chunk {
             .map(|(s, _)| s.try_write())
     }
 
-    pub fn get_section_vbo(&self, y: i32) -> Option<&VertexBuffer<Vertex>> {
+    pub fn get_section_vbo(&self, y: i32) -> Option<&VertexBuffer<BlockVertex>> {
         self.sections
             .get(section_to_index(y))
             .unwrap_or(&None)
@@ -181,7 +181,7 @@ impl Chunk {
         IVec2::new(coords.x.div_floor(16), coords.z.div_floor(16))
     }
 
-    pub fn load_mesh(&mut self, dis: &Display, verts: Vec<Vertex>, section: i32) {
+    pub fn load_mesh(&mut self, dis: &Display, verts: Vec<BlockVertex>, section: i32) {
         self.sections.get_mut(section_to_index(section)).map(|cs| {
             cs.as_mut()
                 .map(|cs| cs.1 = Some(VertexBuffer::new(dis, &verts).unwrap()))
@@ -243,7 +243,7 @@ fn process_heightmap(data: &ChunkData) -> [u16; 256] {
 /// Builds a list of chunk sections from chunk data
 fn process_sections(
     data: &ChunkData,
-) -> [Option<(Arc<RwLock<ChunkSection>>, Option<VertexBuffer<Vertex>>)>; 16] {
+) -> [Option<(Arc<RwLock<ChunkSection>>, Option<VertexBuffer<BlockVertex>>)>; 16] {
     // Check bit mask for which chunk sections are present
     let mut chunk_sections_present = [false; SECTIONS_PER_CHUNK];
     for i in 0..SECTIONS_PER_CHUNK {
@@ -252,7 +252,7 @@ fn process_sections(
         }
     }
 
-    const INIT: Option<(Arc<RwLock<ChunkSection>>, Option<VertexBuffer<Vertex>>)> = None;
+    const INIT: Option<(Arc<RwLock<ChunkSection>>, Option<VertexBuffer<BlockVertex>>)> = None;
     let mut sections = [INIT; SECTIONS_PER_CHUNK];
 
     // Decode data array

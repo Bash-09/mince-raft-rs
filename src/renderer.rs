@@ -2,9 +2,12 @@ use std::collections::HashMap;
 
 use glam::{Mat4, Vec3};
 use glium::index::{NoIndices, PrimitiveType::TrianglesList};
+use glium::texture::{RawImage2d, Texture2dArray};
+use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
 use glium::*;
 use glium::{Display, Surface};
 
+use crate::resources::BLOCK_TEXTURES;
 use crate::world::chunks::{MAX_SECTION, MIN_SECTION};
 use crate::{
     entities::{self, Entity},
@@ -20,8 +23,14 @@ mod shader;
 pub struct Vertex {
     pub position: [f32; 3],
 }
-
 implement_vertex!(Vertex, position);
+
+#[derive(Debug, Copy, Clone)]
+pub struct BlockVertex {
+    pub position: [f32; 3],
+    pub tex_coords: [f32; 3],
+}
+implement_vertex!(BlockVertex, position, tex_coords);
 
 pub struct Renderer {
     pub cam: Camera,
@@ -30,6 +39,8 @@ pub struct Renderer {
 
     hitbox_prog: Program,
     hitbox_model: VertexBuffer<Vertex>,
+
+    block_textures: Texture2dArray,
 }
 
 impl Renderer {
@@ -63,7 +74,21 @@ impl Renderer {
             hitbox_model,
             chunk_prog: prog,
             hitbox_prog,
+
+            block_textures: Texture2dArray::empty(dis, 0, 0, 1).unwrap(),
         }
+    }
+
+    pub fn load_textures(&mut self, dis: &Display) {
+        let mut textures: Vec<_> = BLOCK_TEXTURES.values().collect();
+        textures.sort_by(|t1, t2| t1.index.cmp(&t2.index));
+        let textures: Vec<_> = textures
+            .into_iter()
+            .flat_map(|t| t.frames.iter())
+            .map(|t| RawImage2d::from_raw_rgba_reversed(t.as_raw(), (16, 16)))
+            .collect();
+
+        self.block_textures = Texture2dArray::new(dis, textures).unwrap();
     }
 
     pub fn render_hitboxes(&mut self, target: &mut Frame, ents: &HashMap<i32, Entity>) {
@@ -92,6 +117,7 @@ impl Renderer {
             let uniforms = uniform! {
                 pvmat: pvmat,
                 tmat: tmat.to_cols_array_2d(),
+                textures: &self.block_textures,
             };
 
             target
@@ -107,7 +133,7 @@ impl Renderer {
     }
 
     pub fn render_server(&mut self, target: &mut Frame, serv: &Server) {
-        target.clear_color_and_depth((0.5, 0.7, 0.8, 1.0), 1.0);
+        target.clear_color_and_depth((0.3, 0.6, 0.8, 0.0), 1.0);
 
         let params = DrawParameters {
             depth: Depth {
@@ -116,6 +142,12 @@ impl Renderer {
                 ..Default::default()
             },
             backface_culling: BackfaceCullingMode::CullClockwise,
+            ..Default::default()
+        };
+
+        let behaviour = glium::uniforms::SamplerBehavior {
+            minify_filter: MinifySamplerFilter::Nearest,
+            magnify_filter: MagnifySamplerFilter::Nearest,
             ..Default::default()
         };
 
@@ -183,6 +215,8 @@ impl Renderer {
                     let uniforms = uniform! {
                         pvmat: pvmat,
                         tmat: tmat.to_cols_array_2d(),
+                        textures: glium::uniforms::Sampler(&self.block_textures, behaviour),
+                        gamma: self.cam.get_gamma(),
                     };
 
                     target

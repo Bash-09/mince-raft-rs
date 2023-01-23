@@ -2,7 +2,7 @@ use std::sync::RwLockReadGuard;
 
 use glam::IVec3;
 
-use crate::renderer::Vertex;
+use crate::{renderer::BlockVertex, resources::BLOCK_TEXTURES};
 
 use super::chunks::{block_index_to_pos, block_pos_to_index, ChunkSection};
 
@@ -17,8 +17,8 @@ impl ChunkBuilder {
         east: Option<RwLockReadGuard<ChunkSection>>,
         south: Option<RwLockReadGuard<ChunkSection>>,
         west: Option<RwLockReadGuard<ChunkSection>>,
-    ) -> Vec<Vertex> {
-        let mut verts: Vec<Vertex> = Vec::new();
+    ) -> Vec<BlockVertex> {
+        let mut verts: Vec<BlockVertex> = Vec::new();
 
         let value = section.blocks;
         for (i, b) in value.iter().enumerate() {
@@ -129,134 +129,177 @@ impl ChunkBuilder {
         east: u16,
         south: u16,
         west: u16,
-    ) -> Vec<Vertex> {
-        let mut verts: Vec<Vertex> = Vec::new();
+    ) -> Vec<BlockVertex> {
+        let mut verts: Vec<BlockVertex> = Vec::new();
         let pos = pos.as_vec3();
 
         // Above
         if above == 0 {
-            verts.push(Vertex {
+            let tex: f32 = BLOCK_TEXTURES.get("oak_log_top").unwrap().index as f32;
+
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z],
+                tex_coords: [1.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [0.0, 1.0, tex],
             });
         }
         // Below
         if below == 0 {
-            verts.push(Vertex {
+            let tex: f32 = BLOCK_TEXTURES.get("oak_log_top").unwrap().index as f32;
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z + 1.0],
+                tex_coords: [0.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z],
+                tex_coords: [1.0, 0.0, tex],
             });
         }
         // North
         if north == 0 {
-            verts.push(Vertex {
+            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z],
+                tex_coords: [0.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z],
+                tex_coords: [1.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
         }
         // East
         if east == 0 {
-            verts.push(Vertex {
+            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z],
+                tex_coords: [0.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z + 1.0],
+                tex_coords: [1.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
         }
         // South
         if south == 0 {
-            verts.push(Vertex {
+            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [0.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z + 1.0],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z + 1.0],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x + 1.0, pos.y, pos.z + 1.0],
+                tex_coords: [1.0, 0.0, tex],
             });
         }
         // West
         if west == 0 {
-            verts.push(Vertex {
+            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z],
+                tex_coords: [0.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y + 1.0, pos.z + 1.0],
+                tex_coords: [1.0, 1.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z],
+                tex_coords: [0.0, 0.0, tex],
             });
-            verts.push(Vertex {
+            verts.push(BlockVertex {
                 position: [pos.x, pos.y, pos.z + 1.0],
+                tex_coords: [1.0, 0.0, tex],
             });
         }
 

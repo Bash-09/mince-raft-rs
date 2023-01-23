@@ -99,13 +99,16 @@ impl Application for Client {
 
         std::thread::spawn(|| {
             let start = Instant::now();
-            resources::BLOCKS.len();
-            resources::ENTITIES.len();
-            resources::MODELS.len();
+            log::info!("Loaded {} blocks.", resources::BLOCKS.len());
+            log::info!("Loaded {} entities.", resources::ENTITIES.len());
+            log::info!("Loaded {} models.", resources::MODELS.len());
+            log::info!("Loaded {} block textures.", resources::BLOCK_TEXTURES.len());
             let dur = Instant::now() - start;
 
             info!("Loading assets took {}ms", dur.as_millis());
         });
+
+        self.state.rend.load_textures(&ctx.dis);
     }
 
     fn update(&mut self, t: &glium_app::timer::Timer, ctx: &mut glium_app::context::Context) {

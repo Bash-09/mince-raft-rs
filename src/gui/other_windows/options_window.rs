@@ -32,6 +32,16 @@ pub fn new_options_window() -> PersistentWindow<WindowManagerType> {
                                 state.rend.cam.set_fov(fov);
                             }
                         });
+                        ui.horizontal(|ui| {
+                            ui.label("Gamma");
+                            let mut fov = state.rend.cam.get_gamma();
+                            if ui
+                                .add(egui::Slider::new(&mut fov, RangeInclusive::new(0.1, 2.0)))
+                                .changed()
+                            {
+                                state.rend.cam.set_gamma(fov);
+                            }
+                        });
                     });
 
                     ui.collapsing("Input", |ui| {
