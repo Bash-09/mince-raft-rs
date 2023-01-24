@@ -4,6 +4,8 @@ use inflector::Inflector;
 use lazy_static::lazy_static;
 use serde_json::{self, Value};
 
+pub mod block_models;
+
 pub struct Entity {
     pub name: String,
     pub id: u32,
@@ -91,7 +93,7 @@ lazy_static! {
 
         blocks
     };
-    pub static ref MODELS: HashMap<String, Value> =
+    pub static ref BLOCK_MODELS_RAW: HashMap<String, Value> =
         serde_json::from_slice(include_bytes!("../assets/models.min.json"))
             .expect("Failed to interpret models.json");
     pub static ref BLOCK_TEXTURES: HashMap<String, BlockTexture> = {

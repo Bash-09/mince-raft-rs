@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use glam::{Mat4, Vec3};
 use glium::index::{NoIndices, PrimitiveType::TrianglesList};
-use glium::texture::{RawImage2d, SrgbTexture2dArray, Texture2dArray};
+use glium::texture::{RawImage2d, SrgbTexture2dArray};
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
 use glium::*;
 use glium::{Display, Surface};

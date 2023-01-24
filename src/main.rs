@@ -101,7 +101,7 @@ impl Application for Client {
             let start = Instant::now();
             log::info!("Loaded {} blocks.", resources::BLOCKS.len());
             log::info!("Loaded {} entities.", resources::ENTITIES.len());
-            log::info!("Loaded {} models.", resources::MODELS.len());
+            log::info!("Loaded {} models.", resources::BLOCK_MODELS_RAW.len());
             log::info!("Loaded {} block textures.", resources::BLOCK_TEXTURES.len());
             let dur = Instant::now() - start;
 
