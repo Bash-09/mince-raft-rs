@@ -566,7 +566,7 @@ impl Server {
                             Some(ent) => {
                                 ent.ori_head.set(
                                     pack.head_yaw.value as f32 / 256.0,
-                                    ent.ori_head.get_head_pitch(),
+                                    ent.ori_head.get_pitch(),
                                 );
                             }
                             None => {}

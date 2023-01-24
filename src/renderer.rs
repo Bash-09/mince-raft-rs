@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use glam::{Mat4, Vec3};
 use glium::index::{NoIndices, PrimitiveType::TrianglesList};
-use glium::texture::{RawImage2d, Texture2dArray};
+use glium::texture::{RawImage2d, SrgbTexture2dArray, Texture2dArray};
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
 use glium::*;
 use glium::{Display, Surface};
@@ -40,7 +40,7 @@ pub struct Renderer {
     hitbox_prog: Program,
     hitbox_model: VertexBuffer<Vertex>,
 
-    block_textures: Texture2dArray,
+    block_textures: SrgbTexture2dArray,
 }
 
 impl Renderer {
@@ -75,7 +75,7 @@ impl Renderer {
             chunk_prog: prog,
             hitbox_prog,
 
-            block_textures: Texture2dArray::empty(dis, 0, 0, 1).unwrap(),
+            block_textures: SrgbTexture2dArray::empty(dis, 0, 0, 1).unwrap(),
         }
     }
 
@@ -88,7 +88,7 @@ impl Renderer {
             .map(|t| RawImage2d::from_raw_rgba_reversed(t.as_raw(), (16, 16)))
             .collect();
 
-        self.block_textures = Texture2dArray::new(dis, textures).unwrap();
+        self.block_textures = SrgbTexture2dArray::new(dis, textures).unwrap();
     }
 
     pub fn render_hitboxes(&mut self, target: &mut Frame, ents: &HashMap<i32, Entity>) {
@@ -216,7 +216,6 @@ impl Renderer {
                         pvmat: pvmat,
                         tmat: tmat.to_cols_array_2d(),
                         textures: glium::uniforms::Sampler(&self.block_textures, behaviour),
-                        gamma: self.cam.get_gamma(),
                     };
 
                     target

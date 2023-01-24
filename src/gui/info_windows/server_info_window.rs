@@ -103,8 +103,16 @@ pub fn render(gui_ctx: &Context, server: &Server) {
             let look = server.get_player().get_orientation().get_look_vector();
             ui.label("Look: ");
             ui.label(
-                RichText::new(format!("{:.2} / {:.2} / {:.2}", look.x, look.y, look.z))
+                RichText::new(format!("{:.2} / {:.2} / {:.2} ", look.x, look.y, look.z))
                     .color(Color32::LIGHT_GRAY),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "Y: {:.2} / P: {:.2}",
+                    server.get_player().get_orientation().get_yaw(),
+                    server.get_player().get_orientation().get_pitch()
+                ))
+                .color(Color32::LIGHT_GRAY),
             );
         });
 

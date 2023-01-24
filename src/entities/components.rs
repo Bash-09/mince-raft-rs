@@ -84,19 +84,6 @@ impl Orientation {
         }
     }
 
-    pub fn get_head_pitch(&self) -> f32 {
-        let mut head_pitch = self.pitch;
-        head_pitch += head_pitch;
-        if head_pitch < -90.0 {
-            head_pitch = -90.0;
-        }
-        if head_pitch > 90.0 {
-            head_pitch = 90.0;
-        }
-
-        head_pitch
-    }
-
     /// Returns a 3-tuple for a unit vector in the direction of the yaw and pitch
     pub fn get_look_vector(&self) -> Vec3 {
         let x = -self.pitch.to_radians().cos() * self.yaw.to_radians().sin();

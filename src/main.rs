@@ -131,9 +131,8 @@ impl Application for Client {
                                         z: serv.get_player().get_position().z as f64,
                                     },
                                     rotation: types::EntityRotation {
-                                        yaw: serv.get_player().get_orientation().get_yaw() as f32,
-                                        pitch: serv.get_player().get_orientation().get_head_pitch()
-                                            as f32,
+                                        yaw: serv.get_player().get_orientation().get_yaw(),
+                                        pitch: serv.get_player().get_orientation().get_pitch(),
                                     },
                                 },
                                 on_ground: true,

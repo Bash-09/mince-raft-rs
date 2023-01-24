@@ -36,10 +36,7 @@ pub fn render(gui_ctx: &Context, server: &Server) {
                     .id_source(Id::new(name))
                     .show(ui, |ui| {
                         for e in ent {
-                            ui.label(format!(
-                                "{:.2} / {:.2} / {:.2} : {:.2} / {:.2} / {:.2}",
-                                e.pos.x, e.pos.y, e.pos.z, e.vel.x, e.vel.y, e.vel.z,
-                            ));
+                            ui.label(format!("{:.2} / {:.2} / {:.2}", e.pos.x, e.pos.y, e.pos.z));
                         }
                     });
             }
