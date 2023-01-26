@@ -4,6 +4,8 @@ use inflector::Inflector;
 use lazy_static::lazy_static;
 use serde_json::{self, Value};
 
+use self::block_models::BlockModel;
+
 pub mod block_models;
 
 pub struct Entity {
@@ -96,6 +98,20 @@ lazy_static! {
     pub static ref BLOCK_MODELS_RAW: HashMap<String, Value> =
         serde_json::from_slice(include_bytes!("../assets/models.min.json"))
             .expect("Failed to interpret models.json");
+    pub static ref BLOCK_MODELS_PARSED: HashMap<String, BlockModel> = {
+        let mut models = HashMap::new();
+
+        for (key, data) in BLOCK_MODELS_RAW.iter() {
+            if models.contains_key(key) { continue; }
+
+            match BlockModel::parse(data, Some(&mut models)) {
+                Ok(model) => { models.insert(key.clone(), model); },
+                Err(e) => { log::debug!("Couldn't parse block model: {:?}", e); },
+            }
+        }
+
+        models
+    };
     pub static ref BLOCK_TEXTURES: HashMap<String, BlockTexture> = {
         // Get list of texture and metadata files available
         let mut textures: Vec<_> = std::fs::read_dir("assets/textures/block/")

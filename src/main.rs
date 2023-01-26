@@ -11,6 +11,7 @@ extern crate quartz_nbt;
 use std::{sync::mpsc::TryRecvError, time::Instant};
 
 use crate::network::*;
+use crate::resources::BLOCK_MODELS_PARSED;
 
 mod network;
 
@@ -101,11 +102,16 @@ impl Application for Client {
             let start = Instant::now();
             log::info!("Loaded {} blocks.", resources::BLOCKS.len());
             log::info!("Loaded {} entities.", resources::ENTITIES.len());
-            log::info!("Loaded {} models.", resources::BLOCK_MODELS_RAW.len());
+            log::info!("Loaded {} models' data.", resources::BLOCK_MODELS_RAW.len());
+            log::info!("Loaded {} models.", resources::BLOCK_MODELS_PARSED.len());
             log::info!("Loaded {} block textures.", resources::BLOCK_TEXTURES.len());
             let dur = Instant::now() - start;
-
             info!("Loading assets took {}ms", dur.as_millis());
+
+            println!(
+                "Oak_leaves: {:?}",
+                BLOCK_MODELS_PARSED.get("minecraft:block/oak_leaves")
+            );
         });
 
         self.state.rend.load_textures(&ctx.dis);
