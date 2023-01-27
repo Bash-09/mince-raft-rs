@@ -2,7 +2,10 @@ use std::sync::RwLockReadGuard;
 
 use glam::IVec3;
 
-use crate::{renderer::BlockVertex, resources::BLOCK_TEXTURES};
+use crate::{
+    renderer::BlockVertex,
+    resources::{block_models::BlockModel, BLOCKS, BLOCK_MODELS_PARSED, BLOCK_TEXTURES},
+};
 
 use super::chunks::{block_index_to_pos, block_pos_to_index, ChunkSection};
 
@@ -22,9 +25,29 @@ impl ChunkBuilder {
 
         let value = section.blocks;
         for (i, b) in value.iter().enumerate() {
-            if *b == 0 {
+            let block = BLOCKS.get(&((*b).into()));
+            if block.is_none() {
                 continue;
             }
+            let block = block.unwrap();
+
+            if block.models.is_none() {
+                continue;
+            }
+            if block.models.as_ref().unwrap().len() == 0 {
+                continue;
+            }
+
+            let model: Option<&BlockModel> =
+                BLOCK_MODELS_PARSED.get(block.models.as_ref().unwrap().get(0).unwrap());
+            if model.is_none() {
+                log::error!(
+                    "Couldn't find model {}",
+                    block.models.as_ref().unwrap().get(0).unwrap()
+                );
+                continue;
+            }
+            let model = model.unwrap();
 
             let pos = block_index_to_pos(i);
 
@@ -112,9 +135,16 @@ impl ChunkBuilder {
                 section.blocks[ni as usize]
             };
 
-            verts.append(&mut ChunkBuilder::generate_block_mesh(
-                pos, *b, b_above, b_below, b_north, b_east, b_south, b_west,
-            ));
+            for mut vert in model.generate_mesh(b_above, b_below, b_north, b_east, b_south, b_west)
+            {
+                vert.position[0] += pos.x as f32;
+                vert.position[1] += pos.y as f32;
+                vert.position[2] += pos.z as f32;
+                verts.push(vert);
+            }
+            // verts.append(&mut ChunkBuilder::generate_block_mesh(
+            //     pos, *b, b_above, b_below, b_north, b_east, b_south, b_west,
+            // ));
         }
 
         verts

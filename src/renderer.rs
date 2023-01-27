@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::Cursor;
 
 use glam::{Mat4, Vec3};
 use glium::index::{NoIndices, PrimitiveType::TrianglesList};
@@ -80,15 +81,27 @@ impl Renderer {
     }
 
     pub fn load_textures(&mut self, dis: &Display) {
+        let mut textures1 = vec![RawImage2d::from_raw_rgba_reversed(
+            image::load(
+                Cursor::new(&include_bytes!("../assets/missing_texture.png")),
+                image::ImageFormat::Png,
+            )
+            .unwrap()
+            .to_rgba8()
+            .as_raw(),
+            (16, 16),
+        )];
+
         let mut textures: Vec<_> = BLOCK_TEXTURES.values().collect();
         textures.sort_by(|t1, t2| t1.index.cmp(&t2.index));
-        let textures: Vec<_> = textures
+        let mut textures: Vec<_> = textures
             .into_iter()
             .flat_map(|t| t.frames.iter())
             .map(|t| RawImage2d::from_raw_rgba_reversed(t.as_raw(), (16, 16)))
             .collect();
+        textures1.append(&mut textures);
 
-        self.block_textures = SrgbTexture2dArray::new(dis, textures).unwrap();
+        self.block_textures = SrgbTexture2dArray::new(dis, textures1).unwrap();
     }
 
     pub fn render_hitboxes(&mut self, target: &mut Frame, ents: &HashMap<i32, Entity>) {

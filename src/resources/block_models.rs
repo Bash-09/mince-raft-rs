@@ -1,9 +1,11 @@
 use std::{collections::HashMap, error::Error};
 
-use glam::{Vec2, Vec3};
+use glam::{IVec3, Vec2, Vec3};
 use simple_error::{bail, require_with};
 
-use super::BLOCK_MODELS_RAW;
+use crate::renderer::BlockVertex;
+
+use super::{BLOCK_MODELS_RAW, BLOCK_TEXTURES, MISSING_TEXTURE};
 
 #[derive(Clone, Debug)]
 pub struct BlockModel {
@@ -72,11 +74,79 @@ impl BlockModel {
     }
 
     pub fn block_cube() -> BlockModel {
+        let mut faces = HashMap::new();
+        faces.insert(
+            "up".to_string(),
+            Face {
+                uv: (Vec2::ZERO, Vec2::ONE),
+                texture: "#up".to_string(),
+                cullface: "up".to_string(),
+                rotation: 0.0,
+                tintindex: 0.0,
+            },
+        );
+        faces.insert(
+            "down".to_string(),
+            Face {
+                uv: (Vec2::ZERO, Vec2::ONE),
+                texture: "#down".to_string(),
+                cullface: "down".to_string(),
+                rotation: 0.0,
+                tintindex: 0.0,
+            },
+        );
+        faces.insert(
+            "north".to_string(),
+            Face {
+                uv: (Vec2::ZERO, Vec2::ONE),
+                texture: "#north".to_string(),
+                cullface: "north".to_string(),
+                rotation: 0.0,
+                tintindex: 0.0,
+            },
+        );
+        faces.insert(
+            "east".to_string(),
+            Face {
+                uv: (Vec2::ZERO, Vec2::ONE),
+                texture: "#east".to_string(),
+                cullface: "east".to_string(),
+                rotation: 0.0,
+                tintindex: 0.0,
+            },
+        );
+        faces.insert(
+            "south".to_string(),
+            Face {
+                uv: (Vec2::ZERO, Vec2::ONE),
+                texture: "#south".to_string(),
+                cullface: "south".to_string(),
+                rotation: 0.0,
+                tintindex: 0.0,
+            },
+        );
+        faces.insert(
+            "west".to_string(),
+            Face {
+                uv: (Vec2::ZERO, Vec2::ONE),
+                texture: "#west".to_string(),
+                cullface: "west".to_string(),
+                rotation: 0.0,
+                tintindex: 0.0,
+            },
+        );
+
         BlockModel {
             ambient_occlusion: true,
             display: HashMap::new(),
             textures: HashMap::new(),
-            elements: Vec::new(),
+            elements: vec![Element {
+                from: Vec3::ZERO,
+                to: Vec3::ONE,
+                rot: None,
+                shade: true,
+                faces,
+            }],
         }
     }
 
@@ -97,14 +167,208 @@ impl BlockModel {
         base
     }
 
+    pub fn generate_mesh(
+        &self,
+        above: u16,
+        below: u16,
+        north: u16,
+        east: u16,
+        south: u16,
+        west: u16,
+    ) -> Vec<BlockVertex> {
+        let mut verts = Vec::new();
+
+        // Generate mesh for each element
+        for element in &self.elements {
+            if let Some(face) = element.faces.get("up") {
+                let texture = get_texture_index(&self.textures, &face.texture);
+
+                verts.push(BlockVertex {
+                    position: [element.to.x, 1.0, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, 1.0, element.from.z],
+                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, 1.0, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, 1.0, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, 1.0, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, 1.0, element.to.z],
+                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                });
+            }
+
+            if let Some(face) = element.faces.get("down") {
+                let texture = get_texture_index(&self.textures, &face.texture);
+
+                verts.push(BlockVertex {
+                    position: [element.to.x, 0.0, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, 0.0, element.to.z],
+                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, 0.0, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, 0.0, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, 0.0, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, 0.0, element.from.z],
+                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                });
+            }
+
+            if let Some(face) = element.faces.get("north") {
+                let texture = get_texture_index(&self.textures, &face.texture);
+
+                verts.push(BlockVertex {
+                    position: [element.to.x, element.to.y, 0.0],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, element.from.y, 0.0],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, element.to.y, 0.0],
+                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, element.to.y, 0.0],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, element.from.y, 0.0],
+                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, element.from.y, 0.0],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+            }
+
+            if let Some(face) = element.faces.get("east") {
+                let texture = get_texture_index(&self.textures, &face.texture);
+
+                verts.push(BlockVertex {
+                    position: [1.0, element.to.y, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [1.0, element.from.y, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [1.0, element.to.y, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [1.0, element.to.y, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [1.0, element.from.y, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [1.0, element.from.y, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+            }
+
+            if let Some(face) = element.faces.get("south") {
+                let texture = get_texture_index(&self.textures, &face.texture);
+
+                verts.push(BlockVertex {
+                    position: [element.to.x, element.to.y, 1.0],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, element.to.y, 1.0],
+                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, element.from.y, 1.0],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, element.to.y, 1.0],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.from.x, element.from.y, 1.0],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [element.to.x, element.from.y, 1.0],
+                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                });
+            }
+
+            if let Some(face) = element.faces.get("west") {
+                let texture = get_texture_index(&self.textures, &face.texture);
+
+                verts.push(BlockVertex {
+                    position: [0.0, element.to.y, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [0.0, element.to.y, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [0.0, element.from.y, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [0.0, element.to.y, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [0.0, element.from.y, element.from.z],
+                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                });
+                verts.push(BlockVertex {
+                    position: [0.0, element.from.y, element.to.z],
+                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                });
+            }
+        }
+
+        verts
+    }
+
     pub fn parse(
         json: &serde_json::Value,
         cache: Option<&mut HashMap<String, BlockModel>>,
     ) -> Result<BlockModel, Box<dyn Error>> {
         let mut base = BlockModel::empty();
 
+        let mut has_parent = false;
+
         // Load parent model
         if let Some(serde_json::Value::String(parent)) = json.get("parent") {
+            has_parent = true;
             match parent.as_str() {
                 "block/block" => base = BlockModel::block_block(),
                 "block/cube" => base = BlockModel::block_cube(),
@@ -146,6 +410,12 @@ impl BlockModel {
                 if !tex.is_string() {
                     bail!("Invalid texture: {:?}", tex);
                 }
+                let texture = tex.as_str().unwrap().to_string();
+                for val in base.textures.values_mut() {
+                    if val.starts_with("#") && &val[1..] == key {
+                        *val = texture.clone();
+                    }
+                }
                 base.textures
                     .insert(key.clone(), tex.as_str().unwrap().to_string());
             }
@@ -153,7 +423,7 @@ impl BlockModel {
 
         // Elements
         if let Some(serde_json::Value::Array(elements)) = json.get("elements") {
-            base.elements.clear();
+            // base.elements.clear();
 
             for element in elements {
                 base.elements.push(Element::parse(element)?);
@@ -251,15 +521,18 @@ impl Element {
             base.from.x = require_with!(
                 from.get(0).unwrap().as_f64(),
                 "Wrong type for Element from."
-            ) as f32;
+            ) as f32
+                / 16.0;
             base.from.y = require_with!(
                 from.get(1).unwrap().as_f64(),
                 "Wrong type for Element from."
-            ) as f32;
+            ) as f32
+                / 16.0;
             base.from.z = require_with!(
                 from.get(2).unwrap().as_f64(),
                 "Wrong type for Element from."
-            ) as f32;
+            ) as f32
+                / 16.0;
         }
 
         //  To
@@ -268,12 +541,15 @@ impl Element {
                 bail!("Incorrect number of arguments in Element to");
             }
 
-            base.to.x =
-                require_with!(to.get(0).unwrap().as_f64(), "Wrong type for Element to.") as f32;
-            base.to.y =
-                require_with!(to.get(1).unwrap().as_f64(), "Wrong type for Element to.") as f32;
-            base.to.z =
-                require_with!(to.get(2).unwrap().as_f64(), "Wrong type for Element to.") as f32;
+            base.to.x = require_with!(to.get(0).unwrap().as_f64(), "Wrong type for Element to.")
+                as f32
+                / 16.0;
+            base.to.y = require_with!(to.get(1).unwrap().as_f64(), "Wrong type for Element to.")
+                as f32
+                / 16.0;
+            base.to.z = require_with!(to.get(2).unwrap().as_f64(), "Wrong type for Element to.")
+                as f32
+                / 16.0;
         }
 
         // Rotation
@@ -319,15 +595,18 @@ impl Rotation {
             base.origin.x = require_with!(
                 origin.get(0).unwrap().as_f64(),
                 "Wrong type for Element origin."
-            ) as f32;
+            ) as f32
+                / 16.0;
             base.origin.y = require_with!(
                 origin.get(1).unwrap().as_f64(),
                 "Wrong type for Element origin."
-            ) as f32;
+            ) as f32
+                / 16.0;
             base.origin.z = require_with!(
                 origin.get(2).unwrap().as_f64(),
                 "Wrong type for Element origin."
-            ) as f32;
+            ) as f32
+                / 16.0;
         }
 
         // Axis
@@ -345,7 +624,8 @@ impl Rotation {
 
         // Angle
         if let Some(serde_json::Value::Number(angle)) = json.get("angle") {
-            base.angle = require_with!(angle.as_f64(), "Couldn't get angle of rotation.") as f32;
+            base.angle =
+                require_with!(angle.as_f64(), "Couldn't get angle of rotation.") as f32 / 22.5;
         }
 
         // Rescale
@@ -377,14 +657,18 @@ impl Face {
                 bail!("UV coordinates didn't have 4 values.");
             }
 
-            base.uv.0.x =
-                require_with!(uv.get(0).unwrap().as_f64(), "Couldn't read UV coordinate") as f32;
-            base.uv.0.y =
-                require_with!(uv.get(1).unwrap().as_f64(), "Couldn't read UV coordinate") as f32;
-            base.uv.1.x =
-                require_with!(uv.get(2).unwrap().as_f64(), "Couldn't read UV coordinate") as f32;
-            base.uv.1.y =
-                require_with!(uv.get(3).unwrap().as_f64(), "Couldn't read UV coordinate") as f32;
+            base.uv.0.x = require_with!(uv.get(0).unwrap().as_f64(), "Couldn't read UV coordinate")
+                as f32
+                / 16.0;
+            base.uv.0.y = require_with!(uv.get(1).unwrap().as_f64(), "Couldn't read UV coordinate")
+                as f32
+                / 16.0;
+            base.uv.1.x = require_with!(uv.get(2).unwrap().as_f64(), "Couldn't read UV coordinate")
+                as f32
+                / 16.0;
+            base.uv.1.y = require_with!(uv.get(3).unwrap().as_f64(), "Couldn't read UV coordinate")
+                as f32
+                / 16.0;
         }
 
         // Texture
@@ -411,4 +695,25 @@ impl Face {
 
         Ok(base)
     }
+}
+
+fn get_texture_index(texture_map: &HashMap<String, String>, texture: &str) -> f32 {
+    let texture_key: &str = texture_map
+        .get(&texture[1..])
+        .map(|s| s.as_str())
+        .unwrap_or(texture);
+    let index = BLOCK_TEXTURES
+        .get(texture_key)
+        .unwrap_or(
+            BLOCK_TEXTURES
+                .get(&format!("minecraft:{}", texture_key))
+                .unwrap_or(&MISSING_TEXTURE),
+        )
+        .index;
+
+    if index == 0 {
+        log::error!("Missing texture: {}", texture_key);
+    }
+
+    index as f32
 }

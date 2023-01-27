@@ -16,13 +16,15 @@ pub struct Entity {
     pub height: f32,
 }
 
+#[derive(Debug)]
 pub struct BlockState {
     pub name: String,
     pub id: u32,
-    pub model: Option<String>,
+    pub models: Option<Vec<String>>,
     pub collision_shape: Option<u64>,
 }
 
+#[derive(Debug)]
 pub struct BlockTexture {
     pub index: usize,
     pub interpolation: bool,
@@ -32,7 +34,15 @@ pub struct BlockTexture {
 
 pub const PLAYER_INDEX: usize = 106;
 
+pub const MISSING_TEXTURE: BlockTexture = BlockTexture {
+    index: 0,
+    interpolation: false,
+    frames: Vec::new(),
+    frametime: 0,
+};
+
 lazy_static! {
+
     pub static ref ENTITIES: HashMap<u32, Entity> = {
         let mut entities = HashMap::new();
 
@@ -76,10 +86,48 @@ lazy_static! {
                     BlockState {
                         name: name.clone(),
                         id,
-                        model: {
-                            match state.get("model") {
-                                Some(model) => model.as_str().map(|model| model.to_string()),
-                                None => None,
+                        models: {
+                            match state.get("render") {
+                                // Has a single model
+                                Some(serde_json::Value::Object(render)) => {
+                                    if let Some(serde_json::Value::String(model)) = render.get("model") {
+                                        Some(vec![model.clone()])
+                                    } else {
+                                        log::error!("Couldn't find models in block state: {:?}", state);
+                                        None
+                                    }
+                                },
+                                // Has an array of models
+                                Some(serde_json::Value::Array(render)) => {
+                                    let mut vec = Vec::new();
+
+                                    for render in render {
+                                        if let Some(serde_json::Value::String(model)) = render.get("model") {
+                                            vec.push(model.clone());
+                                        } else {
+                                            if let serde_json::Value::Array(render) = render {
+                                                for render in render {
+                                                    if let Some(serde_json::Value::String(model)) = render.get("model") {
+                                                        vec.push(model.clone());
+                                                    } else {
+                                                        log::error!("Couldn't find model in render section 2");
+                                                    }
+                                                }
+                                            } else {
+                                                println!("{:?}", render);
+                                                panic!();
+                                            }
+                                        }
+                                    }
+
+                                    if vec.len() == 0 {
+                                        println!("{:?}", render);
+                                        panic!("No models in render section");
+                                    }
+
+                                    Some(vec)
+                                },
+                                _ => None,
                             }
                         },
                         collision_shape: {
@@ -129,7 +177,10 @@ lazy_static! {
         let mut out = HashMap::new();
 
         // Load textures
-        let mut index: usize = 0; // Reserve index 0 for missing texture
+        image::load(Cursor::new(&include_bytes!("../assets/missing_texture.png")), image::ImageFormat::Png).unwrap().to_rgba8();
+        out.insert(String::new(), MISSING_TEXTURE);
+
+        let mut index: usize = 1; // Reserve index 0 for missing texture
         for tex in textures {
             let full_name = tex.file_name();
             let full_name = full_name.to_string_lossy();
@@ -153,7 +204,7 @@ lazy_static! {
             }
             let inc = frames.len();
 
-            out.insert(name.to_string(), BlockTexture {
+            out.insert(format!("minecraft:block/{}", name), BlockTexture {
                 index,
                 interpolation: false,
                 frames,
