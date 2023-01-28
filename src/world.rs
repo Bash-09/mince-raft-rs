@@ -166,8 +166,6 @@ impl World {
             let south = self.get_section(&(*loc + IVec3::south()));
             let west = self.get_section(&(*loc + IVec3::west()));
 
-            // I'm just generating chunk sections on the main thread to make it more
-            // responsive and generating new chunks on other threads
             self.builder.generate_chunk_section(
                 sect,
                 loc.clone(),
@@ -177,7 +175,7 @@ impl World {
                 east,
                 south,
                 west,
-                false,
+                threaded,
             );
 
             false
@@ -187,12 +185,20 @@ impl World {
         // Load ready meshes
         let incoming = self.builder.get_incoming_meshes();
         let mut new_meshes = Vec::new();
+        let mut i = 0;
         loop {
             match incoming.try_recv() {
                 Ok(a) => new_meshes.push(a),
                 Err(TryRecvError::Empty) => break,
                 Err(e) => panic!("Lost chunk builder thread: {}", e),
             }
+
+            // Limit to 16 chunk sections per frame otherwise it can still tank frames from
+            // uploading entire new chunks to the GPU at once
+            if i >= 8 {
+                break;
+            }
+            i += 1;
         }
 
         for (loc, verts) in new_meshes {
@@ -275,12 +281,14 @@ impl World {
         if let Some(chunk) = self.get_chunk_containing_mut(&coords) {
             if !chunk.is_section_present(section_loc.y) {
                 chunk.put_section(ChunkSection {
-                    y: ChunkSection::section_containing_height(coords.y),
+                    y: ChunkSection::section_containing_height(section_loc.y),
                     blocks: [0; 4096],
                 });
             }
 
-            let section = chunk.get_section(section_loc.y).unwrap();
+            let section = chunk
+                .get_section(section_loc.y)
+                .expect("Couldn't get chunk section that was just emplaced in the Chunk");
             let mut section = section.write().unwrap();
             let local_coords = ChunkSection::map_from_world_coords(&coords);
 

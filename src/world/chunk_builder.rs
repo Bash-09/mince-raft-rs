@@ -28,10 +28,15 @@ pub struct ChunkBuilder {
 impl ChunkBuilder {
     pub fn new() -> ChunkBuilder {
         let (send, recv) = channel();
+
+        let mut threads: usize = std::thread::available_parallelism().unwrap().into();
+        threads = threads.saturating_sub(4);
+        threads = threads.max(1);
+
         ChunkBuilder {
             incoming: recv,
             outgoing: send,
-            pool: ThreadPool::new(std::thread::available_parallelism().unwrap().into()),
+            pool: ThreadPool::new(threads),
         }
     }
 
@@ -67,8 +72,8 @@ impl ChunkBuilder {
                 None
             };
             let north = north.get_section(loc.y);
-            let south = south.get_section(loc.y);
             let east = east.get_section(loc.y);
+            let south = south.get_section(loc.y);
             let west = west.get_section(loc.y);
 
             self.generate_chunk_section(
@@ -77,8 +82,8 @@ impl ChunkBuilder {
                 above,
                 below,
                 north,
-                south,
                 east,
+                south,
                 west,
                 threaded,
             );
@@ -119,7 +124,7 @@ impl ChunkBuilder {
                         west.map(|s| s.read().unwrap()),
                     ),
                 ))
-                .unwrap();
+                .ok();
         };
 
         if threaded {
@@ -169,87 +174,57 @@ impl ChunkBuilder {
             let pos = block_index_to_pos(i);
 
             // Top Face
-            let mut n = pos;
-            n.y = (n.y + 1).rem_euclid(16);
+            let n = pos + IVec3::new(0, 1, 0);
             let ni = block_pos_to_index(&n);
             let b_above = if pos.y == 15 {
-                if let Some(above) = &above {
-                    above.blocks[ni as usize]
-                } else {
-                    0
-                }
+                above.as_ref().map(|cs| cs.blocks[ni]).unwrap_or(0)
             } else {
-                section.blocks[ni as usize]
+                section.blocks[ni]
             };
 
             // Bottom Face
-            let mut n = pos;
-            n.y = (n.y - 1).rem_euclid(16);
+            let n = pos + IVec3::new(0, -1, 0);
             let ni = block_pos_to_index(&n);
             let b_below = if pos.y == 0 {
-                if let Some(below) = &below {
-                    below.blocks[ni as usize]
-                } else {
-                    0
-                }
+                below.as_ref().map(|cs| cs.blocks[ni]).unwrap_or(0)
             } else {
-                section.blocks[ni as usize]
+                section.blocks[ni]
             };
 
             // North Face
-            let mut n = pos;
-            n.z = (n.z - 1).rem_euclid(16);
+            let n = pos + IVec3::new(0, 0, -1);
             let ni = block_pos_to_index(&n);
             let b_north = if pos.z == 0 {
-                if let Some(north) = &north {
-                    north.blocks[ni as usize]
-                } else {
-                    0
-                }
+                north.as_ref().map(|cs| cs.blocks[ni]).unwrap_or(0)
             } else {
-                section.blocks[ni as usize]
+                section.blocks[ni]
             };
 
             // South Face
-            let mut n = pos;
-            n.z = (n.z + 1).rem_euclid(16);
+            let n = pos + IVec3::new(0, 0, 1);
             let ni = block_pos_to_index(&n);
             let b_south = if pos.z == 15 {
-                if let Some(south) = &south {
-                    south.blocks[ni as usize]
-                } else {
-                    0
-                }
+                south.as_ref().map(|cs| cs.blocks[ni]).unwrap_or(0)
             } else {
-                section.blocks[ni as usize]
+                section.blocks[ni]
             };
 
             // East Face
-            let mut n = pos;
-            n.x = (n.x + 1).rem_euclid(16);
+            let n = pos + IVec3::new(1, 0, 0);
             let ni = block_pos_to_index(&n);
             let b_east = if pos.x == 15 {
-                if let Some(east) = &east {
-                    east.blocks[ni as usize]
-                } else {
-                    0
-                }
+                east.as_ref().map(|cs| cs.blocks[ni]).unwrap_or(0)
             } else {
-                section.blocks[ni as usize]
+                section.blocks[ni]
             };
 
             // West Face
-            let mut n = pos;
-            n.x = (n.x - 1).rem_euclid(16);
+            let n = pos + IVec3::new(-1, 0, 0);
             let ni = block_pos_to_index(&n);
             let b_west = if pos.x == 0 {
-                if let Some(west) = &west {
-                    west.blocks[ni as usize]
-                } else {
-                    0
-                }
+                west.as_ref().map(|cs| cs.blocks[ni]).unwrap_or(0)
             } else {
-                section.blocks[ni as usize]
+                section.blocks[ni]
             };
 
             for mut vert in model.generate_mesh(b_above, b_below, b_north, b_east, b_south, b_west)

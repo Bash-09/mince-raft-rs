@@ -5,7 +5,7 @@ use simple_error::{bail, require_with};
 
 use crate::renderer::BlockVertex;
 
-use super::{BLOCK_MODELS_RAW, BLOCK_TEXTURES, MISSING_TEXTURE};
+use super::{BLOCKS, BLOCK_MODELS_PARSED, BLOCK_MODELS_RAW, BLOCK_TEXTURES, MISSING_TEXTURE};
 
 #[derive(Clone, Debug)]
 pub struct BlockModel {
@@ -13,6 +13,7 @@ pub struct BlockModel {
     display: HashMap<String, Display>,
     textures: HashMap<String, String>,
     elements: Vec<Element>,
+    cull_against: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +63,7 @@ impl BlockModel {
             display: HashMap::new(),
             textures: HashMap::new(),
             elements: Vec::new(),
+            cull_against: false,
         }
     }
 
@@ -147,11 +149,13 @@ impl BlockModel {
                 shade: true,
                 faces,
             }],
+            cull_against: true,
         }
     }
 
     pub fn block_cube_column() -> BlockModel {
         let mut base = Self::block_cube();
+        base.cull_against = false;
         base.textures
             .insert("particle".to_string(), "#side".to_string());
         base.textures.insert("down".to_string(), "#end".to_string());
@@ -178,180 +182,213 @@ impl BlockModel {
     ) -> Vec<BlockVertex> {
         let mut verts = Vec::new();
 
+        let should_cull_face = |cullface: &str| {
+            let target = match cullface {
+                "up" => above,
+                "down" => below,
+                "north" => north,
+                "east" => east,
+                "south" => south,
+                "west" => west,
+                _ => 0,
+            };
+
+            if target == 0 {
+                return false;
+            }
+
+            if let Some(block) = BLOCKS.get(&target.into()) {
+                return match &block.models {
+                    Some(models) => {
+                        let model = models.get(0).map(|s| s.as_ref()).unwrap_or("");
+
+                        let exceptions: Vec<&str> = vec!["glass", "leaves", "water", "spawner"];
+                        for exception in exceptions {
+                            if model.contains(exception) {
+                                return false;
+                            }
+                        }
+
+                        BLOCK_MODELS_PARSED
+                            .get(model)
+                            .map(|m| m.cull_against)
+                            .unwrap_or(false)
+                    }
+                    None => false,
+                };
+            }
+
+            false
+        };
+
         // Generate mesh for each element
         for element in &self.elements {
-            if let Some(face) = element.faces.get("up") {
+            for (key, face) in &element.faces {
+                if should_cull_face(&face.cullface) {
+                    continue;
+                }
+
                 let texture = get_texture_index(&self.textures, &face.texture);
 
-                verts.push(BlockVertex {
-                    position: [element.to.x, 1.0, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, 1.0, element.from.z],
-                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, 1.0, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, 1.0, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, 1.0, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, 1.0, element.to.z],
-                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
-                });
-            }
-
-            if let Some(face) = element.faces.get("down") {
-                let texture = get_texture_index(&self.textures, &face.texture);
-
-                verts.push(BlockVertex {
-                    position: [element.to.x, 0.0, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, 0.0, element.to.z],
-                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, 0.0, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, 0.0, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, 0.0, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, 0.0, element.from.z],
-                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
-                });
-            }
-
-            if let Some(face) = element.faces.get("north") {
-                let texture = get_texture_index(&self.textures, &face.texture);
-
-                verts.push(BlockVertex {
-                    position: [element.to.x, element.to.y, 0.0],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, element.from.y, 0.0],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, element.to.y, 0.0],
-                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, element.to.y, 0.0],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, element.from.y, 0.0],
-                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, element.from.y, 0.0],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-            }
-
-            if let Some(face) = element.faces.get("east") {
-                let texture = get_texture_index(&self.textures, &face.texture);
-
-                verts.push(BlockVertex {
-                    position: [1.0, element.to.y, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [1.0, element.from.y, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [1.0, element.to.y, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [1.0, element.to.y, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [1.0, element.from.y, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [1.0, element.from.y, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-            }
-
-            if let Some(face) = element.faces.get("south") {
-                let texture = get_texture_index(&self.textures, &face.texture);
-
-                verts.push(BlockVertex {
-                    position: [element.to.x, element.to.y, 1.0],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, element.to.y, 1.0],
-                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, element.from.y, 1.0],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, element.to.y, 1.0],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.from.x, element.from.y, 1.0],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [element.to.x, element.from.y, 1.0],
-                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
-                });
-            }
-
-            if let Some(face) = element.faces.get("west") {
-                let texture = get_texture_index(&self.textures, &face.texture);
-
-                verts.push(BlockVertex {
-                    position: [0.0, element.to.y, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [0.0, element.to.y, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [0.0, element.from.y, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [0.0, element.to.y, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.1.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [0.0, element.from.y, element.from.z],
-                    tex_coords: [face.uv.0.x, face.uv.0.y, texture],
-                });
-                verts.push(BlockVertex {
-                    position: [0.0, element.from.y, element.to.z],
-                    tex_coords: [face.uv.1.x, face.uv.0.y, texture],
-                });
+                match key.as_ref() {
+                    "up" => {
+                        verts.push(BlockVertex {
+                            position: [element.to.x, 1.0, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, 1.0, element.from.z],
+                            tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, 1.0, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, 1.0, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, 1.0, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, 1.0, element.to.z],
+                            tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                        });
+                    }
+                    "down" => {
+                        verts.push(BlockVertex {
+                            position: [element.to.x, 0.0, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, 0.0, element.to.z],
+                            tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, 0.0, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, 0.0, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, 0.0, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, 0.0, element.from.z],
+                            tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                        });
+                    }
+                    "north" => {
+                        verts.push(BlockVertex {
+                            position: [element.to.x, element.to.y, 0.0],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, element.from.y, 0.0],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, element.to.y, 0.0],
+                            tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, element.to.y, 0.0],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, element.from.y, 0.0],
+                            tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, element.from.y, 0.0],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                    }
+                    "east" => {
+                        verts.push(BlockVertex {
+                            position: [1.0, element.to.y, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [1.0, element.from.y, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [1.0, element.to.y, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [1.0, element.to.y, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [1.0, element.from.y, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [1.0, element.from.y, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                    }
+                    "south" => {
+                        verts.push(BlockVertex {
+                            position: [element.to.x, element.to.y, 1.0],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, element.to.y, 1.0],
+                            tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, element.from.y, 1.0],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, element.to.y, 1.0],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.from.x, element.from.y, 1.0],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [element.to.x, element.from.y, 1.0],
+                            tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                        });
+                    }
+                    "west" => {
+                        verts.push(BlockVertex {
+                            position: [0.0, element.to.y, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [0.0, element.to.y, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [0.0, element.from.y, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [0.0, element.to.y, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.1.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [0.0, element.from.y, element.from.z],
+                            tex_coords: [face.uv.0.x, face.uv.0.y, texture],
+                        });
+                        verts.push(BlockVertex {
+                            position: [0.0, element.from.y, element.to.z],
+                            tex_coords: [face.uv.1.x, face.uv.0.y, texture],
+                        });
+                    }
+                    _ => {}
+                }
             }
         }
 
@@ -364,11 +401,8 @@ impl BlockModel {
     ) -> Result<BlockModel, Box<dyn Error>> {
         let mut base = BlockModel::empty();
 
-        let mut has_parent = false;
-
         // Load parent model
         if let Some(serde_json::Value::String(parent)) = json.get("parent") {
-            has_parent = true;
             match parent.as_str() {
                 "block/block" => base = BlockModel::block_block(),
                 "block/cube" => base = BlockModel::block_cube(),

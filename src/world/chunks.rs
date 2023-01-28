@@ -277,7 +277,6 @@ fn process_sections(
         // Get long array of blocks
         let array_len = read_varint(&mut cur).unwrap();
         let mut array = Vec::new();
-
         for _ in 0..array_len as usize {
             let mut buf = [0u8; 8];
             cur.read_exact(&mut buf).unwrap();
@@ -322,7 +321,7 @@ fn process_sections(
 
 /// Converts a block position to an index within a chunk section array
 pub fn block_pos_to_index(pos: &IVec3) -> usize {
-    ((pos.y.rem_euclid(16)) * 16 * 16 + pos.z * 16 + pos.x) as usize
+    ((pos.y.rem_euclid(16)) * 16 * 16 + pos.z.rem_euclid(16) * 16 + pos.x.rem_euclid(16)) as usize
 }
 
 /// Converts an index within a chunk section array to a 3d block pos
