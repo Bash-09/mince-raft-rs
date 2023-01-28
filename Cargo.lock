@@ -1207,6 +1207,7 @@ dependencies = [
  "serde",
  "serde_json",
  "simple-error",
+ "threadpool",
 ]
 
 [[package]]

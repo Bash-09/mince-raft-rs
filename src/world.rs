@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    convert::TryInto,
-    sync::{RwLockReadGuard, RwLockWriteGuard, TryLockResult},
-};
+use std::{collections::HashMap, convert::TryInto, sync::mpsc::TryRecvError};
 
 use glam::{IVec2, IVec3, Vec3, Vec3Swizzles};
 use glium::Display;
@@ -12,7 +8,10 @@ use crate::resources::{BlockState, BLOCKS};
 
 use self::{
     chunk_builder::ChunkBuilder,
-    chunks::{block_pos_to_index, BlockIndex, Chunk, ChunkSection, MAX_SECTION, MIN_SECTION},
+    chunks::{
+        block_pos_to_index, BlockIndex, Chunk, ChunkSection, WrappedChunkSection, MAX_SECTION,
+        MIN_SECTION,
+    },
 };
 
 pub mod chunk_builder;
@@ -24,10 +23,18 @@ pub type SectionCoords = IVec3;
 pub type ChunkLocation = IVec2;
 pub type SectionLocation = IVec3;
 
+trait Directional {
+    fn north() -> Self;
+    fn east() -> Self;
+    fn south() -> Self;
+    fn west() -> Self;
+}
+
 pub struct World {
     chunks: HashMap<IVec2, Chunk>,
     chunks_to_generate: Vec<ChunkLocation>,
     sections_to_generate: Vec<SectionLocation>,
+    builder: ChunkBuilder,
 }
 
 impl World {
@@ -36,6 +43,7 @@ impl World {
             chunks: HashMap::new(),
             chunks_to_generate: Vec::new(),
             sections_to_generate: Vec::new(),
+            builder: ChunkBuilder::new(),
         }
     }
 
@@ -92,17 +100,21 @@ impl World {
             self.get_section(&SectionLocation::new(loc.x, loc.y - 1, loc.z))
         };
 
-        if threaded {
-            todo!();
-        } else {
-            let verts = ChunkBuilder::generate_mesh(chunk, above, below, north, east, south, west);
-            self.get_chunk_mut(&ChunkLocation::new(loc.x, loc.z))
-                .unwrap()
-                .load_mesh(dis, verts, loc.y);
-        }
+        self.builder.generate_chunk_section(
+            chunk,
+            loc.clone(),
+            above,
+            below,
+            north,
+            east,
+            south,
+            west,
+            threaded,
+        );
     }
 
     pub fn generate_meshes(&mut self, dis: &Display, threaded: bool) {
+        // Chunks
         let mut temp = Vec::new();
         std::mem::swap(&mut self.chunks_to_generate, &mut temp);
         let ready_chunks: Vec<_> = temp
@@ -113,9 +125,18 @@ impl World {
         for loc in ready_chunks {
             for y in MIN_SECTION..=MAX_SECTION {
                 self.generate_section_mesh(&SectionLocation::new(loc.x, y, loc.y), dis, threaded);
+                self.builder.generate_chunk(
+                    self.get_chunk(&loc).unwrap(),
+                    self.get_chunk(&(loc + IVec2::north())).unwrap(),
+                    self.get_chunk(&(loc + IVec2::east())).unwrap(),
+                    self.get_chunk(&(loc + IVec2::south())).unwrap(),
+                    self.get_chunk(&(loc + IVec2::west())).unwrap(),
+                    threaded,
+                )
             }
         }
 
+        // Chunk sections
         let mut temp = Vec::new();
         std::mem::swap(&mut temp, &mut self.sections_to_generate);
         temp.retain(|loc| {
@@ -129,11 +150,55 @@ impl World {
                 return false;
             }
 
-            self.generate_section_mesh(loc, dis, threaded);
+            let sect = self.get_section(loc).unwrap();
+            let above = if loc.y < MAX_SECTION {
+                self.get_section(&(*loc + IVec3::Y))
+            } else {
+                None
+            };
+            let below = if loc.y > MIN_SECTION {
+                self.get_section(&(*loc - IVec3::Y))
+            } else {
+                None
+            };
+            let north = self.get_section(&(*loc + IVec3::north()));
+            let east = self.get_section(&(*loc + IVec3::east()));
+            let south = self.get_section(&(*loc + IVec3::south()));
+            let west = self.get_section(&(*loc + IVec3::west()));
+
+            // I'm just generating chunk sections on the main thread to make it more
+            // responsive and generating new chunks on other threads
+            self.builder.generate_chunk_section(
+                sect,
+                loc.clone(),
+                above,
+                below,
+                north,
+                east,
+                south,
+                west,
+                false,
+            );
+
             false
         });
-
         std::mem::swap(&mut temp, &mut self.sections_to_generate);
+
+        // Load ready meshes
+        let incoming = self.builder.get_incoming_meshes();
+        let mut new_meshes = Vec::new();
+        loop {
+            match incoming.try_recv() {
+                Ok(a) => new_meshes.push(a),
+                Err(TryRecvError::Empty) => break,
+                Err(e) => panic!("Lost chunk builder thread: {}", e),
+            }
+        }
+
+        for (loc, verts) in new_meshes {
+            self.get_chunk_mut(&loc.xz())
+                .map(|c| c.load_mesh(dis, verts, loc.y));
+        }
     }
 
     pub fn get_chunks(&self) -> &HashMap<IVec2, Chunk> {
@@ -166,34 +231,13 @@ impl World {
             .unwrap_or(false)
     }
 
-    pub fn get_section(&self, location: &SectionLocation) -> Option<RwLockReadGuard<ChunkSection>> {
+    pub fn get_section(&self, location: &SectionLocation) -> Option<WrappedChunkSection> {
         self.get_chunk(&ChunkLocation::new(location.x, location.z))
             .map(|c| c.get_section(location.y))
             .unwrap_or(None)
     }
 
-    pub fn get_section_mut(
-        &mut self,
-        location: &SectionLocation,
-    ) -> Option<RwLockWriteGuard<ChunkSection>> {
-        self.get_chunk_mut(&ChunkLocation::new(location.x, location.z))
-            .map(|c| c.get_section_mut(location.y))
-            .unwrap_or(None)
-    }
-
-    pub fn try_get_section_mut(
-        &mut self,
-        location: &SectionLocation,
-    ) -> Option<TryLockResult<RwLockWriteGuard<ChunkSection>>> {
-        self.get_chunk_mut(&ChunkLocation::new(location.x, location.z))
-            .map(|c| c.try_get_section_mut(location.y))
-            .unwrap_or(None)
-    }
-
-    pub fn get_section_containing(
-        &self,
-        coords: &WorldCoords,
-    ) -> Option<RwLockReadGuard<ChunkSection>> {
+    pub fn get_section_containing(&self, coords: &WorldCoords) -> Option<WrappedChunkSection> {
         self.get_chunk_containing(coords)
             .map(|c| c.get_section_containing(coords.y))
             .unwrap_or(None)
@@ -236,7 +280,8 @@ impl World {
                 });
             }
 
-            let mut section = chunk.get_section_mut(section_loc.y).unwrap();
+            let section = chunk.get_section(section_loc.y).unwrap();
+            let mut section = section.write().unwrap();
             let local_coords = ChunkSection::map_from_world_coords(&coords);
 
             section.blocks[block_pos_to_index(&local_coords)] = pack.block_id.0 as BlockIndex;
@@ -326,8 +371,8 @@ impl World {
                 change.rel_position.y.into(),
             );
 
-            self.get_section_mut(&loc).unwrap().blocks[block_pos_to_index(&local_pos)] =
-                change.block_id.try_into().unwrap();
+            self.get_section(&loc).unwrap().write().unwrap().blocks
+                [block_pos_to_index(&local_pos)] = change.block_id.try_into().unwrap();
 
             // Update adjacent chunk sections
             self.queue_chunk_section_mesh(loc);
@@ -366,4 +411,40 @@ pub fn block_coords(pos: &Vec3) -> IVec3 {
         pos.y.floor() as i32,
         pos.z.floor() as i32,
     )
+}
+
+impl Directional for IVec2 {
+    fn north() -> Self {
+        IVec2::new(0, -1)
+    }
+
+    fn east() -> Self {
+        IVec2::new(1, 0)
+    }
+
+    fn south() -> Self {
+        IVec2::new(0, 1)
+    }
+
+    fn west() -> Self {
+        IVec2::new(-1, 0)
+    }
+}
+
+impl Directional for IVec3 {
+    fn north() -> Self {
+        IVec3::new(0, 0, -1)
+    }
+
+    fn east() -> Self {
+        IVec3::new(1, 0, 0)
+    }
+
+    fn south() -> Self {
+        IVec3::new(0, 0, 1)
+    }
+
+    fn west() -> Self {
+        IVec3::new(-1, 0, 0)
+    }
 }

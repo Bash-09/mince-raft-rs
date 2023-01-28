@@ -1,6 +1,6 @@
 use std::{collections::HashMap, error::Error};
 
-use glam::{IVec3, Vec2, Vec3};
+use glam::{Vec2, Vec3};
 use simple_error::{bail, require_with};
 
 use crate::renderer::BlockVertex;

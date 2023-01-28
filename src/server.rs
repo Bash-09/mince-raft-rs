@@ -212,7 +212,7 @@ impl Server {
     }
 
     pub fn update(&mut self, ctx: &Context, delta: f32, settings: &mut Settings) {
-        self.world.generate_meshes(&ctx.dis, false);
+        self.world.generate_meshes(&ctx.dis, true);
 
         // Update entities
         for ent in self.entities.values_mut() {

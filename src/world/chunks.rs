@@ -1,7 +1,7 @@
 use std::{
     convert::TryInto,
     io::{Cursor, Read},
-    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockResult},
+    sync::{Arc, RwLock},
 };
 
 use glam::{IVec2, IVec3};
@@ -105,32 +105,20 @@ impl Chunk {
         *self.sections.get_mut(index).unwrap() = Some((Arc::new(RwLock::new(section)), None));
     }
 
+    pub fn get_sections(&self) -> Vec<Option<WrappedChunkSection>> {
+        self.sections
+            .iter()
+            .map(|cs| cs.as_ref().map(|ocs| ocs.0.clone()))
+            .collect()
+    }
+
     /// Returns an option containing a reference to the request section of this chunk
-    pub fn get_section(&self, y: i32) -> Option<RwLockReadGuard<ChunkSection>> {
+    pub fn get_section(&self, y: i32) -> Option<WrappedChunkSection> {
         self.sections
             .get(section_to_index(y))
             .unwrap_or(&None)
             .as_ref()
-            .map(|(s, _)| s.read().unwrap())
-    }
-
-    pub fn get_section_mut(&self, y: i32) -> Option<RwLockWriteGuard<ChunkSection>> {
-        self.sections
-            .get(section_to_index(y))
-            .unwrap_or(&None)
-            .as_ref()
-            .map(|(s, _)| s.write().unwrap())
-    }
-
-    pub fn try_get_section_mut(
-        &self,
-        y: i32,
-    ) -> Option<TryLockResult<RwLockWriteGuard<ChunkSection>>> {
-        self.sections
-            .get(section_to_index(y))
-            .unwrap_or(&None)
-            .as_ref()
-            .map(|(s, _)| s.try_write())
+            .map(|(s, _)| s.clone())
     }
 
     pub fn get_section_vbo(&self, y: i32) -> Option<&VertexBuffer<BlockVertex>> {
@@ -142,19 +130,8 @@ impl Chunk {
             .unwrap_or(None)
     }
 
-    pub fn get_section_containing(&self, y: i32) -> Option<RwLockReadGuard<ChunkSection>> {
+    pub fn get_section_containing(&self, y: i32) -> Option<WrappedChunkSection> {
         self.get_section(ChunkSection::section_containing_height(y))
-    }
-
-    pub fn get_section_containing_mut(&mut self, y: i32) -> Option<RwLockWriteGuard<ChunkSection>> {
-        self.get_section_mut(ChunkSection::section_containing_height(y))
-    }
-
-    pub fn try_get_section_containing_mut(
-        &mut self,
-        y: i32,
-    ) -> Option<TryLockResult<RwLockWriteGuard<ChunkSection>>> {
-        self.try_get_section_mut(ChunkSection::section_containing_height(y))
     }
 
     pub fn get_coords(&self) -> &ChunkLocation {
@@ -190,7 +167,11 @@ impl Chunk {
 
     pub fn block_at(&self, coords: &ChunkCoords) -> Option<&'static BlockState> {
         self.get_section(ChunkSection::section_containing_height(coords.y))
-            .map(|s| s.block_at(&ChunkSection::map_from_chunk_coords(coords)))
+            .map(|s| {
+                s.read()
+                    .unwrap()
+                    .block_at(&ChunkSection::map_from_chunk_coords(coords))
+            })
             .unwrap_or(None)
     }
 

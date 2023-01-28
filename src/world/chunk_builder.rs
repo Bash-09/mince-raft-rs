@@ -1,17 +1,134 @@
-use std::sync::RwLockReadGuard;
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    RwLockReadGuard,
+};
 
 use glam::IVec3;
+use threadpool::ThreadPool;
 
 use crate::{
     renderer::BlockVertex,
-    resources::{block_models::BlockModel, BLOCKS, BLOCK_MODELS_PARSED, BLOCK_TEXTURES},
+    resources::{block_models::BlockModel, BLOCKS, BLOCK_MODELS_PARSED},
 };
 
-use super::chunks::{block_index_to_pos, block_pos_to_index, ChunkSection};
+use super::{
+    chunks::{
+        block_index_to_pos, block_pos_to_index, Chunk, ChunkSection, WrappedChunkSection,
+        MAX_SECTION, MIN_SECTION,
+    },
+    SectionLocation,
+};
 
-pub struct ChunkBuilder {}
+pub struct ChunkBuilder {
+    incoming: Receiver<(SectionLocation, Vec<BlockVertex>)>,
+    outgoing: Sender<(SectionLocation, Vec<BlockVertex>)>,
+    pool: ThreadPool,
+}
 
 impl ChunkBuilder {
+    pub fn new() -> ChunkBuilder {
+        let (send, recv) = channel();
+        ChunkBuilder {
+            incoming: recv,
+            outgoing: send,
+            pool: ThreadPool::new(std::thread::available_parallelism().unwrap().into()),
+        }
+    }
+
+    pub fn get_incoming_meshes(&self) -> &Receiver<(SectionLocation, Vec<BlockVertex>)> {
+        &self.incoming
+    }
+
+    pub fn generate_chunk(
+        &self,
+        chunk: &Chunk,
+        north: &Chunk,
+        east: &Chunk,
+        south: &Chunk,
+        west: &Chunk,
+        threaded: bool,
+    ) {
+        for sec in chunk.get_sections() {
+            if sec.is_none() {
+                continue;
+            }
+            let sec = sec.unwrap();
+            let sec_read = sec.read().unwrap();
+            let loc = IVec3::new(chunk.get_coords().x, sec_read.y, chunk.get_coords().y);
+
+            let above = if loc.y < MAX_SECTION {
+                chunk.get_section(loc.y + 1)
+            } else {
+                None
+            };
+            let below = if loc.y > MIN_SECTION {
+                chunk.get_section(loc.y - 1)
+            } else {
+                None
+            };
+            let north = north.get_section(loc.y);
+            let south = south.get_section(loc.y);
+            let east = east.get_section(loc.y);
+            let west = west.get_section(loc.y);
+
+            self.generate_chunk_section(
+                sec.clone(),
+                loc,
+                above,
+                below,
+                north,
+                south,
+                east,
+                west,
+                threaded,
+            );
+        }
+    }
+
+    pub fn generate_chunk_section(
+        &self,
+        sect: WrappedChunkSection,
+        loc: SectionLocation,
+        above: Option<WrappedChunkSection>,
+        below: Option<WrappedChunkSection>,
+        north: Option<WrappedChunkSection>,
+        east: Option<WrappedChunkSection>,
+        south: Option<WrappedChunkSection>,
+        west: Option<WrappedChunkSection>,
+        threaded: bool,
+    ) {
+        let outgoing = self.outgoing.clone();
+
+        let run = move || {
+            let above = above.as_ref();
+            let below = below.as_ref();
+            let north = north.as_ref();
+            let south = south.as_ref();
+            let east = east.as_ref();
+            let west = west.as_ref();
+            outgoing
+                .send((
+                    loc,
+                    Self::generate_mesh(
+                        sect.read().unwrap(),
+                        above.map(|s| s.read().unwrap()),
+                        below.map(|s| s.read().unwrap()),
+                        north.map(|s| s.read().unwrap()),
+                        east.map(|s| s.read().unwrap()),
+                        south.map(|s| s.read().unwrap()),
+                        west.map(|s| s.read().unwrap()),
+                    ),
+                ))
+                .unwrap();
+        };
+
+        if threaded {
+            self.pool.execute(move || run());
+        } else {
+            run();
+        }
+    }
+
     pub fn generate_mesh(
         section: RwLockReadGuard<ChunkSection>,
         above: Option<RwLockReadGuard<ChunkSection>>,
@@ -142,195 +259,6 @@ impl ChunkBuilder {
                 vert.position[2] += pos.z as f32;
                 verts.push(vert);
             }
-            // verts.append(&mut ChunkBuilder::generate_block_mesh(
-            //     pos, *b, b_above, b_below, b_north, b_east, b_south, b_west,
-            // ));
-        }
-
-        verts
-    }
-
-    fn generate_block_mesh(
-        pos: IVec3,
-        block: u16,
-        above: u16,
-        below: u16,
-        north: u16,
-        east: u16,
-        south: u16,
-        west: u16,
-    ) -> Vec<BlockVertex> {
-        let mut verts: Vec<BlockVertex> = Vec::new();
-        let pos = pos.as_vec3();
-
-        // Above
-        if above == 0 {
-            let tex: f32 = BLOCK_TEXTURES.get("oak_log_top").unwrap().index as f32;
-
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z],
-                tex_coords: [1.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [0.0, 1.0, tex],
-            });
-        }
-        // Below
-        if below == 0 {
-            let tex: f32 = BLOCK_TEXTURES.get("oak_log_top").unwrap().index as f32;
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z + 1.0],
-                tex_coords: [0.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z],
-                tex_coords: [1.0, 0.0, tex],
-            });
-        }
-        // North
-        if north == 0 {
-            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z],
-                tex_coords: [0.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z],
-                tex_coords: [1.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-        }
-        // East
-        if east == 0 {
-            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z],
-                tex_coords: [0.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z + 1.0],
-                tex_coords: [1.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-        }
-        // South
-        if south == 0 {
-            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [0.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z + 1.0],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z + 1.0],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x + 1.0, pos.y, pos.z + 1.0],
-                tex_coords: [1.0, 0.0, tex],
-            });
-        }
-        // West
-        if west == 0 {
-            let tex: f32 = BLOCK_TEXTURES.get("grass_block_side").unwrap().index as f32;
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z],
-                tex_coords: [0.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y + 1.0, pos.z + 1.0],
-                tex_coords: [1.0, 1.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z],
-                tex_coords: [0.0, 0.0, tex],
-            });
-            verts.push(BlockVertex {
-                position: [pos.x, pos.y, pos.z + 1.0],
-                tex_coords: [1.0, 0.0, tex],
-            });
         }
 
         verts
