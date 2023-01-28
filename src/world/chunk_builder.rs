@@ -36,7 +36,10 @@ impl ChunkBuilder {
         ChunkBuilder {
             incoming: recv,
             outgoing: send,
-            pool: ThreadPool::new(threads),
+            pool: threadpool::Builder::new()
+                .num_threads(threads)
+                .thread_name("ChunkBuilderPool".to_string())
+                .build(),
         }
     }
 
