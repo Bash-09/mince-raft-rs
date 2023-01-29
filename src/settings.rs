@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::gui::main_menu::SavedServer;
@@ -14,6 +15,10 @@ pub struct Settings {
     pub online_play: bool,
     pub name: String,
     pub saved_servers: Vec<SavedServer>,
+
+    pub day_colour: [f32; 3],
+    pub fog_near: f32,
+    pub fog_far: f32,
 }
 
 impl Settings {
@@ -27,6 +32,10 @@ impl Settings {
             online_play: false,
             name: String::from("Harry"),
             saved_servers: Vec::new(),
+
+            day_colour: [0.2, 0.5, 0.9],
+            fog_near: 5.0,
+            fog_far: 320.0,
         }
     }
 

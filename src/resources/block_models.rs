@@ -233,157 +233,157 @@ impl BlockModel {
                 match key.as_ref() {
                     "up" => {
                         verts.push(BlockVertex {
-                            position: [element.to.x, 1.0, element.to.z],
+                            position: [element.to.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, 1.0, element.from.z],
+                            position: [element.to.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.1.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, 1.0, element.from.z],
+                            position: [element.from.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, 1.0, element.to.z],
+                            position: [element.to.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, 1.0, element.from.z],
+                            position: [element.from.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, 1.0, element.to.z],
+                            position: [element.from.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.0.x, face.uv.1.y, texture],
                         });
                     }
                     "down" => {
                         verts.push(BlockVertex {
-                            position: [element.to.x, 0.0, element.to.z],
+                            position: [element.to.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, 0.0, element.to.z],
+                            position: [element.from.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.0.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, 0.0, element.from.z],
+                            position: [element.from.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, 0.0, element.to.z],
+                            position: [element.to.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, 0.0, element.from.z],
+                            position: [element.from.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, 0.0, element.from.z],
+                            position: [element.to.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.1.x, face.uv.0.y, texture],
                         });
                     }
                     "north" => {
                         verts.push(BlockVertex {
-                            position: [element.to.x, element.to.y, 0.0],
+                            position: [element.to.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, element.from.y, 0.0],
+                            position: [element.from.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, element.to.y, 0.0],
+                            position: [element.from.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, element.to.y, 0.0],
+                            position: [element.to.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, element.from.y, 0.0],
+                            position: [element.to.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.1.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, element.from.y, 0.0],
+                            position: [element.from.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                     }
                     "east" => {
                         verts.push(BlockVertex {
-                            position: [1.0, element.to.y, element.to.z],
+                            position: [element.to.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [1.0, element.from.y, element.from.z],
+                            position: [element.to.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [1.0, element.to.y, element.from.z],
+                            position: [element.to.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [1.0, element.to.y, element.to.z],
+                            position: [element.to.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [1.0, element.from.y, element.to.z],
+                            position: [element.to.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [1.0, element.from.y, element.from.z],
+                            position: [element.to.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                     }
                     "south" => {
                         verts.push(BlockVertex {
-                            position: [element.to.x, element.to.y, 1.0],
+                            position: [element.to.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, element.to.y, 1.0],
+                            position: [element.from.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.0.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, element.from.y, 1.0],
+                            position: [element.from.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, element.to.y, 1.0],
+                            position: [element.to.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.from.x, element.from.y, 1.0],
+                            position: [element.from.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [element.to.x, element.from.y, 1.0],
+                            position: [element.to.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.0.y, texture],
                         });
                     }
                     "west" => {
                         verts.push(BlockVertex {
-                            position: [0.0, element.to.y, element.to.z],
+                            position: [element.from.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [0.0, element.to.y, element.from.z],
+                            position: [element.from.x, element.to.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [0.0, element.from.y, element.from.z],
+                            position: [element.from.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [0.0, element.to.y, element.to.z],
+                            position: [element.from.x, element.to.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.1.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [0.0, element.from.y, element.from.z],
+                            position: [element.from.x, element.from.y, element.from.z],
                             tex_coords: [face.uv.0.x, face.uv.0.y, texture],
                         });
                         verts.push(BlockVertex {
-                            position: [0.0, element.from.y, element.to.z],
+                            position: [element.from.x, element.from.y, element.to.z],
                             tex_coords: [face.uv.1.x, face.uv.0.y, texture],
                         });
                     }

@@ -9,6 +9,7 @@ use glium::*;
 use glium::{Display, Surface};
 
 use crate::resources::BLOCK_TEXTURES;
+use crate::settings::Settings;
 use crate::world::chunks::{MAX_SECTION, MIN_SECTION};
 use crate::{
     entities::{self, Entity},
@@ -145,8 +146,9 @@ impl Renderer {
         }
     }
 
-    pub fn render_server(&mut self, target: &mut Frame, serv: &Server) {
-        target.clear_color_and_depth((0.3, 0.6, 0.8, 0.0), 1.0);
+    pub fn render_server(&mut self, target: &mut Frame, serv: &Server, settings: &Settings) {
+        let col = serv.get_sky_colour(&settings.day_colour);
+        target.clear_color_and_depth((col.x, col.y, col.z, 0.0), 1.0);
 
         let params = DrawParameters {
             depth: Depth {
@@ -229,6 +231,9 @@ impl Renderer {
                         pvmat: pvmat,
                         tmat: tmat.to_cols_array_2d(),
                         textures: glium::uniforms::Sampler(&self.block_textures, behaviour),
+                        fogCol: [col.x, col.y, col.z, 1.0],
+                        fogNear: settings.fog_near,
+                        fogFar: settings.fog_far,
                     };
 
                     target

@@ -32,6 +32,14 @@ pub fn new_options_window() -> PersistentWindow<WindowManagerType> {
                                 state.rend.cam.set_fov(fov);
                             }
                         });
+                        ui.horizontal(|ui| {
+                            ui.label("Fog near");
+                            ui.add(egui::DragValue::new(&mut state.settings.fog_near));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Fog far");
+                            ui.add(egui::DragValue::new(&mut state.settings.fog_far));
+                        });
                     });
 
                     ui.collapsing("Input", |ui| {

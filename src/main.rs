@@ -11,7 +11,7 @@ extern crate quartz_nbt;
 use std::{sync::mpsc::TryRecvError, time::Instant};
 
 use crate::network::*;
-use crate::resources::{BLOCK_MODELS_PARSED, BLOCK_TEXTURES};
+use crate::resources::BLOCK_MODELS_PARSED;
 
 mod network;
 
@@ -199,7 +199,9 @@ impl Application for Client {
 
         // Render world if it exists
         if let Some(s) = &self.state.server {
-            self.state.rend.render_server(&mut target, s);
+            self.state
+                .rend
+                .render_server(&mut target, s, &self.state.settings);
         }
 
         // GUI

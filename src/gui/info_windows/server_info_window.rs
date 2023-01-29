@@ -2,7 +2,10 @@ use egui::{Color32, Context, RichText};
 
 use crate::{
     server::Server,
-    world::{block_coords, chunks::Chunk},
+    world::{
+        block_coords,
+        chunks::{Chunk, ChunkSection},
+    },
 };
 
 pub fn render(gui_ctx: &Context, server: &Server) {
@@ -119,13 +122,14 @@ pub fn render(gui_ctx: &Context, server: &Server) {
         ui.separator();
 
         let pos = block_coords(&server.get_player().get_position());
-        let chunk = Chunk::chunk_containing(&pos);
+        let chunk = ChunkSection::section_containing(&pos);
         let chunk_coords = Chunk::map_from_world_coords(&pos);
 
         ui.horizontal(|ui| {
             ui.label("Chunk: ");
             ui.label(
-                RichText::new(format!("{} / {}", chunk.x, chunk.y)).color(Color32::LIGHT_GRAY),
+                RichText::new(format!("{} / {} / {}", chunk.x, chunk.y, chunk.z))
+                    .color(Color32::LIGHT_GRAY),
             );
         });
 

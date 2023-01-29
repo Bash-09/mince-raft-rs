@@ -1,9 +1,14 @@
 #version 430
 
 in vec3 tex;
-uniform sampler2DArray textures;
-out vec4 color;
+in vec3 pos;
 
+uniform sampler2DArray textures;
+uniform vec4 fogCol;
+uniform float fogNear;
+uniform float fogFar;
+
+out vec4 color;
 
 void main() {
     vec4 texCol = texture(textures, tex);
@@ -12,5 +17,8 @@ void main() {
         discard;
     }
 
-    color = texCol;
+    float fogDistance = length(pos);
+    float fogAmount = smoothstep(fogNear, fogFar, fogDistance);
+
+    color = mix(texCol, fogCol, fogAmount);
 }

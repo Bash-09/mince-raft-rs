@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::AddAssign};
+use std::{collections::HashMap, f32::consts::PI, ops::AddAssign};
 
 use egui_winit::winit::event::VirtualKeyCode;
 use glam::{IVec2, Vec3};
@@ -158,6 +158,16 @@ impl Server {
 
     pub fn get_players(&self) -> &HashMap<UUID4, RemotePlayer> {
         &self.players
+    }
+
+    /// Generates a sky colour based on a provided base colour and the current time of day on the
+    /// server
+    pub fn get_sky_colour(&self, col: &[f32; 3]) -> Vec3 {
+        const LIGHTEST: i64 = 9_000;
+        let lerp = (((self.day_time - LIGHTEST) as f32 / 24_000.0) * PI * 2.0).cos() / 2.0 + 0.5;
+        let dark = Vec3::new(0.001, 0.002, 0.005);
+        let light = Vec3::from(*col);
+        dark.lerp(light, lerp)
     }
 
     /// Attempts to send a packet over the provided (possible) network channel

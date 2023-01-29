@@ -195,7 +195,7 @@ impl World {
 
             // Limit to 16 chunk sections per frame otherwise it can still tank frames from
             // uploading entire new chunks to the GPU at once
-            if i >= 8 {
+            if i >= 16 {
                 break;
             }
             i += 1;

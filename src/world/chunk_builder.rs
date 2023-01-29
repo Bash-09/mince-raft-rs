@@ -163,8 +163,8 @@ impl ChunkBuilder {
                 continue;
             }
 
-            let model: Option<&BlockModel> =
-                BLOCK_MODELS_PARSED.get(block.models.as_ref().unwrap().get(0).unwrap());
+            let model_key = block.models.as_ref().unwrap().get(0).unwrap();
+            let model: Option<&BlockModel> = BLOCK_MODELS_PARSED.get(model_key);
             if model.is_none() {
                 log::error!(
                     "Couldn't find model {}",
@@ -238,7 +238,6 @@ impl ChunkBuilder {
                 verts.push(vert);
             }
         }
-
         verts
     }
 }
